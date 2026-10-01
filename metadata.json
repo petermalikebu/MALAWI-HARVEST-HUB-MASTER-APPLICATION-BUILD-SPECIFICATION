@@ -1,0 +1,8 @@
+{
+  "name": "Malawi Harvest Hub",
+  "description": "Full-stack agricultural marketplace and logistics platform connecting smallholder farmers, buyers, transporters, and administrators across Malawi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
