@@ -631,7 +631,7 @@ router.post('/commodities', async (req, res) => {
 
     // Look up farmer
     let farmerList = await db.select().from(users).where(eq(users.uid, farmerUid)).limit(1);
-    let farmer = farmerList[0];
+    let farmer: any = farmerList[0];
 
     if (!farmer) {
       const allUsers = await db.select().from(users);
@@ -667,7 +667,7 @@ router.post('/commodities', async (req, res) => {
       pricePerUnit: price.toString(),
       district,
       location,
-      region: region || farmer[0].region || 'Central',
+      region: region || farmer.region || 'Central',
       quality: quality || 'Grade A - Premium',
       availabilityDate: availabilityDate || new Date().toISOString().split('T')[0],
       description: description || '',
@@ -677,9 +677,9 @@ router.post('/commodities', async (req, res) => {
 
     await logAudit({
       userUid: farmerUid,
-      userEmail: farmer[0].email,
-      userName: farmer[0].fullName,
-      role: farmer[0].role,
+      userEmail: farmer.email,
+      userName: farmer.fullName,
+      role: farmer.role,
       action: 'COMMODITY_CREATED',
       recordAffected: `Commodity #${inserted[0].id} (${commodityName})`,
       newValue: `${qty} ${unit || 'kg'} @ MWK ${price}/unit in ${district}`,
