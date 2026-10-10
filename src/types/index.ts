@@ -310,3 +310,44 @@ export const VEHICLE_TYPES = [
   'Articulated Trailer (20-30 Ton)',
   'Motorcycle / Tricycle',
 ];
+
+export const DISTRICT_TO_REGION: Record<string, string> = {
+  // Northern Region
+  'Chitipa': 'Northern',
+  'Karonga': 'Northern',
+  'Likoma': 'Northern',
+  'Mzimba': 'Northern',
+  'Mzuzu': 'Northern',
+  'Nkhatabay': 'Northern',
+  'Nkhata Bay': 'Northern',
+  'Rumphi': 'Northern',
+  // Central Region
+  'Dedza': 'Central',
+  'Dowa': 'Central',
+  'Kasungu': 'Central',
+  'Lilongwe': 'Central',
+  'Mchinji': 'Central',
+  'Nkhotakota': 'Central',
+  'Ntcheu': 'Central',
+  'Ntchisi': 'Central',
+  'Salima': 'Central',
+  // Southern Region
+  'Balaka': 'Southern',
+  'Blantyre': 'Southern',
+  'Chikwawa': 'Southern',
+  'Chiradzulu': 'Southern',
+  'Machinga': 'Southern',
+  'Mangochi': 'Southern',
+  'Mulanje': 'Southern',
+  'Mwanza': 'Southern',
+  'Neno': 'Southern',
+  'Nsanje': 'Southern',
+  'Phalombe': 'Southern',
+  'Thyolo': 'Southern',
+  'Zomba': 'Southern',
+};
+
+export function getDistrictRegion(district?: string): string {
+  if (!district) return 'Central';
+  return DISTRICT_TO_REGION[district] || 'Central';
+}

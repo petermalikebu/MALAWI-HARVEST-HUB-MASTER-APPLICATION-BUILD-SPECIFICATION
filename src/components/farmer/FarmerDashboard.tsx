@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
-import { Commodity, Order, Category, MALAWI_DISTRICTS } from '../../types/index.ts';
+import { Commodity, Order, Category, MALAWI_DISTRICTS, getDistrictRegion } from '../../types/index.ts';
 import {
   Sprout,
   Plus,
@@ -115,6 +115,7 @@ export const FarmerDashboard: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           farmerUid: currentUser.uid,
+          region: getDistrictRegion(newCommodity.district),
           ...newCommodity,
         }),
       });

@@ -139,6 +139,19 @@
       "vehicleRegistration": "",
       "vehicleCapacityKg": 0,
       "isAvailable": true
+    },
+    {
+      "id": 8,
+      "createdAt": "2026-10-10T13:57:51.328Z",
+      "updatedAt": "2026-10-10T13:57:51.328Z",
+      "uid": "non-existent-farmer-uid",
+      "email": "non-existent-farmer-uid@harvesthub.mw",
+      "fullName": "Smallholder Farmer",
+      "role": "farmer",
+      "district": "Zomba",
+      "region": "Central",
+      "tradingArea": "Chiimilire",
+      "isAvailable": true
     }
   ],
   "categories": [
@@ -310,6 +323,72 @@
       "status": "available",
       "createdAt": "2026-10-04T13:20:02.636Z",
       "updatedAt": "2026-10-10T13:20:02.636Z"
+    },
+    {
+      "id": 7,
+      "createdAt": "2026-10-10T13:57:51.328Z",
+      "updatedAt": "2026-10-10T13:57:51.328Z",
+      "farmerId": 8,
+      "farmerUid": "non-existent-farmer-uid",
+      "farmerName": "Smallholder Farmer",
+      "commodityName": "Mbatata",
+      "category": "Legumes & Pulses",
+      "quantity": 1000,
+      "initialQuantity": 1000,
+      "unit": "kg",
+      "pricePerUnit": "1000",
+      "district": "Zomba",
+      "location": "Chiimilire",
+      "region": "Central",
+      "quality": "Grade B - Standard Market Produce",
+      "availabilityDate": "2026-10-10",
+      "description": "Mbatata sa ufa",
+      "imageUrl": "https://example.com/test.jpg",
+      "status": "available"
+    },
+    {
+      "id": 8,
+      "createdAt": "2026-10-10T14:00:04.811Z",
+      "updatedAt": "2026-10-10T14:00:04.811Z",
+      "farmerId": 2,
+      "farmerUid": "farmer-chimwemwe-01",
+      "farmerName": "Chimwemwe Phiri",
+      "commodityName": "Mbatata",
+      "category": "Legumes & Pulses",
+      "quantity": 1000,
+      "initialQuantity": 1000,
+      "unit": "kg",
+      "pricePerUnit": "1000",
+      "district": "Zomba",
+      "location": "Chiimilire",
+      "region": "Central",
+      "quality": "Grade B - Standard Market Produce",
+      "availabilityDate": "2026-10-10",
+      "description": "Mbatata sa ufa zokoma zedi pamtengo it ziii",
+      "imageUrl": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop&q=80",
+      "status": "available"
+    },
+    {
+      "id": 9,
+      "createdAt": "2026-10-10T14:00:24.251Z",
+      "updatedAt": "2026-10-10T14:00:24.251Z",
+      "farmerId": 2,
+      "farmerUid": "farmer-chimwemwe-01",
+      "farmerName": "Chimwemwe Phiri",
+      "commodityName": "Mbatata Sweet Potatoes",
+      "category": "Legumes & Pulses",
+      "quantity": 1000,
+      "initialQuantity": 1000,
+      "unit": "kg",
+      "pricePerUnit": "1000",
+      "district": "Zomba",
+      "location": "Chiimilire",
+      "region": "Southern",
+      "quality": "Grade B - Standard Market Produce",
+      "availabilityDate": "2026-10-10",
+      "description": "Mbatata sa ufa zokoma zedi pamtengo it ziii",
+      "imageUrl": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop&q=80",
+      "status": "available"
     }
   ],
   "orders": [
@@ -610,6 +689,42 @@
       "role": "transporter",
       "action": "USER_LOGGED_IN",
       "recordAffected": "User #4 (Kondwani Chirwa, Role: transporter)"
+    },
+    {
+      "id": 7,
+      "createdAt": "2026-10-10T13:57:51.329Z",
+      "updatedAt": "2026-10-10T13:57:51.329Z",
+      "userUid": "non-existent-farmer-uid",
+      "userEmail": "non-existent-farmer-uid@harvesthub.mw",
+      "userName": "Smallholder Farmer",
+      "role": "farmer",
+      "action": "COMMODITY_CREATED",
+      "recordAffected": "Commodity #7 (Mbatata)",
+      "newValue": "1000 kg @ MWK 1000/unit in Zomba"
+    },
+    {
+      "id": 8,
+      "createdAt": "2026-10-10T14:00:04.812Z",
+      "updatedAt": "2026-10-10T14:00:04.812Z",
+      "userUid": "farmer-chimwemwe-01",
+      "userEmail": "chimwemwe.phiri@mhh.mw",
+      "userName": "Chimwemwe Phiri",
+      "role": "farmer",
+      "action": "COMMODITY_CREATED",
+      "recordAffected": "Commodity #8 (Mbatata)",
+      "newValue": "1000 kg @ MWK 1000/unit in Zomba"
+    },
+    {
+      "id": 9,
+      "createdAt": "2026-10-10T14:00:24.252Z",
+      "updatedAt": "2026-10-10T14:00:24.252Z",
+      "userUid": "farmer-chimwemwe-01",
+      "userEmail": "chimwemwe.phiri@mhh.mw",
+      "userName": "Chimwemwe Phiri",
+      "role": "farmer",
+      "action": "COMMODITY_CREATED",
+      "recordAffected": "Commodity #9 (Mbatata Sweet Potatoes)",
+      "newValue": "1000 kg @ MWK 1000/unit in Zomba"
     }
   ]
 }

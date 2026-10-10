@@ -14,6 +14,7 @@ import {
 } from '../db/schema.ts';
 import { eq, desc, and, or, sql } from 'drizzle-orm';
 import { broadcastEvent } from './realtime.ts';
+import { getDistrictRegion } from '../types/index.ts';
 
 const router = express.Router();
 
@@ -631,7 +632,7 @@ router.post('/commodities', async (req, res) => {
 
     // Look up farmer
     let farmerList = await db.select().from(users).where(eq(users.uid, farmerUid)).limit(1);
-    let farmer: any = farmerList[0];
+    let farmer: any = farmerList && farmerList.length > 0 ? farmerList[0] : null;
 
     if (!farmer) {
       const allUsers = await db.select().from(users);
@@ -639,6 +640,8 @@ router.post('/commodities', async (req, res) => {
         (u: any) => u.uid === farmerUid || (u.email && u.email.toLowerCase() === String(farmerUid).toLowerCase())
       );
     }
+
+    const calculatedRegion = region || (district ? getDistrictRegion(district) : null) || farmer?.region || 'Central';
 
     if (!farmer) {
       // Auto-provision profile so a registered farmer never gets blocked from listing produce
@@ -648,17 +651,17 @@ router.post('/commodities', async (req, res) => {
         fullName: 'Smallholder Farmer',
         role: 'farmer',
         district: district || 'Lilongwe',
-        region: region || 'Central',
+        region: calculatedRegion,
         tradingArea: location || '',
         isAvailable: true,
       }).returning();
-      farmer = newFarmerInserted[0];
+      farmer = newFarmerInserted && newFarmerInserted.length > 0 ? newFarmerInserted[0] : null;
     }
 
     const inserted = await db.insert(commodities).values({
-      farmerId: farmer.id,
-      farmerUid: farmer.uid || farmerUid,
-      farmerName: farmer.fullName || 'Registered Farmer',
+      farmerId: farmer?.id || 1,
+      farmerUid: farmer?.uid || farmerUid,
+      farmerName: farmer?.fullName || 'Smallholder Farmer',
       commodityName,
       category,
       quantity: qty,
@@ -667,7 +670,7 @@ router.post('/commodities', async (req, res) => {
       pricePerUnit: price.toString(),
       district,
       location,
-      region: region || farmer.region || 'Central',
+      region: calculatedRegion,
       quality: quality || 'Grade A - Premium',
       availabilityDate: availabilityDate || new Date().toISOString().split('T')[0],
       description: description || '',
@@ -677,11 +680,11 @@ router.post('/commodities', async (req, res) => {
 
     await logAudit({
       userUid: farmerUid,
-      userEmail: farmer.email,
-      userName: farmer.fullName,
-      role: farmer.role,
+      userEmail: farmer?.email || `${farmerUid}@harvesthub.mw`,
+      userName: farmer?.fullName || 'Smallholder Farmer',
+      role: farmer?.role || 'farmer',
       action: 'COMMODITY_CREATED',
-      recordAffected: `Commodity #${inserted[0].id} (${commodityName})`,
+      recordAffected: `Commodity #${inserted[0]?.id || ''} (${commodityName})`,
       newValue: `${qty} ${unit || 'kg'} @ MWK ${price}/unit in ${district}`,
     });
 
