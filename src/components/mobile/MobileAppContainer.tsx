@@ -20,6 +20,8 @@ import { FarmerDashboard } from '../farmer/FarmerDashboard.tsx';
 import { BuyerMarketplace } from '../buyer/BuyerMarketplace.tsx';
 import { BuyerOrders } from '../buyer/BuyerOrders.tsx';
 import { TransporterDashboard } from '../transporter/TransporterDashboard.tsx';
+import { AdminDashboard } from '../admin/AdminDashboard.tsx';
+import { FinanceDashboard } from '../finance/FinanceDashboard.tsx';
 
 interface MobileAppContainerProps {
   onCloseMobileMode: () => void;
@@ -30,7 +32,7 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
   onCloseMobileMode,
   onOpenNotifications,
 }) => {
-  const { currentUser, switchDemoRole, logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { isConnected, unreadCount } = useRealtime();
 
   // Mobile active navigation tab
@@ -74,53 +76,112 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
       }
     }
 
+    if (role === 'admin') {
+      if (mobileTab === 'profile') {
+        return renderProfileView();
+      }
+      return <AdminDashboard />;
+    }
+
+    if (role === 'finance_admin') {
+      if (mobileTab === 'profile') {
+        return renderProfileView();
+      }
+      return <FinanceDashboard />;
+    }
+
     // Default fallback
     return <BuyerMarketplace />;
   };
 
   const renderProfileView = () => (
     <div className="p-4 space-y-4">
-      <div className="bg-white rounded-2xl border border-stone-200 p-5 text-center space-y-2">
-        <div className="w-16 h-16 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center font-bold text-xl mx-auto">
-          {currentUser?.fullName.charAt(0)}
+      <div className="bg-white rounded-2xl border border-stone-200 p-5 text-center space-y-3">
+        {currentUser?.photoUrl ? (
+          <img
+            src={currentUser.photoUrl}
+            alt={currentUser.fullName}
+            className="w-16 h-16 rounded-full object-cover ring-2 ring-emerald-600/30 shadow-xs mx-auto"
+          />
+        ) : (
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center font-bold text-xl mx-auto">
+            {currentUser?.fullName?.charAt(0) || 'U'}
+          </div>
+        )}
+        <div>
+          <h3 className="font-bold text-stone-900 text-base">{currentUser?.fullName}</h3>
+          <p className="text-xs text-stone-500 capitalize font-medium">
+            {currentUser?.role === 'admin'
+              ? 'Lead Administrator'
+              : currentUser?.role === 'farmer'
+              ? 'Smallholder Farmer'
+              : currentUser?.role === 'buyer'
+              ? 'Agro-Commodity Buyer'
+              : currentUser?.role === 'transporter'
+              ? 'Freight Transporter'
+              : 'Finance Administrator'}{' '}
+            &bull; {currentUser?.district}
+          </p>
         </div>
-        <h3 className="font-bold text-stone-900 text-lg">{currentUser?.fullName}</h3>
-        <p className="text-xs text-stone-500 capitalize">{currentUser?.role.replace('_', ' ')} &bull; {currentUser?.district}</p>
-        <div className="text-xs text-stone-600 font-mono bg-stone-50 p-2 rounded-lg border border-stone-100">
-          Phone: {currentUser?.phoneNumber || '+265 888 123 456'}
-        </div>
+
+        {/* Upload Profile Picture on Mobile */}
+        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold cursor-pointer transition-colors">
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file || !currentUser) return;
+              const reader = new FileReader();
+              reader.onload = async () => {
+                const dataUrl = reader.result as string;
+                try {
+                  await fetch('/api/users/profile-photo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: currentUser.uid, photoUrl: dataUrl }),
+                  });
+                  window.location.reload();
+                } catch (err) {
+                  console.error(err);
+                }
+              };
+              reader.readAsDataURL(file);
+            }}
+          />
+          <span>📷 Change Profile Picture</span>
+        </label>
       </div>
 
-      <div className="bg-white rounded-2xl border border-stone-200 p-4 space-y-3">
-        <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider">
-          Simulate Role Perspective
+      <div className="bg-white rounded-2xl border border-stone-200 p-4 space-y-2 text-xs">
+        <h4 className="font-bold text-stone-900 text-xs border-b border-stone-100 pb-1.5">
+          Account Profile Details
         </h4>
-        <div className="grid grid-cols-1 gap-1.5 text-xs">
-          <button
-            onClick={() => { switchDemoRole('farmer'); setMobileTab('home'); }}
-            className={`p-2.5 rounded-xl border text-left font-semibold ${
-              role === 'farmer' ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'border-stone-200'
-            }`}
-          >
-            🌾 Smallholder Farmer (Mchinji)
-          </button>
-          <button
-            onClick={() => { switchDemoRole('buyer'); setMobileTab('home'); }}
-            className={`p-2.5 rounded-xl border text-left font-semibold ${
-              role === 'buyer' ? 'bg-amber-50 border-amber-300 text-amber-900' : 'border-stone-200'
-            }`}
-          >
-            🛒 Wholesale Buyer (Lilongwe)
-          </button>
-          <button
-            onClick={() => { switchDemoRole('transporter'); setMobileTab('home'); }}
-            className={`p-2.5 rounded-xl border text-left font-semibold ${
-              role === 'transporter' ? 'bg-blue-50 border-blue-300 text-blue-900' : 'border-stone-200'
-            }`}
-          >
-            🚚 Transporter (Dedza / Lilongwe)
-          </button>
+        <div className="flex justify-between py-1 border-b border-stone-50">
+          <span className="text-stone-400">Email:</span>
+          <span className="font-medium text-stone-800 truncate max-w-[180px]">{currentUser?.email}</span>
         </div>
+        <div className="flex justify-between py-1 border-b border-stone-50">
+          <span className="text-stone-400">Phone:</span>
+          <span className="font-medium text-stone-800">{currentUser?.phoneNumber || 'Not provided'}</span>
+        </div>
+        <div className="flex justify-between py-1 border-b border-stone-50">
+          <span className="text-stone-400">District:</span>
+          <span className="font-medium text-stone-800">{currentUser?.district}</span>
+        </div>
+        {currentUser?.tradingArea && (
+          <div className="flex justify-between py-1 border-b border-stone-50">
+            <span className="text-stone-400">Trading Center:</span>
+            <span className="font-medium text-stone-800">{currentUser?.tradingArea}</span>
+          </div>
+        )}
+        {currentUser?.vehicleType && (
+          <div className="flex justify-between py-1">
+            <span className="text-stone-400">Vehicle:</span>
+            <span className="font-medium text-stone-800">{currentUser?.vehicleType}</span>
+          </div>
+        )}
       </div>
 
       <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 text-xs space-y-2 text-amber-900">
@@ -142,7 +203,7 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
         className="w-full py-3 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 border border-rose-200 transition-colors shadow-2xs"
       >
         <LogOut className="w-4 h-4" />
-        <span>Sign Out (Log Out) of Account</span>
+        <span>Sign Out of Harvest Hub</span>
       </button>
     </div>
   );

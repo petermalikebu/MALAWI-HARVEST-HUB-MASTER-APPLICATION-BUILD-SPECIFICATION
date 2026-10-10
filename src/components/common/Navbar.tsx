@@ -35,63 +35,40 @@ export const Navbar: React.FC<NavbarProps> = ({
   setIsMobileSimulator,
   onOpenNotifications,
 }) => {
-  const { currentUser, switchDemoRole, loginAsUser, loginWithGoogle, logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { isConnected, unreadCount } = useRealtime();
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [accessDeniedNotice, setAccessDeniedNotice] = useState<string | null>(null);
 
-  const rolesList: { role: UserRole; label: string; icon: any; color: string; desc: string; uid?: string }[] = [
-    {
-      role: 'farmer',
+  const roleDisplayConfig: Record<UserRole, { label: string; icon: any; color: string }> = {
+    farmer: {
       label: 'Smallholder Farmer',
       icon: Sprout,
       color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-      desc: 'Chimwemwe Phiri (Mchinji)',
-      uid: 'farmer-chimwemwe-01',
     },
-    {
-      role: 'buyer',
+    buyer: {
       label: 'Agro-Commodity Buyer',
       icon: ShoppingCart,
       color: 'text-amber-700 bg-amber-50 border-amber-200',
-      desc: 'Alinafe Banda (Lilongwe)',
-      uid: 'buyer-alinafe-02',
     },
-    {
-      role: 'transporter',
-      label: 'Logistics Transporter',
+    transporter: {
+      label: 'Freight Transporter',
       icon: Truck,
       color: 'text-blue-700 bg-blue-50 border-blue-200',
-      desc: 'Kondwani Chirwa (5-Ton Canter)',
-      uid: 'transporter-kondwani-03',
     },
-    {
-      role: 'admin',
-      label: 'Peter Malikebu',
+    admin: {
+      label: 'Lead Platform Administrator',
       icon: ShieldCheck,
       color: 'text-purple-700 bg-purple-50 border-purple-200',
-      desc: 'Lead Administrator &bull; Lilongwe',
-      uid: 'frF3xukObzdA8AhCBYIBPYV0UK13',
     },
-    {
-      role: 'admin',
-      label: 'Joshua Malikebu',
-      icon: ShieldCheck,
-      color: 'text-purple-700 bg-purple-50 border-purple-200',
-      desc: 'Lead Administrator &bull; Lilongwe',
-      uid: '9DXK6Cfy4FaODmqyVm7q8yrKup82',
-    },
-    {
-      role: 'finance_admin',
+    finance_admin: {
       label: 'Finance Administrator',
       icon: Coins,
       color: 'text-rose-700 bg-rose-50 border-rose-200',
-      desc: 'Chisomo Mwale (Ledger & Commission)',
-      uid: 'finance-chisomo-05',
     },
-  ];
+  };
 
-  const currentRoleConfig = rolesList.find((r) => r.role === currentUser?.role) || rolesList[0];
+  const currentRoleConfig = currentUser?.role ? roleDisplayConfig[currentUser.role] || roleDisplayConfig.farmer : roleDisplayConfig.farmer;
   const CurrentIcon = currentRoleConfig.icon;
 
   return (
@@ -337,25 +314,42 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Role Switcher & Profile Dropdown */}
+            {/* User Profile Card & Profile Photo Upload (No role-switching) */}
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <button
                     onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 transition-colors shadow-2xs"
+                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 transition-colors shadow-2xs"
                   >
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${currentRoleConfig.color}`}
-                    >
-                      <CurrentIcon className="w-4 h-4" />
-                    </div>
+                    {currentUser.photoUrl ? (
+                      <img
+                        src={currentUser.photoUrl}
+                        alt={currentUser.fullName}
+                        className="w-7 h-7 rounded-lg object-cover ring-1 ring-emerald-500/30"
+                      />
+                    ) : (
+                      <div
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${currentRoleConfig.color}`}
+                      >
+                        <CurrentIcon className="w-4 h-4" />
+                      </div>
+                    )}
                     <div className="text-left hidden md:block">
                       <div className="text-xs font-bold text-stone-900 leading-tight">
                         {currentUser?.fullName}
                       </div>
                       <div className="text-[10px] font-medium text-stone-500 leading-tight">
-                        {currentUser?.role === 'admin' ? 'Lead Admin' : currentRoleConfig.label} &bull; {currentUser?.district}
+                        {currentUser?.role === 'admin'
+                          ? 'Lead Administrator'
+                          : currentUser?.role === 'farmer'
+                          ? 'Smallholder Farmer'
+                          : currentUser?.role === 'buyer'
+                          ? 'Agro-Commodity Buyer'
+                          : currentUser?.role === 'transporter'
+                          ? 'Freight Transporter'
+                          : 'Finance Administrator'}{' '}
+                        &bull; {currentUser?.district}
                       </div>
                     </div>
                     <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
@@ -363,129 +357,147 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {roleDropdownOpen && (
                     <div
-                      className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-stone-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
-                      onClick={() => setRoleDropdownOpen(false)}
+                      className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-stone-200 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150 space-y-3"
                     >
-                      <div className="px-3 py-2 border-b border-stone-100">
-                        <p className="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">
-                          Switch Role for Testing
-                        </p>
-                        <p className="text-xs text-stone-600 mt-0.5">
-                          Experience the system from all 5 perspectives:
-                        </p>
-                      </div>
-
-                      <div className="p-1 space-y-0.5">
-                        {rolesList.map((r) => {
-                          const Icon = r.icon;
-                          const isCurrent = r.uid ? currentUser?.uid === r.uid : currentUser?.role === r.role;
-                          const isLeadAdminRole = r.role === 'admin';
-                          const isFinanceRole = r.role === 'finance_admin';
-
-                          const isRestrictedForUser =
-                            (isLeadAdminRole && currentUser?.role !== 'admin') ||
-                            (isFinanceRole && currentUser?.role !== 'admin' && currentUser?.role !== 'finance_admin');
-
-                          return (
-                            <button
-                              key={r.uid || r.role}
-                              onClick={async (e) => {
-                                if (isRestrictedForUser) {
-                                  e.stopPropagation();
-                                  if (isLeadAdminRole) {
-                                    setAccessDeniedNotice(
-                                      'Access Denied: Only authorized Platform Administrators (Peter Malikebu & Joshua Malikebu) can open the Administrator Control Center. As a farmer, transporter, or buyer, you can freely access your respective operations.'
-                                    );
-                                  } else {
-                                    setAccessDeniedNotice(
-                                      'Access Denied: Only Finance Administrators (Chisomo Mwale) and Lead Administrators have access to the Finance & Escrow portal. You have full access to Farmer and Transporter hiring operations.'
-                                    );
+                      {/* User Profile Header */}
+                      <div className="flex items-center gap-3 pb-3 border-b border-stone-100">
+                        <div className="relative group">
+                          {currentUser.photoUrl ? (
+                            <img
+                              src={currentUser.photoUrl}
+                              alt={currentUser.fullName}
+                              className="w-13 h-13 rounded-2xl object-cover ring-2 ring-emerald-600/30 shadow-xs"
+                            />
+                          ) : (
+                            <div className="w-13 h-13 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-base shadow-xs">
+                              <CurrentIcon className="w-6 h-6" />
+                            </div>
+                          )}
+                          <label className="absolute -bottom-1 -right-1 p-1 bg-stone-900 hover:bg-stone-800 text-white rounded-lg cursor-pointer shadow-md text-[10px]" title="Change profile picture">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = async () => {
+                                  const dataUrl = reader.result as string;
+                                  try {
+                                    await fetch('/api/users/profile-photo', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ uid: currentUser.uid, photoUrl: dataUrl }),
+                                    });
+                                    window.location.reload();
+                                  } catch (err) {
+                                    console.error(err);
                                   }
-                                  return;
-                                }
-
-                                if (r.uid) {
-                                  await loginAsUser(r.uid);
-                                } else {
-                                  await switchDemoRole(r.role);
-                                }
-                                if (r.role === 'farmer') setActiveTab('farmer_commodities');
-                                else if (r.role === 'buyer') setActiveTab('marketplace');
-                                else if (r.role === 'transporter') setActiveTab('transporter_jobs');
-                                else if (r.role === 'admin') setActiveTab('admin_overview');
-                                else if (r.role === 'finance_admin') setActiveTab('finance_revenue');
+                                };
+                                reader.readAsDataURL(file);
                               }}
-                              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-xs transition-colors ${
-                                isCurrent
-                                  ? 'bg-stone-100 font-semibold text-stone-900'
-                                  : isRestrictedForUser
-                                  ? 'text-stone-400 hover:bg-stone-50/80'
-                                  : 'text-stone-700 hover:bg-stone-50'
-                              }`}
-                            >
-                              <div className={`p-1.5 rounded-md ${r.color} ${isRestrictedForUser ? 'opacity-50' : ''}`}>
-                                <Icon className="w-3.5 h-3.5" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-stone-900 truncate flex items-center gap-1.5">
-                                  <span>{r.label}</span>
-                                  {isRestrictedForUser && (
-                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
-                                      <Lock className="w-2.5 h-2.5 text-amber-700" />
-                                      <span>Locked</span>
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[10px] text-stone-500 truncate">{r.desc}</div>
-                              </div>
-                              {isCurrent && (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                              )}
-                            </button>
-                          );
-                        })}
+                            />
+                            📷
+                          </label>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-stone-900 text-sm truncate">
+                            {currentUser.fullName}
+                          </h4>
+                          <span className="inline-block px-2 py-0.5 mt-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {currentUser.role === 'admin'
+                              ? 'Lead Administrator'
+                              : currentUser.role === 'farmer'
+                              ? 'Smallholder Farmer'
+                              : currentUser.role === 'buyer'
+                              ? 'Agro-Commodity Buyer'
+                              : currentUser.role === 'transporter'
+                              ? 'Freight Transporter'
+                              : 'Finance Administrator'}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="border-t border-stone-100 mt-1 pt-1 px-1">
-                        <button
-                          onClick={loginWithGoogle}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-stone-700 hover:bg-stone-50 rounded-lg"
-                        >
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                            <path
-                              fill="#4285F4"
-                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                            />
-                            <path
-                              fill="#34A853"
-                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                            />
-                            <path
-                              fill="#FBBC05"
-                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                            />
-                            <path
-                              fill="#EA4335"
-                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                            />
-                          </svg>
-                          <span>Sign in with Google OAuth</span>
-                        </button>
-                        <button
-                          onClick={logout}
-                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg font-bold"
-                        >
-                          <LogOut className="w-3.5 h-3.5" />
-                          <span>Sign out (Logout)</span>
-                        </button>
+                      {/* User Details */}
+                      <div className="space-y-1.5 text-xs text-stone-600 bg-stone-50 p-3 rounded-xl border border-stone-100">
+                        <div className="flex justify-between">
+                          <span className="text-stone-400">Email:</span>
+                          <span className="font-medium text-stone-800 truncate max-w-[170px]">{currentUser.email}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-stone-400">Phone:</span>
+                          <span className="font-medium text-stone-800">{currentUser.phoneNumber || 'Not provided'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-stone-400">District:</span>
+                          <span className="font-medium text-stone-800">{currentUser.district}</span>
+                        </div>
+                        {currentUser.tradingArea && (
+                          <div className="flex justify-between">
+                            <span className="text-stone-400">Trading Center:</span>
+                            <span className="font-medium text-stone-800">{currentUser.tradingArea}</span>
+                          </div>
+                        )}
+                        {currentUser.vehicleType && (
+                          <div className="flex justify-between">
+                            <span className="text-stone-400">Vehicle:</span>
+                            <span className="font-medium text-stone-800">{currentUser.vehicleType}</span>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Photo Upload Hint */}
+                      <label className="w-full py-2 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = async () => {
+                              const dataUrl = reader.result as string;
+                              try {
+                                await fetch('/api/users/profile-photo', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ uid: currentUser.uid, photoUrl: dataUrl }),
+                                });
+                                window.location.reload();
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                        <span>Upload / Change Profile Picture</span>
+                      </label>
+
+                      {/* Sign Out Button */}
+                      <button
+                        onClick={async () => {
+                          setRoleDropdownOpen(false);
+                          await logout();
+                          setActiveTab('signin');
+                        }}
+                        className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-colors"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Sign Out of Harvest Hub</span>
+                      </button>
                     </div>
                   )}
                 </div>
 
                 {/* Direct Prominent Sign Out Button */}
                 <button
-                  onClick={logout}
+                  onClick={async () => {
+                    await logout();
+                    setActiveTab('signin');
+                  }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-300 text-stone-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-bold transition-all shadow-2xs"
                   title="Sign out of your account"
                 >

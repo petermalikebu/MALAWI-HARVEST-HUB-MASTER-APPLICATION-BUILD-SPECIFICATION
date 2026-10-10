@@ -52,6 +52,18 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
 
+  // Payment method state
+  const [paymentMethod, setPaymentMethod] = useState<'airtel_money' | 'tnm_mpamba' | 'nbs_bank'>('airtel_money');
+  const [buyerPaymentPhone, setBuyerPaymentPhone] = useState(currentUser?.phoneNumber || '+265 ');
+  const [paymentRef, setPaymentRef] = useState('');
+  const [copiedBadge, setCopiedBadge] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedBadge(label);
+    setTimeout(() => setCopiedBadge(null), 2500);
+  };
+
   const fetchCommodities = async () => {
     try {
       setLoading(true);
@@ -85,6 +97,9 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
   const handleOpenOrderModal = (c: Commodity) => {
     setOrderingCommodity(c);
     setOrderQuantity(Math.min(500, c.quantity));
+    setPaymentMethod('airtel_money');
+    setBuyerPaymentPhone(currentUser?.phoneNumber || '+265 ');
+    setPaymentRef('');
     setOrderSuccess(null);
     setOrderError(null);
   };
@@ -93,8 +108,20 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
     e.preventDefault();
     if (!orderingCommodity || !currentUser) return;
 
+    if (!paymentRef.trim()) {
+      setOrderError('Please enter your transaction reference number or SMS confirmation ID from Airtel Money, TNM Mpamba, or NBS Bank.');
+      return;
+    }
+
     setSubmittingOrder(true);
     setOrderError(null);
+
+    const formattedPaymentMethod =
+      paymentMethod === 'airtel_money'
+        ? 'Airtel Money (+265 999 036 912)'
+        : paymentMethod === 'tnm_mpamba'
+        ? 'TNM Mpamba (+265 895 357 535)'
+        : 'NBS Bank (Acc: 12100006186)';
 
     try {
       const res = await fetch('/api/orders', {
@@ -110,6 +137,9 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
           notes,
           includeTransportEstimate: includeTransport,
           transportFee: includeTransport ? transportEstimate : 0,
+          paymentMethod: formattedPaymentMethod,
+          paymentRef: paymentRef.trim(),
+          buyerPhone: buyerPaymentPhone.trim(),
         }),
       });
 
@@ -120,7 +150,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
 
       const orderData = await res.json();
       setOrderSuccess(
-        `Order #${orderData.orderNumber} successfully submitted to ${orderingCommodity.farmerName}! Stock reserved.`
+        `Order #${orderData.orderNumber} successfully submitted with ${formattedPaymentMethod} (Ref: ${paymentRef.trim()})! Financial Administrator will verify your payment into escrow and notify Farmer ${orderingCommodity.farmerName} to confirm the purchase.`
       );
       fetchCommodities();
       if (onOrderPlaced) onOrderPlaced();
@@ -522,7 +552,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                     placeholder="e.g. Moisture test certificate required on arrival"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-medium"
                   />
                 </div>
 
@@ -554,8 +584,165 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                     </div>
                   )}
                   <div className="pt-2 border-t border-stone-200 flex justify-between font-extrabold text-stone-900 text-sm">
-                    <span>Grand Total (in Escrow):</span>
-                    <span className="text-amber-800">MWK {grandTotal.toLocaleString()}</span>
+                    <span>Grand Total (Deposit to Escrow):</span>
+                    <span className="text-amber-800 text-base">MWK {grandTotal.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* ESCROW PAYMENT CHANNELS: Airtel Money, TNM Mpamba, NBS Bank */}
+                <div className="space-y-3 pt-2 border-t border-stone-200">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-extrabold text-stone-900 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>Select Escrow Payment Channel *</span>
+                    </label>
+                    {copiedBadge && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full animate-pulse">
+                        {copiedBadge} copied!
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* Airtel Money Option */}
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('airtel_money')}
+                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                        paymentMethod === 'airtel_money'
+                          ? 'border-red-600 bg-red-50/60 ring-2 ring-red-500/20'
+                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className="font-extrabold text-xs text-red-700">Airtel Money</span>
+                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'airtel_money' ? 'bg-red-600' : 'border border-stone-300'}`} />
+                      </div>
+                      <div className="font-mono text-[11px] font-bold text-stone-800">
+                        +265 999 036 912
+                      </div>
+                      <div className="text-[10px] text-stone-500 mt-0.5">
+                        Peter Malikebu / Escrow
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard('+265999036912', 'Airtel Number');
+                        }}
+                        className="mt-2 text-[10px] font-bold text-red-700 hover:underline text-left"
+                      >
+                        📋 Copy Number
+                      </button>
+                    </button>
+
+                    {/* TNM Mpamba Option */}
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('tnm_mpamba')}
+                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                        paymentMethod === 'tnm_mpamba'
+                          ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className="font-extrabold text-xs text-emerald-700">TNM Mpamba</span>
+                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'tnm_mpamba' ? 'bg-emerald-600' : 'border border-stone-300'}`} />
+                      </div>
+                      <div className="font-mono text-[11px] font-bold text-stone-800">
+                        +265 895 357 535
+                      </div>
+                      <div className="text-[10px] text-stone-500 mt-0.5">
+                        Malawi Harvest Hub Escrow
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard('+265895357535', 'Mpamba Number');
+                        }}
+                        className="mt-2 text-[10px] font-bold text-emerald-700 hover:underline text-left"
+                      >
+                        📋 Copy Number
+                      </button>
+                    </button>
+
+                    {/* NBS Bank Option */}
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('nbs_bank')}
+                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                        paymentMethod === 'nbs_bank'
+                          ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
+                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className="font-extrabold text-xs text-blue-800">NBS Bank Malawi</span>
+                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'nbs_bank' ? 'bg-blue-600' : 'border border-stone-300'}`} />
+                      </div>
+                      <div className="font-mono text-[11px] font-bold text-stone-800">
+                        12100006186
+                      </div>
+                      <div className="text-[10px] text-stone-500 mt-0.5">
+                        Harvest Hub Central Escrow
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard('12100006186', 'NBS Account');
+                        }}
+                        className="mt-2 text-[10px] font-bold text-blue-800 hover:underline text-left"
+                      >
+                        📋 Copy Account
+                      </button>
+                    </button>
+                  </div>
+
+                  {/* Payment Verification Inputs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">
+                        Sender Phone or Bank Account *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. +265 999 123 456"
+                        value={buyerPaymentPhone}
+                        onChange={(e) => setBuyerPaymentPhone(e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">
+                        Transaction Ref / SMS Confirmation Code *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. MP892182 / AT77239"
+                        value={paymentRef}
+                        onChange={(e) => setPaymentRef(e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Escrow Workflow Notice */}
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                      <span>🔒 Financial Administrator Escrow Process</span>
+                    </div>
+                    <p className="leading-relaxed">
+                      1. You submit payment of <strong>MWK {grandTotal.toLocaleString()}</strong> via {paymentMethod === 'airtel_money' ? 'Airtel Money (+265 999 036 912)' : paymentMethod === 'tnm_mpamba' ? 'TNM Mpamba (+265 895 357 535)' : 'NBS Bank (Acc: 12100006186)'}.<br />
+                      2. Financial Administrator verifies the payment and locks funds in Escrow.<br />
+                      3. Farmer {orderingCommodity.farmerName} confirms the purchase to authorize dispatch.<br />
+                      4. Financial Administrator sends the payout to the farmer at the end upon delivery completion!
+                    </p>
                   </div>
                 </div>
 
@@ -573,7 +760,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                     className="px-5 py-2.5 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-xl shadow-xs disabled:opacity-50 flex items-center gap-1.5"
                   >
                     <ShoppingCart className="w-4 h-4" />
-                    <span>{submittingOrder ? 'Submitting...' : 'Confirm & Reserve Stock'}</span>
+                    <span>{submittingOrder ? 'Submitting to Escrow...' : 'Confirm & Reserve Stock'}</span>
                   </button>
                 </div>
               </form>

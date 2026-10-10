@@ -87,6 +87,221 @@ async function getCommissionRate(): Promise<number> {
 // USERS & AUTH PROFILE
 // ----------------------------------------------------
 
+// Dedicated Email & Password Account Registration (Farmers, Buyers, Transporters ONLY)
+router.post('/users/register', async (req, res) => {
+  try {
+    const {
+      fullName,
+      email,
+      password,
+      confirmPassword,
+      role,
+      district,
+      phoneNumber,
+      tradingArea,
+      village,
+      vehicleType,
+      vehicleRegistration,
+      vehicleCapacityKg,
+      photoUrl,
+    } = req.body;
+
+    if (!fullName || !email || !password) {
+      return res.status(400).json({ error: 'Full name, email address, and password are required.' });
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({ error: 'Passwords do not match. Please retype confirmation password.' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    }
+
+    // Support registration for all system roles: Smallholder Farmer, Agro-Commodity Buyer, Freight Transporter, Administrator, and Finance Admin
+    const allowedRoles = ['farmer', 'buyer', 'transporter', 'admin', 'finance_admin'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({
+        error: 'Please choose a valid platform role (Smallholder Farmer, Agro-Commodity Buyer, Freight Transporter, Platform Administrator, or Finance Administrator).'
+      });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Check if user already exists
+    const allUsers = await db.select().from(users);
+    const existing = allUsers.find(
+      (u: any) => (u.email && u.email.toLowerCase().trim() === cleanEmail)
+    );
+
+    if (existing) {
+      return res.status(400).json({
+        error: 'An account with this email address already exists. Please sign in.'
+      });
+    }
+
+    const uid = `usr-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    const inserted = await db.insert(users).values({
+      uid,
+      email: cleanEmail,
+      password: password.trim(),
+      photoUrl: photoUrl || '',
+      fullName: fullName.trim(),
+      role,
+      phoneNumber: phoneNumber || '+265 ',
+      district: district || 'Lilongwe',
+      region: 'Central',
+      tradingArea: tradingArea || '',
+      village: village || '',
+      vehicleType: vehicleType || '',
+      vehicleRegistration: vehicleRegistration || '',
+      vehicleCapacityKg: Number(vehicleCapacityKg) || 0,
+      isAvailable: true,
+    }).returning();
+
+    const newUser = inserted[0];
+
+    await logAudit({
+      userUid: newUser.uid,
+      userEmail: newUser.email,
+      userName: newUser.fullName,
+      role: newUser.role,
+      action: 'USER_REGISTERED_CREDENTIALS',
+      recordAffected: `User #${newUser.id} (${newUser.fullName}, Role: ${newUser.role})`,
+    });
+
+    broadcastEvent('user_updated', newUser);
+
+    const roleName =
+      role === 'admin'
+        ? 'Platform Administrator'
+        : role === 'buyer'
+        ? 'Agro-Commodity Buyer'
+        : role === 'transporter'
+        ? 'Freight Transporter'
+        : role === 'finance_admin'
+        ? 'Finance Administrator'
+        : 'Smallholder Farmer';
+
+    return res.status(201).json({
+      success: true,
+      message: `Account created successfully as ${roleName}! Please sign in with your email and password.`,
+      user: {
+        uid: newUser.uid,
+        email: newUser.email,
+        fullName: newUser.fullName,
+        role: newUser.role,
+        district: newUser.district,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error registering user:', error);
+    return res.status(500).json({ error: error.message || 'Failed to register account' });
+  }
+});
+
+// Dedicated Email & Password Sign In
+router.post('/users/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanPassword = String(password).trim();
+
+    // Super user admin check
+    const isSuperAdminEmail =
+      cleanEmail === 'petermalikebujr@gmail.com' ||
+      cleanEmail === 'petermalikebu0@gmail.com' ||
+      cleanEmail === 'joshuamalikebu927@gmail.com';
+
+    const allUsers = await db.select().from(users);
+    let matchedUser = allUsers.find(
+      (u: any) => u.email && u.email.toLowerCase().trim() === cleanEmail
+    );
+
+    if (isSuperAdminEmail) {
+      const superAdminPass = 'P1qe2wt3ee4rr5t?';
+      if (cleanPassword !== superAdminPass) {
+        return res.status(401).json({ error: 'Incorrect password for administrator account.' });
+      }
+
+      if (!matchedUser) {
+        // Ensure Peter Malikebu super user exists in the store
+        const inserted = await db.insert(users).values({
+          uid: 'frF3xukObzdA8AhCBYIBPYV0UK13',
+          email: 'petermalikebujr@gmail.com',
+          fullName: 'Peter Malikebu',
+          role: 'admin',
+          phoneNumber: '+265 999 036 912',
+          password: superAdminPass,
+          district: 'Lilongwe',
+          region: 'Central',
+          tradingArea: 'City Centre',
+        }).returning();
+        matchedUser = inserted[0];
+      }
+      return res.json({
+        success: true,
+        user: matchedUser,
+      });
+    }
+
+    if (!matchedUser) {
+      return res.status(401).json({
+        error: 'No account found with this email. Please check your spelling or register a new account.'
+      });
+    }
+
+    // Verify password if user has one stored
+    if (matchedUser.password && matchedUser.password.trim() !== cleanPassword) {
+      return res.status(401).json({ error: 'Incorrect password. Please verify your password and try again.' });
+    }
+
+    await logAudit({
+      userUid: matchedUser.uid,
+      userEmail: matchedUser.email,
+      userName: matchedUser.fullName,
+      role: matchedUser.role,
+      action: 'USER_LOGGED_IN',
+      recordAffected: `User #${matchedUser.id} (${matchedUser.fullName}, Role: ${matchedUser.role})`,
+    });
+
+    return res.json({
+      success: true,
+      user: matchedUser,
+    });
+  } catch (error: any) {
+    console.error('Error during login:', error);
+    return res.status(500).json({ error: error.message || 'Failed to sign in' });
+  }
+});
+
+// Update Profile Photo
+router.post('/users/profile-photo', async (req, res) => {
+  try {
+    const { uid, photoUrl } = req.body;
+    if (!uid) return res.status(400).json({ error: 'User UID is required' });
+
+    const existing = await db.select().from(users).where(eq(users.uid, uid)).limit(1);
+    if (existing.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const updated = await db.update(users)
+      .set({ photoUrl: photoUrl || '', updatedAt: new Date() })
+      .where(eq(users.uid, uid))
+      .returning();
+
+    broadcastEvent('user_updated', updated[0]);
+    return res.json({ success: true, user: updated[0] });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to update profile photo' });
+  }
+});
+
 // Sync or register user profile in PostgreSQL
 router.post('/users/sync', async (req, res) => {
   try {
@@ -415,13 +630,35 @@ router.post('/commodities', async (req, res) => {
     if (price <= 0) return res.status(400).json({ error: 'Price per unit must be greater than zero' });
 
     // Look up farmer
-    const farmer = await db.select().from(users).where(eq(users.uid, farmerUid)).limit(1);
-    if (farmer.length === 0) return res.status(400).json({ error: 'Farmer profile does not exist' });
+    let farmerList = await db.select().from(users).where(eq(users.uid, farmerUid)).limit(1);
+    let farmer = farmerList[0];
+
+    if (!farmer) {
+      const allUsers = await db.select().from(users);
+      farmer = allUsers.find(
+        (u: any) => u.uid === farmerUid || (u.email && u.email.toLowerCase() === String(farmerUid).toLowerCase())
+      );
+    }
+
+    if (!farmer) {
+      // Auto-provision profile so a registered farmer never gets blocked from listing produce
+      const newFarmerInserted = await db.insert(users).values({
+        uid: farmerUid,
+        email: `${farmerUid}@harvesthub.mw`,
+        fullName: 'Smallholder Farmer',
+        role: 'farmer',
+        district: district || 'Lilongwe',
+        region: region || 'Central',
+        tradingArea: location || '',
+        isAvailable: true,
+      }).returning();
+      farmer = newFarmerInserted[0];
+    }
 
     const inserted = await db.insert(commodities).values({
-      farmerId: farmer[0].id,
-      farmerUid,
-      farmerName: farmer[0].fullName,
+      farmerId: farmer.id,
+      farmerUid: farmer.uid || farmerUid,
+      farmerName: farmer.fullName || 'Registered Farmer',
       commodityName,
       category,
       quantity: qty,
@@ -617,6 +854,9 @@ router.post('/orders', async (req, res) => {
       notes,
       includeTransportEstimate,
       transportFee,
+      paymentMethod,
+      paymentRef,
+      buyerPhone,
     } = req.body;
 
     if (!buyerUid || !commodityId || !quantity || !deliveryLocation || !deliveryDistrict) {
@@ -690,8 +930,10 @@ router.post('/orders', async (req, res) => {
       deliveryDistrict,
       deliveryDate: deliveryDate || new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
       notes: notes || '',
-      status: 'pending',
-      paymentStatus: 'pending',
+      paymentMethod: paymentMethod || 'Airtel Money (+265 999 036 912)',
+      paymentRef: paymentRef || `REF-${Date.now().toString().slice(-6)}`,
+      status: 'pending_payment_verification',
+      paymentStatus: 'escrow_pending_finance_approval',
     }).returning();
 
     // 3. Create initial pending transaction
@@ -712,47 +954,281 @@ router.post('/orders', async (req, res) => {
       netFarmerAmount: netFarmerAmount.toString(),
       netTransporterAmount: parsedTransportFee.toString(),
       status: 'pending',
-      paymentMethod: 'Airtel Money / TNM Mpamba Escrow',
+      paymentMethod: paymentMethod || 'Airtel Money (+265 999 036 912)',
     });
 
-    // 4. Notify farmer
+    // 4. Notify Finance Administrator & Lead Admin to verify payment
+    await createNotification({
+      userUid: 'finance-chisomo-05',
+      title: `Buyer Payment to Verify #${orderNumber}`,
+      message: `Buyer ${buyer[0].fullName} submitted MK ${totalAmount.toLocaleString()} via ${paymentMethod || 'Escrow'} (Ref: ${paymentRef || 'N/A'}) for ${comm[0].commodityName}. Verify receipt on designated account and approve.`,
+      type: 'finance',
+      relatedOrderId: insertedOrder[0].id,
+    });
+
+    await createNotification({
+      userUid: 'frF3xukObzdA8AhCBYIBPYV0UK13', // Peter Malikebu Lead Admin
+      title: `Buyer Escrow Deposit Received #${orderNumber}`,
+      message: `New buyer order by ${buyer[0].fullName} for MK ${totalAmount.toLocaleString()} awaiting Finance verification via ${paymentMethod}.`,
+      type: 'finance',
+      relatedOrderId: insertedOrder[0].id,
+    });
+
+    // 5. Notify farmer
     await createNotification({
       userUid: farmer[0].uid,
       title: `New Order Received #${orderNumber}`,
-      message: `${buyer[0].fullName} ordered ${orderQty} ${comm[0].unit} of ${comm[0].commodityName}. Total value: MWK ${commoditySubtotal.toLocaleString()}. Please accept or decline.`,
+      message: `${buyer[0].fullName} placed an order for ${orderQty} ${comm[0].unit} of ${comm[0].commodityName} (MK ${commoditySubtotal.toLocaleString()}). Financial Administrator is verifying payment before fulfillment authorization.`,
       type: 'order',
       relatedOrderId: insertedOrder[0].id,
     });
 
-    // 5. Notify buyer
+    // 6. Notify buyer
     await createNotification({
       userUid: buyer[0].uid,
-      title: `Order Placed Successfully #${orderNumber}`,
-      message: `Your order for ${orderQty} ${comm[0].unit} of ${comm[0].commodityName} has been submitted to ${farmer[0].fullName}.`,
+      title: `Order Submitted for Escrow Verification #${orderNumber}`,
+      message: `Your payment of MK ${totalAmount.toLocaleString()} via ${paymentMethod} has been submitted. Financial Administrator will verify and lock funds in escrow.`,
       type: 'order',
       relatedOrderId: insertedOrder[0].id,
     });
 
-    // 6. Log audit
+    // 7. Log audit
     await logAudit({
       userUid: buyer[0].uid,
       userEmail: buyer[0].email,
       userName: buyer[0].fullName,
       role: 'buyer',
-      action: 'ORDER_PLACED',
+      action: 'ORDER_PLACED_WITH_PAYMENT',
       recordAffected: `Order #${orderNumber}`,
-      newValue: `${orderQty} ${comm[0].unit} ${comm[0].commodityName} for MWK ${totalAmount}`,
+      newValue: `${orderQty} ${comm[0].unit} ${comm[0].commodityName} for MWK ${totalAmount} via ${paymentMethod} (Ref: ${paymentRef})`,
     });
 
     // Broadcast realtime updates
     broadcastEvent('order_created', insertedOrder[0]);
     broadcastEvent('commodity_updated', { id: comm[0].id, quantity: newRemainingQty, status: newCommStatus });
     broadcastEvent('revenue_updated', { trigger: 'order_created' });
+    broadcastEvent('finance_pending_updated', { order: insertedOrder[0] });
 
     return res.status(201).json(insertedOrder[0]);
   } catch (error: any) {
     console.error('Error creating order:', error);
     return res.status(500).json({ error: error.message || 'Failed to place order' });
+  }
+});
+
+// Financial Administrator verifies buyer payment into official Airtel Money / TNM Mpamba / NBS Bank account
+router.post('/orders/:id/finance-approve-payment', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { financeAdminUid, financeAdminName, notes } = req.body;
+
+    const ord = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    if (ord.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+    const updatedOrder = await db.update(orders)
+      .set({
+        paymentStatus: 'escrow_held',
+        status: ord[0].status === 'pending_payment_verification' ? 'pending' : ord[0].status,
+        financeApprovedAt: new Date(),
+        financeApprovedBy: financeAdminName || 'Financial Administrator',
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, id))
+      .returning();
+
+    // Update transaction status
+    await db.update(transactions)
+      .set({
+        status: 'pending',
+        updatedAt: new Date(),
+      })
+      .where(eq(transactions.orderId, id));
+
+    // Notify farmer to reassure them and ask for confirmation
+    await createNotification({
+      userUid: ord[0].farmerUid,
+      title: `Buyer Payment Secured in Escrow #${ord[0].orderNumber}`,
+      message: `Great news! Financial Administrator has verified buyer payment of MK ${Number(ord[0].totalAmount).toLocaleString()}. Funds are now locked in escrow. Please confirm the purchase to authorize dispatch/packaging.`,
+      type: 'finance',
+      relatedOrderId: ord[0].id,
+    });
+
+    // Notify buyer
+    await createNotification({
+      userUid: ord[0].buyerUid,
+      title: `Payment Verified by Finance #${ord[0].orderNumber}`,
+      message: `Your payment has been successfully confirmed and secured in escrow! Farmer ${ord[0].farmerName} has been instructed to prepare and confirm the order.`,
+      type: 'finance',
+      relatedOrderId: ord[0].id,
+    });
+
+    await logAudit({
+      userUid: financeAdminUid || 'finance-chisomo-05',
+      userEmail: 'finance@harvesthub.mw',
+      userName: financeAdminName || 'Financial Administrator',
+      role: 'finance_admin',
+      action: 'BUYER_PAYMENT_VERIFIED_ESCROW',
+      recordAffected: `Order #${ord[0].orderNumber}`,
+      newValue: `Payment verified on ${ord[0].paymentMethod}. Ref: ${ord[0].paymentRef}. Notes: ${notes || 'Verified against bank/mobile statement'}`,
+    });
+
+    broadcastEvent('order_updated', updatedOrder[0]);
+    broadcastEvent('revenue_updated', { trigger: 'payment_verified', orderId: id });
+
+    return res.json({ success: true, order: updatedOrder[0] });
+  } catch (error: any) {
+    console.error('Error approving buyer payment:', error);
+    return res.status(500).json({ error: error.message || 'Failed to verify buyer payment' });
+  }
+});
+
+// Farmer confirms the purchase/order to reassure buyer and finance administrator
+router.post('/orders/:id/farmer-confirm', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { farmerUid, farmerName } = req.body;
+
+    const ord = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    if (ord.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+    const updatedOrder = await db.update(orders)
+      .set({
+        status: 'accepted',
+        farmerConfirmedAt: new Date(),
+        farmerConfirmedBy: farmerName || ord[0].farmerName,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, id))
+      .returning();
+
+    // Notify buyer
+    await createNotification({
+      userUid: ord[0].buyerUid,
+      title: `Farmer Confirmed Purchase #${ord[0].orderNumber}`,
+      message: `Farmer ${ord[0].farmerName} has confirmed your purchase for ${ord[0].quantity} ${ord[0].unit} of ${ord[0].commodityName}. Ready for fulfillment/transport.`,
+      type: 'order',
+      relatedOrderId: ord[0].id,
+    });
+
+    // Notify finance admin
+    await createNotification({
+      userUid: 'finance-chisomo-05',
+      title: `Farmer Confirmed Order #${ord[0].orderNumber}`,
+      message: `Farmer ${ord[0].farmerName} confirmed stock fulfillment for Order #${ord[0].orderNumber}. Awaiting transit/delivery completion for payout release.`,
+      type: 'order',
+      relatedOrderId: ord[0].id,
+    });
+
+    await logAudit({
+      userUid: farmerUid || ord[0].farmerUid,
+      userEmail: 'farmer@harvesthub.mw',
+      userName: farmerName || ord[0].farmerName,
+      role: 'farmer',
+      action: 'FARMER_PURCHASE_CONFIRMED',
+      recordAffected: `Order #${ord[0].orderNumber}`,
+      newValue: 'Stock fulfillment authorized and confirmed by farmer',
+    });
+
+    broadcastEvent('order_updated', updatedOrder[0]);
+
+    return res.json({ success: true, order: updatedOrder[0] });
+  } catch (error: any) {
+    console.error('Error confirming order by farmer:', error);
+    return res.status(500).json({ error: error.message || 'Failed to confirm purchase' });
+  }
+});
+
+// Financial Administrator disburses money to the farmer at the end
+router.post('/orders/:id/finance-disburse-funds', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { financeAdminUid, financeAdminName, payoutMethod, payoutRef, notes } = req.body;
+
+    const ord = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    if (ord.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+    const grossAmount = Number(ord[0].commoditySubtotal);
+    const commissionRate = Number(ord[0].platformCommissionRate) || 0.04;
+    const commissionFee = Number(ord[0].platformCommissionFee) || Math.round(grossAmount * commissionRate);
+    const farmerEarnings = grossAmount - commissionFee;
+    const ref = payoutRef || `DSB-${Date.now().toString().slice(-6)}`;
+
+    const updatedOrder = await db.update(orders)
+      .set({
+        paymentStatus: 'disbursed_to_farmer',
+        status: 'completed',
+        disbursedAt: new Date(),
+        disbursedBy: financeAdminName || 'Financial Administrator',
+        disbursedRef: ref,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, id))
+      .returning();
+
+    // Mark transaction completed
+    await db.update(transactions)
+      .set({
+        status: 'completed',
+        updatedAt: new Date(),
+      })
+      .where(eq(transactions.orderId, id));
+
+    // Permanent revenue ledger entry
+    const revenueId = `REV-${Date.now().toString().slice(-7)}`;
+    const transportFee = Number(ord[0].transportFee) || 0;
+
+    await db.insert(revenueLedger).values({
+      revenueId,
+      transactionId: `TX-${ord[0].orderNumber.slice(-4)}`,
+      sourceType: 'commodity_commission',
+      sourceOrderId: ord[0].id,
+      sourceOrderNumber: ord[0].orderNumber,
+      grossTransactionAmount: grossAmount.toString(),
+      commissionRate: commissionRate.toString(),
+      commissionAmount: commissionFee.toString(),
+      transportFee: transportFee.toString(),
+      farmerEarnings: farmerEarnings.toString(),
+      transporterEarnings: transportFee.toString(),
+      status: 'settled',
+      createdSource: 'finance_admin_disbursement',
+    });
+
+    // Notify farmer of payout
+    await createNotification({
+      userUid: ord[0].farmerUid,
+      title: `Escrow Payout Disbursed #${ord[0].orderNumber}`,
+      message: `Funds have been disbursed! Financial Administrator sent MK ${farmerEarnings.toLocaleString()} (net of 4% platform fee) via ${payoutMethod || 'Mobile Money'} (Ref: ${ref}). Thank you for selling on Malawi Harvest Hub!`,
+      type: 'finance',
+      relatedOrderId: ord[0].id,
+    });
+
+    // Notify buyer
+    await createNotification({
+      userUid: ord[0].buyerUid,
+      title: `Order Completed & Escrow Settled #${ord[0].orderNumber}`,
+      message: `Order #${ord[0].orderNumber} has been finalized and payment disbursed to the farmer. Thank you for trading on Malawi Harvest Hub!`,
+      type: 'order',
+      relatedOrderId: ord[0].id,
+    });
+
+    await logAudit({
+      userUid: financeAdminUid || 'finance-chisomo-05',
+      userEmail: 'finance@harvesthub.mw',
+      userName: financeAdminName || 'Financial Administrator',
+      role: 'finance_admin',
+      action: 'ESCROW_FUNDS_DISBURSED_TO_FARMER',
+      recordAffected: `Order #${ord[0].orderNumber}`,
+      newValue: `MK ${farmerEarnings.toLocaleString()} sent to Farmer ${ord[0].farmerName} via ${payoutMethod || 'Mobile Money'} (Ref: ${ref}). Notes: ${notes || 'Final settlement'}`,
+    });
+
+    broadcastEvent('order_updated', updatedOrder[0]);
+    broadcastEvent('revenue_updated', { trigger: 'disbursed', revenueId });
+    broadcastEvent('transaction_updated', { orderId: id, status: 'completed' });
+
+    return res.json({ success: true, order: updatedOrder[0], farmerEarnings, disbursedRef: ref });
+  } catch (error: any) {
+    console.error('Error disbursing funds to farmer:', error);
+    return res.status(500).json({ error: error.message || 'Failed to disburse funds to farmer' });
   }
 });
 
@@ -1386,12 +1862,13 @@ router.post('/transport/jobs/:id/accept', async (req, res) => {
 
     // Update order status if linked to an order
     if (job[0].orderId) {
+      const orderId = job[0].orderId;
       await db.update(orders)
         .set({
           status: 'transport_assigned',
           updatedAt: new Date(),
         })
-        .where(eq(orders.id, job[0].orderId));
+        .where(eq(orders.id, orderId));
     }
 
     await logAudit({
@@ -1444,12 +1921,15 @@ router.post('/transport/jobs/:id/status', async (req, res) => {
     if (status === 'in_transit') orderStatus = 'in_transit';
     if (status === 'delivered') orderStatus = 'delivered';
 
-    await db.update(orders)
-      .set({
-        status: orderStatus,
-        updatedAt: new Date(),
-      })
-      .where(eq(orders.id, job[0].orderId));
+    if (job[0].orderId) {
+      const orderId = job[0].orderId;
+      await db.update(orders)
+        .set({
+          status: orderStatus,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, orderId));
+    }
 
     await logAudit({
       userUid: userUid || job[0].transporterUid || 'system',

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const { currentUser, switchDemoRole } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { subscribe } = useRealtime();
 
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'audit' | 'settings'>('users');
@@ -59,7 +59,7 @@ export const AdminDashboard: React.FC = () => {
 
       if (isSelf) {
         alert('Your administrator account has been permanently removed from the central PostgreSQL database.');
-        await switchDemoRole('farmer');
+        await logout();
       } else {
         fetchAll();
       }

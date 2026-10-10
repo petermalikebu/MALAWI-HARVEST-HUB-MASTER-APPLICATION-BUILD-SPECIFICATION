@@ -276,8 +276,28 @@ export const BuyerOrders: React.FC = () => {
 
                 {/* Actions Bar */}
                 <div className="pt-3 border-t border-stone-100 flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-xs text-stone-500">
-                    Payment Status: <strong className="capitalize text-stone-800">{o.paymentStatus}</strong>
+                  <div className="text-xs space-y-0.5">
+                    <div className="text-stone-500">
+                      Payment Channel: <strong className="text-stone-800">{o.paymentMethod || 'Airtel Money / TNM Mpamba'}</strong>{' '}
+                      {o.paymentRef && <span className="font-mono text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 text-[10px]">Ref: {o.paymentRef}</span>}
+                    </div>
+                    <div className="text-[11px] font-semibold text-stone-700 flex items-center gap-1">
+                      {o.paymentStatus === 'escrow_pending_finance_approval' && (
+                        <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          ⏳ Deposit awaiting Financial Administrator verification
+                        </span>
+                      )}
+                      {o.paymentStatus === 'escrow_held' && (
+                        <span className="text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          🔒 Funds Secured in Escrow {o.farmerConfirmedAt ? '• Farmer Confirmed Purchase' : '• Awaiting Farmer Confirmation'}
+                        </span>
+                      )}
+                      {o.paymentStatus === 'disbursed_to_farmer' && (
+                        <span className="text-purple-800 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                          🎉 Completed • Funds Disbursed to Farmer
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">

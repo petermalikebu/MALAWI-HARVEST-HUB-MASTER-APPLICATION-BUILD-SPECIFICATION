@@ -7,6 +7,8 @@ export interface User {
   fullName: string;
   role: UserRole;
   phoneNumber?: string;
+  password?: string;
+  photoUrl?: string;
   district: string;
   region: string;
   tradingArea?: string;
@@ -74,8 +76,18 @@ export interface Order {
   deliveryDistrict: string;
   deliveryDate: string;
   notes?: string;
+  paymentMethod?: string;
+  paymentRef?: string;
+  financeApprovedAt?: string;
+  financeApprovedBy?: string;
+  farmerConfirmedAt?: string;
+  farmerConfirmedBy?: string;
+  disbursedAt?: string;
+  disbursedBy?: string;
+  disbursedRef?: string;
   status:
     | 'pending'
+    | 'pending_payment_verification'
     | 'accepted'
     | 'declined'
     | 'transport_requested'
@@ -85,7 +97,15 @@ export interface Order {
     | 'delivered'
     | 'completed'
     | 'cancelled';
-  paymentStatus: 'pending' | 'paid' | 'escrowed' | 'released' | 'refunded';
+  paymentStatus:
+    | 'pending'
+    | 'escrow_pending_finance_approval'
+    | 'escrow_held'
+    | 'paid'
+    | 'escrowed'
+    | 'released'
+    | 'disbursed_to_farmer'
+    | 'refunded';
   cancellationReason?: string;
   cancelledByUid?: string;
   cancelledAt?: string;

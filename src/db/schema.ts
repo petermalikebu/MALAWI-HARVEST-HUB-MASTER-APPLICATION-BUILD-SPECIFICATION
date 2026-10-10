@@ -4,8 +4,10 @@ import { boolean, integer, numeric, pgTable, serial, text, timestamp } from 'dri
 // Users table with Firebase UID
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
-  uid: text('uid').notNull().unique(), // Firebase Auth UID
+  uid: text('uid').notNull().unique(), // Firebase Auth UID or system UID
   email: text('email').notNull(),
+  password: text('password'), // Optional encrypted/stored password for email-password login
+  photoUrl: text('photo_url').default(''),
   fullName: text('full_name').notNull().default('Anonymous User'),
   role: text('role').notNull().default('farmer'), // farmer | buyer | transporter | admin | finance_admin
   phoneNumber: text('phone_number').default('+265 '),
@@ -81,9 +83,18 @@ export const orders = pgTable('orders', {
   deliveryDistrict: text('delivery_district').notNull(),
   deliveryDate: text('delivery_date').notNull(),
   notes: text('notes').default(''),
+  paymentMethod: text('payment_method').default('Airtel Money (+265 999 036 912)'),
+  paymentRef: text('payment_ref'),
+  financeApprovedAt: timestamp('finance_approved_at'),
+  financeApprovedBy: text('finance_approved_by'),
+  farmerConfirmedAt: timestamp('farmer_confirmed_at'),
+  farmerConfirmedBy: text('farmer_confirmed_by'),
+  disbursedAt: timestamp('disbursed_at'),
+  disbursedBy: text('disbursed_by'),
+  disbursedRef: text('disbursed_ref'),
   status: text('status').notNull().default('pending'), 
-  // pending | accepted | declined | transport_requested | transport_assigned | picked_up | in_transit | delivered | completed | cancelled
-  paymentStatus: text('payment_status').notNull().default('pending'), // pending | paid | escrowed | released | refunded
+  // pending | pending_payment_verification | accepted | declined | transport_requested | transport_assigned | picked_up | in_transit | delivered | completed | cancelled
+  paymentStatus: text('payment_status').notNull().default('pending'), // pending | escrow_pending_finance_approval | escrow_held | paid | escrowed | released | disbursed_to_farmer | refunded
   cancellationReason: text('cancellation_reason'),
   cancelledByUid: text('cancelled_by_uid'),
   cancelledAt: timestamp('cancelled_at'),

@@ -22,19 +22,49 @@ function MainContent() {
   const [isMobileSimulator, setIsMobileSimulator] = useState<boolean>(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
 
-  // Sync initial tab when user switches role
+  // Helper to route to the correct portal based on user's registered role
+  const navigateByRole = (role?: string) => {
+    switch (role) {
+      case 'farmer':
+        setActiveTab('farmer_commodities');
+        break;
+      case 'buyer':
+        setActiveTab('marketplace');
+        break;
+      case 'transporter':
+        setActiveTab('transporter_jobs');
+        break;
+      case 'admin':
+        setActiveTab('admin_overview');
+        break;
+      case 'finance_admin':
+        setActiveTab('finance_revenue');
+        break;
+      default:
+        setActiveTab('farmer_commodities');
+        break;
+    }
+  };
+
+  // Sync initial tab when user logs in or switches role
   React.useEffect(() => {
     if (!currentUser) return;
-    if (currentUser.role === 'farmer') setActiveTab('farmer_commodities');
-    else if (currentUser.role === 'buyer') setActiveTab('marketplace');
-    else if (currentUser.role === 'transporter') setActiveTab('transporter_jobs');
-    else if (currentUser.role === 'admin') setActiveTab('admin_overview');
-    else if (currentUser.role === 'finance_admin') setActiveTab('finance_revenue');
-  }, [currentUser?.role]);
+    // When user is authenticated and on signin tab, direct them to their registered role portal
+    if (activeTab === 'signin' || !activeTab) {
+      navigateByRole(currentUser.role);
+    }
+  }, [currentUser, activeTab]);
+
+  // When currentUser changes (e.g. sign in or role switch)
+  React.useEffect(() => {
+    if (currentUser) {
+      navigateByRole(currentUser.role);
+    }
+  }, [currentUser?.uid, currentUser?.role]);
 
   const renderDesktopView = () => {
     if (!currentUser || activeTab === 'signin') {
-      return <SignInView />;
+      return <SignInView onLoginSuccess={(u) => navigateByRole(u.role)} />;
     }
 
     // Role-based Access Guards

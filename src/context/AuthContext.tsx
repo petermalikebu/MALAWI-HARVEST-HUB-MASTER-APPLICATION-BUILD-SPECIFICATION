@@ -8,18 +8,22 @@ interface AuthContextType {
   fbUser: FbUser | null;
   idToken: string | null;
   loading: boolean;
-  loginWithGoogle: () => Promise<void>;
-  switchDemoRole: (role: UserRole) => Promise<void>;
-  loginAsUser: (uid: string) => Promise<void>;
-  registerNewUser: (data: {
-    email: string;
+  loginWithEmailPassword: (email: string, password: string) => Promise<User>;
+  registerWithCredentials: (data: {
     fullName: string;
+    email: string;
+    password: string;
+    confirmPassword?: string;
     role: UserRole;
     district: string;
     phoneNumber?: string;
     tradingArea?: string;
+    village?: string;
     vehicleType?: string;
-  }) => Promise<void>;
+    photoUrl?: string;
+  }) => Promise<{ success: boolean; message: string }>;
+  uploadProfilePhoto: (photoUrl: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -27,29 +31,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Preset demo users seeded in the database for instant role testing
-const DEMO_UID_MAP: Record<UserRole, string> = {
-  farmer: 'farmer-chimwemwe-01',
-  buyer: 'buyer-alinafe-02',
-  transporter: 'transporter-kondwani-03',
-  admin: 'frF3xukObzdA8AhCBYIBPYV0UK13', // Peter Malikebu (Default Admin)
-  finance_admin: 'finance-chisomo-05',
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [fbUser, setFbUser] = useState<FbUser | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Load saved active UID from session
+  // Load saved active UID from session only if explicitly signed in
   useEffect(() => {
     const initAuth = async () => {
       try {
         const isLoggedOut = sessionStorage.getItem('mhh_logged_out') === 'true';
         const savedUid = sessionStorage.getItem('mhh_active_uid');
 
-        if (savedUid) {
+        if (!isLoggedOut && savedUid) {
           const res = await fetch(`/api/users/${savedUid}`);
           if (res.ok) {
             const u: User = await res.json();
@@ -58,21 +53,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
 
-        // If explicitly logged out, keep logged out
-        if (isLoggedOut) {
-          setCurrentUser(null);
-          return;
-        }
-
-        // First-time visit: default to farmer
-        const fbRes = await fetch(`/api/users/${DEMO_UID_MAP.farmer}`);
-        if (fbRes.ok) {
-          const u: User = await fbRes.json();
-          setCurrentUser(u);
-          sessionStorage.setItem('mhh_active_uid', u.uid);
-        }
+        // On first visit or if logged out, do NOT auto-login.
+        // User should view the landing page and choose to sign in or create an account.
+        setCurrentUser(null);
       } catch (err) {
         console.error('Failed to load initial user profile:', err);
+        setCurrentUser(null);
       } finally {
         setLoading(false);
       }
@@ -94,6 +80,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithEmailPassword = async (email: string, password: string): Promise<User> => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/users/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Invalid email or password.');
+      }
+
+      const user: User = data.user;
+      setCurrentUser(user);
+      sessionStorage.removeItem('mhh_logged_out');
+      sessionStorage.setItem('mhh_active_uid', user.uid);
+      return user;
+    } catch (err) {
+      console.error('Email/Password login error:', err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const registerWithCredentials = async (data: {
+    fullName: string;
+    email: string;
+    password: string;
+    confirmPassword?: string;
+    role: UserRole;
+    district: string;
+    phoneNumber?: string;
+    tradingArea?: string;
+    village?: string;
+    vehicleType?: string;
+    photoUrl?: string;
+  }): Promise<{ success: boolean; message: string }> => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const resData = await res.json();
+
+      if (!res.ok) {
+        throw new Error(resData.error || 'Registration failed.');
+      }
+
+      // DO NOT auto-login as instructed by user:
+      // prompt him or her to sign in after signing up.
+      return {
+        success: true,
+        message: resData.message || 'Account created successfully! Please sign in with your email and password.',
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const uploadProfilePhoto = async (photoUrl: string) => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch('/api/users/profile-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: currentUser.uid, photoUrl }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentUser(data.user);
+      }
+    } catch (err) {
+      console.error('Failed to upload profile photo:', err);
+      throw err;
+    }
+  };
+
   const loginWithGoogle = async () => {
     try {
       setLoading(true);
@@ -104,14 +174,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIdToken(token);
       sessionStorage.removeItem('mhh_logged_out');
 
-      const isAdminUser =
-        user.uid === '9DXK6Cfy4FaODmqyVm7q8yrKup82' ||
-        user.uid === 'frF3xukObzdA8AhCBYIBPYV0UK13' ||
-        user.email === 'joshuamalikebu927@gmail.com' ||
+      const isSuperAdmin =
         user.email === 'petermalikebujr@gmail.com' ||
-        user.email === 'petermalikebu0@gmail.com';
+        user.email === 'petermalikebu0@gmail.com' ||
+        user.email === 'joshuamalikebu927@gmail.com';
 
-      // Sync or create in PostgreSQL database
+      // Sync or create in database
       const syncRes = await fetch('/api/users/sync', {
         method: 'POST',
         headers: {
@@ -119,10 +187,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          uid: user.uid,
+          uid: isSuperAdmin ? 'frF3xukObzdA8AhCBYIBPYV0UK13' : user.uid,
           email: user.email || 'user@malawiharvesthub.mw',
-          fullName: user.displayName || 'Google User',
-          role: isAdminUser ? 'admin' : 'farmer',
+          fullName: isSuperAdmin ? 'Peter Malikebu' : user.displayName || 'Google User',
+          role: isSuperAdmin ? 'admin' : 'farmer',
           district: 'Lilongwe',
           region: 'Central',
         }),
@@ -136,78 +204,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error('Google Sign In failed:', err);
       throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const switchDemoRole = async (role: UserRole) => {
-    try {
-      setLoading(true);
-      sessionStorage.removeItem('mhh_logged_out');
-      const targetUid = DEMO_UID_MAP[role];
-      const res = await fetch(`/api/users/${targetUid}`);
-      if (res.ok) {
-        const u = await res.json();
-        setCurrentUser(u);
-        sessionStorage.setItem('mhh_active_uid', u.uid);
-      }
-    } catch (err) {
-      console.error('Failed to switch role:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loginAsUser = async (uid: string) => {
-    try {
-      setLoading(true);
-      sessionStorage.removeItem('mhh_logged_out');
-      const res = await fetch(`/api/users/${uid}`);
-      if (res.ok) {
-        const u = await res.json();
-        setCurrentUser(u);
-        sessionStorage.setItem('mhh_active_uid', u.uid);
-      } else {
-        throw new Error('User not found');
-      }
-    } catch (err) {
-      console.error('Failed to log in as user:', err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const registerNewUser = async (data: {
-    email: string;
-    fullName: string;
-    role: UserRole;
-    district: string;
-    phoneNumber?: string;
-    tradingArea?: string;
-    vehicleType?: string;
-  }) => {
-    try {
-      setLoading(true);
-      sessionStorage.removeItem('mhh_logged_out');
-      const uid = `user-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      const res = await fetch('/api/users/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid,
-          ...data,
-        }),
-      });
-      if (res.ok) {
-        const newUser = await res.json();
-        setCurrentUser(newUser);
-        sessionStorage.setItem('mhh_active_uid', newUser.uid);
-      } else {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to register account');
-      }
     } finally {
       setLoading(false);
     }
@@ -258,10 +254,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fbUser,
         idToken,
         loading,
+        loginWithEmailPassword,
+        registerWithCredentials,
+        uploadProfilePhoto,
         loginWithGoogle,
-        switchDemoRole,
-        loginAsUser,
-        registerNewUser,
         updateProfile,
         logout,
         refreshUser,

@@ -16,6 +16,8 @@ import {
   ChevronRight,
   Archive,
   RefreshCw,
+  Upload,
+  Image,
 } from 'lucide-react';
 import { FarmerTransportHire } from './FarmerTransportHire.tsx';
 
@@ -46,7 +48,7 @@ export const FarmerDashboard: React.FC = () => {
     quality: 'Grade A - Premium Cleaned & Dried',
     availabilityDate: new Date().toISOString().split('T')[0],
     description: '',
-    imageUrl: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=600&auto=format&fit=crop&q=80',
+    imageUrl: '', // Farmer adds picture of what they are selling
   });
 
   // Decline order dialog state
@@ -101,6 +103,12 @@ export const FarmerDashboard: React.FC = () => {
     setSubmitting(true);
     setErrorMessage('');
 
+    if (!newCommodity.imageUrl.trim()) {
+      setErrorMessage('Please add or upload a picture of the commodity you are selling.');
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/commodities', {
         method: 'POST',
@@ -129,13 +137,31 @@ export const FarmerDashboard: React.FC = () => {
         quality: 'Grade A - Premium Cleaned & Dried',
         availabilityDate: new Date().toISOString().split('T')[0],
         description: '',
-        imageUrl: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=600&auto=format&fit=crop&q=80',
+        imageUrl: '',
       });
       fetchData();
     } catch (err: any) {
       setErrorMessage(err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleConfirmPurchase = async (orderId: number) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/farmer-confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          farmerUid: currentUser?.uid,
+          farmerName: currentUser?.fullName,
+        }),
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Failed to confirm purchase:', err);
     }
   };
 
@@ -557,9 +583,53 @@ export const FarmerDashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap lg:flex-col gap-2 shrink-0">
-                      {isPending && (
+                    {/* Escrow Status & Action Buttons */}
+                    <div className="flex flex-wrap lg:flex-col gap-2 shrink-0 min-w-[200px]">
+                      {/* Payment Verification by Finance Alert */}
+                      {o.paymentStatus === 'escrow_pending_finance_approval' && (
+                        <div className="text-[11px] p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 leading-tight">
+                          <span className="font-bold block text-amber-800 mb-0.5">Payment Verification Pending</span>
+                          Financial Admin is verifying buyer deposit on {o.paymentMethod || 'Escrow'}.
+                        </div>
+                      )}
+
+                      {/* Escrow Verified - Farmer Confirmation Step */}
+                      {o.paymentStatus === 'escrow_held' && !o.farmerConfirmedAt && (
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] px-2 py-1 rounded-lg bg-emerald-100 text-emerald-900 font-bold flex items-center gap-1">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Payment Verified in Escrow!</span>
+                          </div>
+                          <button
+                            onClick={() => handleConfirmPurchase(o.id)}
+                            className="w-full px-4 py-2.5 rounded-xl bg-emerald-700 text-white font-bold text-xs hover:bg-emerald-800 flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Confirm Purchase</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {o.farmerConfirmedAt && o.paymentStatus !== 'disbursed_to_farmer' && (
+                        <div className="text-[11px] px-2.5 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 font-semibold flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
+                          <span>Fulfillment Confirmed &bull; Payout Pending Transit/Delivery</span>
+                        </div>
+                      )}
+
+                      {o.paymentStatus === 'disbursed_to_farmer' && (
+                        <div className="text-[11px] p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 font-medium space-y-1">
+                          <div className="font-extrabold text-emerald-800 flex items-center gap-1">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>🎉 Payout Disbursed to You!</span>
+                          </div>
+                          <div>
+                            Financial Administrator sent <strong>MWK {(Number(o.commoditySubtotal) - Number(o.platformCommissionFee)).toLocaleString()}</strong> (Ref: {o.disbursedRef || 'Settled'}).
+                          </div>
+                        </div>
+                      )}
+
+                      {isPending && o.paymentStatus !== 'escrow_held' && (
                         <>
                           <button
                             onClick={() => handleAcceptOrder(o.id)}
@@ -588,7 +658,19 @@ export const FarmerDashboard: React.FC = () => {
                         </button>
                       )}
 
-                      {isCompleted && (
+                      {o.paymentStatus === 'disbursed_to_farmer' && (
+                        <div className="text-xs font-bold text-emerald-800 bg-emerald-100/70 p-2.5 rounded-xl border border-emerald-300 text-center flex flex-col items-center justify-center">
+                          <div className="flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4 text-emerald-700" />
+                            <span>Funds Disbursed to You</span>
+                          </div>
+                          {o.disbursedRef && (
+                            <span className="text-[10px] text-emerald-700 font-mono mt-0.5">Ref: {o.disbursedRef}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {isCompleted && o.paymentStatus !== 'disbursed_to_farmer' && (
                         <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200 text-center flex items-center justify-center gap-1">
                           <CheckCircle className="w-4 h-4" />
                           <span>Settled & Paid</span>
@@ -857,6 +939,75 @@ export const FarmerDashboard: React.FC = () => {
                     className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600"
                   />
                 </div>
+              </div>
+
+              {/* Upload Picture of Produce Being Sold */}
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Produce Picture (Photo of what you are selling) *
+                </label>
+                {newCommodity.imageUrl ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-stone-200 bg-stone-50 group">
+                    <img
+                      src={newCommodity.imageUrl}
+                      alt="Crop Preview"
+                      className="w-full h-44 object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNewCommodity({ ...newCommodity, imageUrl: '' })}
+                        className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all"
+                      >
+                        Remove / Replace Photo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="border-2 border-dashed border-stone-300 hover:border-emerald-600 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors bg-stone-50/50 hover:bg-emerald-50/30 text-center">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setNewCommodity({
+                              ...newCommodity,
+                              imageUrl: reader.result as string,
+                            });
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                      <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-800 mb-1.5">
+                        <Upload className="w-5 h-5 text-emerald-700" />
+                      </div>
+                      <span className="text-xs font-bold text-stone-800">
+                        Choose photo of your produce
+                      </span>
+                      <span className="text-[11px] text-stone-400">
+                        Take or select a picture of your harvest from phone or computer
+                      </span>
+                    </label>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-stone-400">Or Image URL:</span>
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        value={newCommodity.imageUrl}
+                        onChange={(e) =>
+                          setNewCommodity({ ...newCommodity, imageUrl: e.target.value })
+                        }
+                        className="flex-1 px-3 py-1.5 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
