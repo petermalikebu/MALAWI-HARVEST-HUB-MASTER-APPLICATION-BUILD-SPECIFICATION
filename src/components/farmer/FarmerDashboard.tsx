@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
 import { Commodity, Order, Category, MALAWI_DISTRICTS, getDistrictRegion } from '../../types/index.ts';
+import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import {
   Sprout,
   Plus,
@@ -18,8 +19,12 @@ import {
   RefreshCw,
   Upload,
   Image,
+  HelpCircle,
+  MessageSquare,
 } from 'lucide-react';
 import { FarmerTransportHire } from './FarmerTransportHire.tsx';
+import { compressImageFile } from '../../lib/imageCompressor.ts';
+import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 
 export const FarmerDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -29,7 +34,7 @@ export const FarmerDashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'commodities' | 'orders' | 'earnings' | 'hire_transport'>('commodities');
+  const [activeTab, setActiveTab] = useState<'commodities' | 'orders' | 'earnings' | 'hire_transport' | 'queries'>('commodities');
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -70,9 +75,9 @@ export const FarmerDashboard: React.FC = () => {
         fetch('/api/categories'),
       ]);
 
-      if (commRes.ok) setCommodities(await commRes.json());
-      if (ordRes.ok) setOrders(await ordRes.json());
-      if (catRes.ok) setCategories(await catRes.json());
+      if (commRes.ok) setCommodities(await safeParseJson(commRes, []));
+      if (ordRes.ok) setOrders(await safeParseJson(ordRes, []));
+      if (catRes.ok) setCategories(await safeParseJson(catRes, []));
     } catch (err) {
       console.error('Error fetching farmer dashboard data:', err);
     } finally {
@@ -110,19 +115,20 @@ export const FarmerDashboard: React.FC = () => {
     }
 
     try {
+      const commodityRegion = currentUser.region || getDistrictRegion(newCommodity.district) || 'Central';
       const res = await fetch('/api/commodities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           farmerUid: currentUser.uid,
-          region: getDistrictRegion(newCommodity.district),
+          region: commodityRegion,
           ...newCommodity,
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to list commodity');
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Failed to list commodity');
       }
 
       setShowAddModal(false);
@@ -226,10 +232,11 @@ export const FarmerDashboard: React.FC = () => {
       const res = await fetch(`/api/commodities/${commId}?userUid=${currentUser?.uid}`, {
         method: 'DELETE',
       });
-      if (res.ok) fetchData();
-      else {
-        const err = await res.json();
-        alert(err.error || 'Failed to archive listing');
+      if (res.ok) {
+        fetchData();
+      } else {
+        const parsed = await safeParseResponse(res);
+        alert(parsed.error || 'Failed to archive listing');
       }
     } catch (err) {
       console.error('Failed to archive listing:', err);
@@ -362,6 +369,17 @@ export const FarmerDashboard: React.FC = () => {
           }`}
         >
           <span>Sales & Wallet Settlement</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('queries')}
+          className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 shrink-0 ${
+            activeTab === 'queries'
+              ? 'bg-emerald-100 text-emerald-900 font-extrabold'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4 text-emerald-700" />
+          <span>Queries &amp; Suggestions to Admin</span>
         </button>
       </div>
 
@@ -740,6 +758,11 @@ export const FarmerDashboard: React.FC = () => {
         <FarmerTransportHire onJobCreated={fetchData} />
       )}
 
+      {/* TAB 5: QUERIES & SUGGESTIONS DESK */}
+      {activeTab === 'queries' && (
+        <SupportQueriesDesk />
+      )}
+
       {/* MODAL: ADD COMMODITY LISTING */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -971,17 +994,25 @@ export const FarmerDashboard: React.FC = () => {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = () => {
+                          try {
+                            const compressed = await compressImageFile(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.8 });
                             setNewCommodity({
                               ...newCommodity,
-                              imageUrl: reader.result as string,
+                              imageUrl: compressed,
                             });
-                          };
-                          reader.readAsDataURL(file);
+                          } catch {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setNewCommodity({
+                                ...newCommodity,
+                                imageUrl: reader.result as string,
+                              });
+                            };
+                            reader.readAsDataURL(file);
+                          }
                         }}
                       />
                       <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-800 mb-1.5">

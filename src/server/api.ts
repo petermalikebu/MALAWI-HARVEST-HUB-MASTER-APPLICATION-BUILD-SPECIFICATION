@@ -11,6 +11,7 @@ import {
   platformSettings,
   notifications,
   auditLogs,
+  supportTickets,
 } from '../db/schema.ts';
 import { eq, desc, and, or, sql } from 'drizzle-orm';
 import { broadcastEvent } from './realtime.ts';
@@ -231,21 +232,57 @@ router.post('/users/login', async (req, res) => {
         return res.status(401).json({ error: 'Incorrect password for administrator account.' });
       }
 
+      const isJoshua = cleanEmail === 'joshuamalikebu927@gmail.com';
+
       if (!matchedUser) {
-        // Ensure Peter Malikebu super user exists in the store
-        const inserted = await db.insert(users).values({
-          uid: 'frF3xukObzdA8AhCBYIBPYV0UK13',
-          email: 'petermalikebujr@gmail.com',
-          fullName: 'Peter Malikebu',
-          role: 'admin',
-          phoneNumber: '+265 999 036 912',
-          password: superAdminPass,
-          district: 'Lilongwe',
-          region: 'Central',
-          tradingArea: 'City Centre',
-        }).returning();
-        matchedUser = inserted[0];
+        if (isJoshua) {
+          const inserted = await db.insert(users).values({
+            uid: 'admin-joshua-02',
+            email: 'joshuamalikebu927@gmail.com',
+            fullName: 'Joshua Malikebu',
+            role: 'admin',
+            phoneNumber: '+265 991 817 976 / +265 880 882 372',
+            password: superAdminPass,
+            district: 'Lilongwe',
+            region: 'Central',
+            tradingArea: 'City Centre',
+            bankName: 'National Bank of Malawi',
+            bankAccount: '1013388772',
+            bankAccountName: 'JOSHUA MALIKEBU',
+          }).returning();
+          matchedUser = inserted[0];
+        } else {
+          const inserted = await db.insert(users).values({
+            uid: 'frF3xukObzdA8AhCBYIBPYV0UK13',
+            email: 'petermalikebujr@gmail.com',
+            fullName: 'Peter Malikebu',
+            role: 'admin',
+            phoneNumber: '+265 999 036 912',
+            password: superAdminPass,
+            district: 'Lilongwe',
+            region: 'Central',
+            tradingArea: 'City Centre',
+            bankName: 'National Bank of Malawi',
+            bankAccount: '1011619688',
+            bankAccountName: 'PETER ADRIAN MALIKEBU',
+          }).returning();
+          matchedUser = inserted[0];
+        }
+      } else {
+        // Ensure bank details are present on matched admin
+        if (isJoshua) {
+          matchedUser.bankName = 'National Bank of Malawi';
+          matchedUser.bankAccount = '1013388772';
+          matchedUser.bankAccountName = 'JOSHUA MALIKEBU';
+          matchedUser.phoneNumber = matchedUser.phoneNumber || '+265 991 817 976 / +265 880 882 372';
+        } else {
+          matchedUser.bankName = 'National Bank of Malawi';
+          matchedUser.bankAccount = '1011619688';
+          matchedUser.bankAccountName = 'PETER ADRIAN MALIKEBU';
+          matchedUser.phoneNumber = matchedUser.phoneNumber || '+265 999 036 912';
+        }
       }
+
       return res.json({
         success: true,
         user: matchedUser,
@@ -641,7 +678,7 @@ router.post('/commodities', async (req, res) => {
       );
     }
 
-    const calculatedRegion = region || (district ? getDistrictRegion(district) : null) || farmer?.region || 'Central';
+    const calculatedRegion = region || (farmer && farmer.region) || getDistrictRegion(district) || 'Central';
 
     if (!farmer) {
       // Auto-provision profile so a registered farmer never gets blocked from listing produce
@@ -658,10 +695,17 @@ router.post('/commodities', async (req, res) => {
       farmer = newFarmerInserted && newFarmerInserted.length > 0 ? newFarmerInserted[0] : null;
     }
 
+    const safeFarmerId = farmer?.id || 1;
+    const safeFarmerUid = farmer?.uid || farmerUid;
+    const safeFarmerName = farmer?.fullName || 'Registered Farmer';
+    const safeFarmerEmail = farmer?.email || 'farmer@harvesthub.mw';
+    const safeFarmerRole = farmer?.role || 'farmer';
+    const finalRegion = calculatedRegion || farmer?.region || 'Central';
+
     const inserted = await db.insert(commodities).values({
-      farmerId: farmer?.id || 1,
-      farmerUid: farmer?.uid || farmerUid,
-      farmerName: farmer?.fullName || 'Smallholder Farmer',
+      farmerId: safeFarmerId,
+      farmerUid: safeFarmerUid,
+      farmerName: safeFarmerName,
       commodityName,
       category,
       quantity: qty,
@@ -670,7 +714,7 @@ router.post('/commodities', async (req, res) => {
       pricePerUnit: price.toString(),
       district,
       location,
-      region: calculatedRegion,
+      region: finalRegion,
       quality: quality || 'Grade A - Premium',
       availabilityDate: availabilityDate || new Date().toISOString().split('T')[0],
       description: description || '',
@@ -678,18 +722,39 @@ router.post('/commodities', async (req, res) => {
       status: 'available',
     }).returning();
 
+    const createdRecord = inserted && inserted.length > 0 ? inserted[0] : {
+      id: Date.now(),
+      farmerId: safeFarmerId,
+      farmerUid: safeFarmerUid,
+      farmerName: safeFarmerName,
+      commodityName,
+      category,
+      quantity: qty,
+      initialQuantity: qty,
+      unit: unit || 'kg',
+      pricePerUnit: price.toString(),
+      district,
+      location,
+      region: finalRegion,
+      quality: quality || 'Grade A - Premium',
+      availabilityDate: availabilityDate || new Date().toISOString().split('T')[0],
+      description: description || '',
+      imageUrl: imageUrl || 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=600&auto=format&fit=crop&q=80',
+      status: 'available',
+    };
+
     await logAudit({
-      userUid: farmerUid,
-      userEmail: farmer?.email || `${farmerUid}@harvesthub.mw`,
-      userName: farmer?.fullName || 'Smallholder Farmer',
-      role: farmer?.role || 'farmer',
+      userUid: safeFarmerUid,
+      userEmail: safeFarmerEmail,
+      userName: safeFarmerName,
+      role: safeFarmerRole,
       action: 'COMMODITY_CREATED',
-      recordAffected: `Commodity #${inserted[0]?.id || ''} (${commodityName})`,
+      recordAffected: `Commodity #${createdRecord.id} (${commodityName})`,
       newValue: `${qty} ${unit || 'kg'} @ MWK ${price}/unit in ${district}`,
     });
 
-    broadcastEvent('commodity_created', inserted[0]);
-    return res.status(201).json(inserted[0]);
+    broadcastEvent('commodity_created', createdRecord);
+    return res.status(201).json(createdRecord);
   } catch (error: any) {
     console.error('Error creating commodity:', error);
     return res.status(500).json({ error: error.message || 'Failed to create commodity' });
@@ -2221,6 +2286,289 @@ router.put('/settings', async (req, res) => {
     return res.json({ success: true, key, value });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to update setting' });
+  }
+});
+
+// ----------------------------------------------------
+// SUPPORT QUERIES & SUGGESTIONS DESK
+// ----------------------------------------------------
+
+// List queries (filtered by userUid if provided for farmers/buyers/transporters, or all for admin)
+router.get('/queries', async (req, res) => {
+  try {
+    const { userUid, role, status, category } = req.query;
+    let list = await db.select().from(supportTickets).orderBy(desc(supportTickets.createdAt));
+
+    if (userUid && String(userUid).trim() !== '' && role !== 'admin') {
+      list = list.filter((q: any) => q.userUid === userUid);
+    }
+    if (status && String(status) !== 'all') {
+      list = list.filter((q: any) => q.status === status);
+    }
+    if (category && String(category) !== 'all') {
+      list = list.filter((q: any) => q.category === category);
+    }
+    if (role && String(role) !== 'all' && role !== 'admin') {
+      list = list.filter((q: any) => q.userRole === role);
+    }
+
+    // Format replies into parsed objects
+    const formatted = list.map((item: any) => {
+      let parsedReplies = [];
+      try {
+        if (typeof item.replies === 'string' && item.replies.trim()) {
+          parsedReplies = JSON.parse(item.replies);
+        } else if (Array.isArray(item.replies)) {
+          parsedReplies = item.replies;
+        }
+      } catch {
+        parsedReplies = [];
+      }
+      return {
+        ...item,
+        replies: parsedReplies,
+      };
+    });
+
+    return res.json(formatted);
+  } catch (error: any) {
+    console.error('Error fetching queries:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch queries' });
+  }
+});
+
+// Submit a new query or suggestion (Farmers, Buyers, Transporters)
+router.post('/queries', async (req, res) => {
+  try {
+    const {
+      userUid,
+      userName,
+      userEmail,
+      userPhone,
+      userRole,
+      userDistrict,
+      category,
+      subject,
+      message,
+      priority,
+    } = req.body;
+
+    if (!subject || !message || !userUid) {
+      return res.status(400).json({ error: 'Subject, detailed message, and user UID are required' });
+    }
+
+    const ticketNumber = `TKT-${Date.now().toString().slice(-4)}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const initialReply = {
+      id: `rep-${Date.now()}`,
+      senderRole: userRole || 'user',
+      senderName: userName || 'Registered User',
+      senderUid: userUid,
+      message: message.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    const inserted = await db.insert(supportTickets).values({
+      ticketNumber,
+      userUid,
+      userName: userName || 'Registered User',
+      userEmail: userEmail || 'user@harvesthub.mw',
+      userPhone: userPhone || '',
+      userRole: userRole || 'farmer',
+      userDistrict: userDistrict || 'Lilongwe',
+      category: category || 'problem',
+      subject: subject.trim(),
+      message: message.trim(),
+      status: 'pending',
+      priority: priority || 'normal',
+      adminReply: '',
+      repliedByAdminName: '',
+      repliedByAdminUid: '',
+      replies: JSON.stringify([initialReply]),
+    }).returning();
+
+    const createdTicket = inserted[0];
+
+    // Create notification for platform administrators
+    await db.insert(notifications).values({
+      userUid: 'all',
+      title: `New Support Query [${ticketNumber}]`,
+      message: `${userName} (${userRole}) submitted a query: "${subject}". Review in Administrator Help Desk.`,
+      type: 'system',
+    });
+
+    await logAudit({
+      userUid,
+      userEmail: userEmail || 'user@harvesthub.mw',
+      userName: userName || 'Registered User',
+      role: userRole || 'farmer',
+      action: 'QUERY_SUBMITTED',
+      recordAffected: `Support Ticket ${ticketNumber}`,
+      newValue: `[${category || 'problem'}] ${subject}`,
+    });
+
+    broadcastEvent('query_created', createdTicket);
+    return res.status(201).json({
+      ...createdTicket,
+      replies: [initialReply],
+    });
+  } catch (error: any) {
+    console.error('Error creating query:', error);
+    return res.status(500).json({ error: error.message || 'Failed to submit query' });
+  }
+});
+
+// Reply to a query (by Admin or User)
+router.post('/queries/:id/reply', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { senderUid, senderName, senderRole, message, newStatus } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Reply message cannot be empty' });
+    }
+
+    const ticketList = await db.select().from(supportTickets).where(eq(supportTickets.id, id)).limit(1);
+    const ticket = ticketList[0];
+    if (!ticket) {
+      return res.status(404).json({ error: 'Query ticket not found' });
+    }
+
+    let existingReplies: any[] = [];
+    try {
+      if (typeof ticket.replies === 'string' && ticket.replies.trim()) {
+        existingReplies = JSON.parse(ticket.replies);
+      } else if (Array.isArray(ticket.replies)) {
+        existingReplies = ticket.replies;
+      }
+    } catch {
+      existingReplies = [];
+    }
+
+    const newReplyItem = {
+      id: `rep-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      senderRole: senderRole || 'admin',
+      senderName: senderName || 'Administrator',
+      senderUid: senderUid || 'admin',
+      message: message.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    existingReplies.push(newReplyItem);
+
+    const isAdmin = senderRole === 'admin';
+    const updatedStatus = isAdmin
+      ? (newStatus || 'replied')
+      : 'pending';
+
+    const updateFields: any = {
+      replies: JSON.stringify(existingReplies),
+      status: updatedStatus,
+      updatedAt: new Date(),
+    };
+
+    if (isAdmin) {
+      updateFields.adminReply = message.trim();
+      updateFields.repliedByAdminName = senderName || 'Peter Malikebu';
+      updateFields.repliedByAdminUid = senderUid || 'admin';
+      updateFields.repliedAt = new Date();
+    }
+
+    const updated = await db.update(supportTickets)
+      .set(updateFields)
+      .where(eq(supportTickets.id, id))
+      .returning();
+
+    // Send notification
+    if (isAdmin) {
+      // Notify the user who submitted the ticket
+      await db.insert(notifications).values({
+        userUid: ticket.userUid,
+        title: `Reply to Query [${ticket.ticketNumber}]`,
+        message: `${senderName || 'Admin'} replied to your query "${ticket.subject}": ${message.trim().slice(0, 100)}...`,
+        type: 'system',
+      });
+    } else {
+      // Notify administrators
+      await db.insert(notifications).values({
+        userUid: 'all',
+        title: `User Response [${ticket.ticketNumber}]`,
+        message: `${senderName} replied on ticket "${ticket.subject}".`,
+        type: 'system',
+      });
+    }
+
+    await logAudit({
+      userUid: senderUid || 'admin',
+      userEmail: isAdmin ? 'admin@harvesthub.mw' : ticket.userEmail,
+      userName: senderName || 'Support Desk',
+      role: senderRole || 'admin',
+      action: 'QUERY_REPLIED',
+      recordAffected: `Support Ticket #${ticket.id} (${ticket.ticketNumber})`,
+      newValue: message.trim().slice(0, 150),
+    });
+
+    const finalItem = {
+      ...updated[0],
+      replies: existingReplies,
+    };
+
+    broadcastEvent('query_updated', finalItem);
+    return res.json(finalItem);
+  } catch (error: any) {
+    console.error('Error replying to query:', error);
+    return res.status(500).json({ error: error.message || 'Failed to submit reply' });
+  }
+});
+
+// Update query status or priority (Admin action)
+router.patch('/queries/:id/status', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { status, priority, adminUid, adminName } = req.body;
+
+    const ticketList = await db.select().from(supportTickets).where(eq(supportTickets.id, id)).limit(1);
+    const ticket = ticketList[0];
+    if (!ticket) {
+      return res.status(404).json({ error: 'Query ticket not found' });
+    }
+
+    const updateFields: any = { updatedAt: new Date() };
+    if (status) updateFields.status = status;
+    if (priority) updateFields.priority = priority;
+
+    const updated = await db.update(supportTickets)
+      .set(updateFields)
+      .where(eq(supportTickets.id, id))
+      .returning();
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@harvesthub.mw',
+      userName: adminName || 'Administrator',
+      role: 'admin',
+      action: 'QUERY_STATUS_CHANGED',
+      recordAffected: `Support Ticket #${ticket.id} (${ticket.ticketNumber})`,
+      previousValue: ticket.status,
+      newValue: status || ticket.status,
+    });
+
+    let parsedReplies = [];
+    try {
+      parsedReplies = typeof updated[0].replies === 'string' ? JSON.parse(updated[0].replies) : updated[0].replies;
+    } catch {
+      parsedReplies = [];
+    }
+
+    const finalItem = {
+      ...updated[0],
+      replies: parsedReplies,
+    };
+
+    broadcastEvent('query_updated', finalItem);
+    return res.json(finalItem);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to update query status' });
   }
 });
 

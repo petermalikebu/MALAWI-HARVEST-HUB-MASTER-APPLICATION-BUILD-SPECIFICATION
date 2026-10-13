@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
 import { Order } from '../../types/index.ts';
+import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import {
   Package,
   Truck,
@@ -40,7 +41,7 @@ export const BuyerOrders: React.FC = () => {
       setLoading(true);
       const res = await fetch(`/api/orders?buyerUid=${currentUser.uid}`);
       if (res.ok) {
-        setOrders(await res.json());
+        setOrders(await safeParseJson(res, []));
       }
     } catch (err) {
       console.error('Failed to fetch buyer orders:', err);
@@ -101,8 +102,8 @@ export const BuyerOrders: React.FC = () => {
         setCancelOrderId(null);
         fetchOrders();
       } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to cancel order');
+        const parsed = await safeParseResponse(res);
+        alert(parsed.error || 'Failed to cancel order');
       }
     } catch (err) {
       console.error('Failed to execute cancellation:', err);

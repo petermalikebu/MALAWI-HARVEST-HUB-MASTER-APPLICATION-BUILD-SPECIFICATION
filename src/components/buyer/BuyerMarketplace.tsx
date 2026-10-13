@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
 import { Commodity, Category, MALAWI_DISTRICTS } from '../../types/index.ts';
+import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import {
   Search,
   Filter,
@@ -53,7 +54,9 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
   const [orderError, setOrderError] = useState<string | null>(null);
 
   // Payment method state
-  const [paymentMethod, setPaymentMethod] = useState<'airtel_money' | 'tnm_mpamba' | 'nbs_bank'>('airtel_money');
+  const [paymentMethod, setPaymentMethod] = useState<
+    'airtel_money' | 'tnm_mpamba' | 'nbs_bank' | 'nb_peter' | 'nb_joshua'
+  >('airtel_money');
   const [buyerPaymentPhone, setBuyerPaymentPhone] = useState(currentUser?.phoneNumber || '+265 ');
   const [paymentRef, setPaymentRef] = useState('');
   const [copiedBadge, setCopiedBadge] = useState<string | null>(null);
@@ -71,8 +74,8 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
         fetch('/api/commodities?status=available'),
         fetch('/api/categories'),
       ]);
-      if (commRes.ok) setCommodities(await commRes.json());
-      if (catRes.ok) setCategories(await catRes.json());
+      if (commRes.ok) setCommodities(await safeParseJson(commRes, []));
+      if (catRes.ok) setCategories(await safeParseJson(catRes, []));
     } catch (err) {
       console.error('Failed to load marketplace commodities:', err);
     } finally {
@@ -121,7 +124,9 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
         ? 'Airtel Money (+265 999 036 912)'
         : paymentMethod === 'tnm_mpamba'
         ? 'TNM Mpamba (+265 895 357 535)'
-        : 'NBS Bank (Acc: 12100006186)';
+        : paymentMethod === 'nb_joshua'
+        ? 'National Bank of Malawi (Acc: 1013388772 - JOSHUA MALIKEBU)'
+        : 'National Bank of Malawi (Acc: 1011619688 - PETER ADRIAN MALIKEBU)';
 
     try {
       const res = await fetch('/api/orders', {
@@ -143,14 +148,14 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to place order');
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Failed to place order');
       }
 
-      const orderData = await res.json();
+      const orderData = parsed.data || {};
       setOrderSuccess(
-        `Order #${orderData.orderNumber} successfully submitted with ${formattedPaymentMethod} (Ref: ${paymentRef.trim()})! Financial Administrator will verify your payment into escrow and notify Farmer ${orderingCommodity.farmerName} to confirm the purchase.`
+        `Order #${orderData.orderNumber || 'CONFIRMED'} successfully submitted with ${formattedPaymentMethod} (Ref: ${paymentRef.trim()})! Financial Administrator will verify your payment into escrow and notify Farmer ${orderingCommodity.farmerName} to confirm the purchase.`
       );
       fetchCommodities();
       if (onOrderPlaced) onOrderPlaced();
@@ -668,31 +673,63 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                       </button>
                     </button>
 
-                    {/* NBS Bank Option */}
+                    {/* National Bank Option 1 - Peter Malikebu */}
                     <button
                       type="button"
-                      onClick={() => setPaymentMethod('nbs_bank')}
+                      onClick={() => setPaymentMethod('nb_peter')}
                       className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                        paymentMethod === 'nbs_bank'
+                        paymentMethod === 'nb_peter'
                           ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
                           : 'border-stone-200 bg-white hover:bg-stone-50'
                       }`}
                     >
                       <div className="flex items-center justify-between w-full mb-1">
-                        <span className="font-extrabold text-xs text-blue-800">NBS Bank Malawi</span>
-                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'nbs_bank' ? 'bg-blue-600' : 'border border-stone-300'}`} />
+                        <span className="font-extrabold text-xs text-blue-800">National Bank (Peter)</span>
+                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'nb_peter' ? 'bg-blue-600' : 'border border-stone-300'}`} />
                       </div>
                       <div className="font-mono text-[11px] font-bold text-stone-800">
-                        12100006186
+                        1011619688
                       </div>
                       <div className="text-[10px] text-stone-500 mt-0.5">
-                        Harvest Hub Central Escrow
+                        PETER ADRIAN MALIKEBU
                       </div>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          copyToClipboard('12100006186', 'NBS Account');
+                          copyToClipboard('1011619688', 'National Bank Acc');
+                        }}
+                        className="mt-2 text-[10px] font-bold text-blue-800 hover:underline text-left"
+                      >
+                        📋 Copy Account
+                      </button>
+                    </button>
+
+                    {/* National Bank Option 2 - Joshua Malikebu */}
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('nb_joshua')}
+                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                        paymentMethod === 'nb_joshua'
+                          ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
+                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className="font-extrabold text-xs text-blue-800">National Bank (Joshua)</span>
+                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'nb_joshua' ? 'bg-blue-600' : 'border border-stone-300'}`} />
+                      </div>
+                      <div className="font-mono text-[11px] font-bold text-stone-800">
+                        1013388772
+                      </div>
+                      <div className="text-[10px] text-stone-500 mt-0.5">
+                        JOSHUA MALIKEBU
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard('1013388772', 'National Bank Acc');
                         }}
                         className="mt-2 text-[10px] font-bold text-blue-800 hover:underline text-left"
                       >
@@ -738,7 +775,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                       <span>🔒 Financial Administrator Escrow Process</span>
                     </div>
                     <p className="leading-relaxed">
-                      1. You submit payment of <strong>MWK {grandTotal.toLocaleString()}</strong> via {paymentMethod === 'airtel_money' ? 'Airtel Money (+265 999 036 912)' : paymentMethod === 'tnm_mpamba' ? 'TNM Mpamba (+265 895 357 535)' : 'NBS Bank (Acc: 12100006186)'}.<br />
+                      1. You submit payment of <strong>MWK {grandTotal.toLocaleString()}</strong> via {paymentMethod === 'airtel_money' ? 'Airtel Money (+265 999 036 912)' : paymentMethod === 'tnm_mpamba' ? 'TNM Mpamba (+265 895 357 535)' : paymentMethod === 'nb_joshua' ? 'National Bank of Malawi (Acc: 1013388772 - Joshua Malikebu)' : 'National Bank of Malawi (Acc: 1011619688 - Peter Adrian Malikebu)'}.<br />
                       2. Financial Administrator verifies the payment and locks funds in Escrow.<br />
                       3. Farmer {orderingCommodity.farmerName} confirms the purchase to authorize dispatch.<br />
                       4. Financial Administrator sends the payout to the farmer at the end upon delivery completion!

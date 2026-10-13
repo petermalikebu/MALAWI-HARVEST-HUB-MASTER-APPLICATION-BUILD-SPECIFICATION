@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext.tsx';
 import { NotificationItem } from '../types/index.ts';
+import { safeParseJson } from '../lib/api.ts';
 
 type EventListener = (data: any) => void;
 
@@ -28,7 +29,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const res = await fetch(`/api/notifications?userUid=${currentUser.uid}`);
       if (res.ok) {
-        const list: NotificationItem[] = await res.json();
+        const list: NotificationItem[] = await safeParseJson(res, []);
         setNotifications(list);
       }
     } catch (err) {

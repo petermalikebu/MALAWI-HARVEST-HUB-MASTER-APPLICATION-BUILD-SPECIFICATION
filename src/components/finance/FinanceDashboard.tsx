@@ -448,8 +448,9 @@ export const FinanceDashboard: React.FC = () => {
             <p className="text-stone-700 leading-relaxed max-w-3xl">
               Wholesale buyers deposit funds for commodity purchases into the platform's official accounts: 
               <strong> Airtel Money (+265 999 036 912)</strong>, 
-              <strong> TNM Mpamba (+265 895 357 535)</strong>, or 
-              <strong> NBS Bank (Acc: 12100006186)</strong>. 
+              <strong> TNM Mpamba (+265 895 357 535)</strong>, 
+              <strong> National Bank of Malawi (Peter Adrian Malikebu - Acc: 1011619688)</strong>, or 
+              <strong> National Bank of Malawi (Joshua Malikebu - Acc: 1013388772)</strong>. 
               As Financial Administrator, you verify the transaction on the bank/mobile ledger, lock the funds into platform escrow, reassure the farmer to confirm and dispatch goods, and disburse the money received directly to the farmer at the end!
             </p>
           </div>

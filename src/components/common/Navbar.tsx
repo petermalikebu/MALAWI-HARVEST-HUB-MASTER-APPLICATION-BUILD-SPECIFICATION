@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Lock,
   ShieldAlert,
+  HelpCircle,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -140,6 +141,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   Marketplace
                 </button>
+                <button
+                  onClick={() => setActiveTab('support_queries')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                    activeTab === 'support_queries'
+                      ? 'bg-white text-emerald-800 shadow-xs border border-stone-200/60 font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Queries &amp; Suggestions</span>
+                </button>
               </>
             )}
 
@@ -164,6 +176,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   My Purchases & Tracking
+                </button>
+                <button
+                  onClick={() => setActiveTab('support_queries')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                    activeTab === 'support_queries'
+                      ? 'bg-white text-amber-800 shadow-xs border border-stone-200/60 font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Queries &amp; Suggestions</span>
                 </button>
               </>
             )}
@@ -190,21 +213,45 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   Active Deliveries
                 </button>
+                <button
+                  onClick={() => setActiveTab('support_queries')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                    activeTab === 'support_queries'
+                      ? 'bg-white text-blue-800 shadow-xs border border-stone-200/60 font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Queries &amp; Suggestions</span>
+                </button>
               </>
             )}
 
             {/* ONLY Lead Admins have access to the Control Center */}
             {currentUser?.role === 'admin' && (
-              <button
-                onClick={() => setActiveTab('admin_overview')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  activeTab === 'admin_overview'
-                    ? 'bg-white text-purple-800 shadow-xs border border-stone-200/60 font-bold'
-                    : 'text-stone-600 hover:text-stone-900'
-                }`}
-              >
-                Control Center
-              </button>
+              <>
+                <button
+                  onClick={() => setActiveTab('admin_overview')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                    activeTab === 'admin_overview'
+                      ? 'bg-white text-purple-800 shadow-xs border border-stone-200/60 font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  Control Center
+                </button>
+                <button
+                  onClick={() => setActiveTab('support_queries')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                    activeTab === 'support_queries'
+                      ? 'bg-white text-purple-800 shadow-xs border border-stone-200/60 font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Help Desk &amp; Queries</span>
+                </button>
+              </>
             )}
 
             {/* ONLY Lead Admins and Finance Admins have access to the Finance section */}
@@ -298,6 +345,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="hidden sm:inline">Mobile App View</span>
                 </>
               )}
+            </button>
+
+            {/* Support & Queries Desk Quick Action */}
+            <button
+              onClick={() => setActiveTab('support_queries')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                activeTab === 'support_queries'
+                  ? 'bg-emerald-800 text-white border-emerald-800 shadow-xs'
+                  : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-50'
+              }`}
+              title="Queries, Problems & Suggestions Desk"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">Queries &amp; Help</span>
             </button>
 
             {/* Notifications Bell */}

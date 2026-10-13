@@ -14,7 +14,10 @@ import {
   TrendingUp,
   RefreshCw,
   ShieldCheck,
+  HelpCircle,
+  MessageSquare,
 } from 'lucide-react';
+import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 
 export const TransporterDashboard: React.FC = () => {
   const { currentUser, updateProfile } = useAuth();
@@ -22,7 +25,7 @@ export const TransporterDashboard: React.FC = () => {
 
   const [jobs, setJobs] = useState<TransportJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'available' | 'active' | 'completed'>('available');
+  const [activeTab, setActiveTab] = useState<'available' | 'active' | 'completed' | 'queries'>('available');
 
   // Location update modal
   const [updatingJobId, setUpdatingJobId] = useState<number | null>(null);
@@ -205,7 +208,18 @@ export const TransporterDashboard: React.FC = () => {
           }`}
         >
           <CheckCircle className="w-4 h-4" />
-          <span>Completed & Settled ({myCompletedJobs.length})</span>
+          <span>Completed &amp; Settled ({myCompletedJobs.length})</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('queries')}
+          className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 ${
+            activeTab === 'queries'
+              ? 'bg-blue-100 text-blue-900 font-extrabold'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4 text-blue-700" />
+          <span>Queries &amp; Suggestions to Admin</span>
         </button>
       </div>
 
@@ -478,6 +492,11 @@ export const TransporterDashboard: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB 4: QUERIES & SUGGESTIONS DESK */}
+      {activeTab === 'queries' && (
+        <SupportQueriesDesk />
       )}
 
       {/* MODAL: UPDATE CHECKPOINT LOCATION */}

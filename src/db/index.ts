@@ -48,6 +48,9 @@ function initializeSeedStore(): Record<string, any[]> {
       region: 'Central',
       tradingArea: 'City Centre',
       village: 'Area 10',
+      bankName: 'National Bank of Malawi',
+      bankAccount: '1011619688',
+      bankAccountName: 'PETER ADRIAN MALIKEBU',
       vehicleType: '',
       vehicleRegistration: '',
       vehicleCapacityKg: 0,
@@ -148,6 +151,29 @@ function initializeSeedStore(): Record<string, any[]> {
       region: 'Central',
       tradingArea: 'Capital City',
       village: 'Area 18',
+      vehicleType: '',
+      vehicleRegistration: '',
+      vehicleCapacityKg: 0,
+      isAvailable: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 7,
+      uid: 'admin-joshua-02',
+      email: 'joshuamalikebu927@gmail.com',
+      fullName: 'Joshua Malikebu',
+      role: 'admin',
+      phoneNumber: '+265 991 817 976 / +265 880 882 372',
+      password: 'P1qe2wt3ee4rr5t?',
+      photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
+      district: 'Lilongwe',
+      region: 'Central',
+      tradingArea: 'City Centre',
+      village: 'Area 11',
+      bankName: 'National Bank of Malawi',
+      bankAccount: '1013388772',
+      bankAccountName: 'JOSHUA MALIKEBU',
       vehicleType: '',
       vehicleRegistration: '',
       vehicleCapacityKg: 0,
@@ -593,6 +619,121 @@ function initializeSeedStore(): Record<string, any[]> {
     },
   ];
 
+  const supportTickets = [
+    {
+      id: 1,
+      ticketNumber: 'TKT-2026-001',
+      userId: 2,
+      userUid: 'farmer-chimwemwe-01',
+      userName: 'Chimwemwe Phiri',
+      userEmail: 'chimwemwe.phiri@mhh.mw',
+      userPhone: '+265 888 123 456',
+      userRole: 'farmer',
+      userDistrict: 'Mchinji',
+      category: 'problem',
+      subject: 'Clarification on produce weight calibration at Kamwendo depot',
+      message: 'Hello Admin team, we had a slight variation between digital scale and field bags for sugar beans. Please advise on recommended depot scale calibration procedure.',
+      status: 'replied',
+      priority: 'normal',
+      adminReply: 'Hello Chimwemwe, thank you for alerting us. Kamwendo depot has an authorized platform scale calibration officer arriving tomorrow at 9 AM. You can verify your weights directly with our depot supervisor.',
+      repliedByAdminName: 'Peter Malikebu',
+      repliedByAdminUid: 'frF3xukObzdA8AhCBYIBPYV0UK13',
+      repliedAt: now,
+      replies: JSON.stringify([
+        {
+          id: 'rep-1',
+          senderRole: 'farmer',
+          senderName: 'Chimwemwe Phiri',
+          senderUid: 'farmer-chimwemwe-01',
+          message: 'Hello Admin team, we had a slight variation between digital scale and field bags for sugar beans. Please advise on recommended depot scale calibration procedure.',
+          timestamp: new Date(Date.now() - 3600000 * 5).toISOString(),
+        },
+        {
+          id: 'rep-2',
+          senderRole: 'admin',
+          senderName: 'Peter Malikebu',
+          senderUid: 'frF3xukObzdA8AhCBYIBPYV0UK13',
+          message: 'Hello Chimwemwe, thank you for alerting us. Kamwendo depot has an authorized platform scale calibration officer arriving tomorrow at 9 AM. You can verify your weights directly with our depot supervisor.',
+          timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
+        }
+      ]),
+      createdAt: new Date(Date.now() - 3600000 * 6),
+      updatedAt: now,
+    },
+    {
+      id: 2,
+      ticketNumber: 'TKT-2026-002',
+      userId: 3,
+      userUid: 'buyer-alinafe-02',
+      userName: 'Alinafe Banda',
+      userEmail: 'alinafe.banda@mhh.mw',
+      userPhone: '+265 999 234 567',
+      userRole: 'buyer',
+      userDistrict: 'Lilongwe',
+      category: 'suggestion',
+      subject: 'Add instant SMS confirmation when payment is verified by finance',
+      message: 'Can we please have an SMS alert sent to buyers immediately when finance admin locks our National Bank transfer into escrow? It would speed up transport coordination.',
+      status: 'replied',
+      priority: 'normal',
+      adminReply: 'Greetings Alinafe, wonderful suggestion! We have prioritized SMS notifications with TNM and Airtel gateway integration in this release. Thank you for helping us improve!',
+      repliedByAdminName: 'Joshua Malikebu',
+      repliedByAdminUid: 'admin-joshua-02',
+      repliedAt: now,
+      replies: JSON.stringify([
+        {
+          id: 'rep-3',
+          senderRole: 'buyer',
+          senderName: 'Alinafe Banda',
+          senderUid: 'buyer-alinafe-02',
+          message: 'Can we please have an SMS alert sent to buyers immediately when finance admin locks our National Bank transfer into escrow? It would speed up transport coordination.',
+          timestamp: new Date(Date.now() - 3600000 * 12).toISOString(),
+        },
+        {
+          id: 'rep-4',
+          senderRole: 'admin',
+          senderName: 'Joshua Malikebu',
+          senderUid: 'admin-joshua-02',
+          message: 'Greetings Alinafe, wonderful suggestion! We have prioritized SMS notifications with TNM and Airtel gateway integration in this release. Thank you for helping us improve!',
+          timestamp: new Date(Date.now() - 3600000 * 3).toISOString(),
+        }
+      ]),
+      createdAt: new Date(Date.now() - 3600000 * 14),
+      updatedAt: now,
+    },
+    {
+      id: 3,
+      ticketNumber: 'TKT-2026-003',
+      userId: 4,
+      userUid: 'transporter-kondwani-03',
+      userName: 'Kondwani Chirwa',
+      userEmail: 'kondwani.chirwa@mhh.mw',
+      userPhone: '+265 881 345 678',
+      userRole: 'transporter',
+      userDistrict: 'Dedza',
+      category: 'transport_query',
+      subject: 'Route advisory for Dedza-Bembeke road works during rainy spells',
+      message: 'Road maintenance near Linthipe bridge can slow down 5-ton trucks. Suggest adding an ETA note for drivers on this route.',
+      status: 'pending',
+      priority: 'high',
+      adminReply: '',
+      repliedByAdminName: '',
+      repliedByAdminUid: '',
+      repliedAt: null,
+      replies: JSON.stringify([
+        {
+          id: 'rep-5',
+          senderRole: 'transporter',
+          senderName: 'Kondwani Chirwa',
+          senderUid: 'transporter-kondwani-03',
+          message: 'Road maintenance near Linthipe bridge can slow down 5-ton trucks. Suggest adding an ETA note for drivers on this route.',
+          timestamp: new Date(Date.now() - 3600000).toISOString(),
+        }
+      ]),
+      createdAt: new Date(Date.now() - 3600000),
+      updatedAt: now,
+    }
+  ];
+
   return {
     users,
     categories,
@@ -604,6 +745,7 @@ function initializeSeedStore(): Record<string, any[]> {
     platform_settings: platformSettings,
     notifications,
     audit_logs: auditLogs,
+    support_tickets: supportTickets,
   };
 }
 
@@ -640,13 +782,85 @@ export function getInMemoryStore(): Record<string, any[]> {
     const fromDisk = loadStoreFromDisk();
     if (fromDisk && Array.isArray(fromDisk.users) && fromDisk.users.length > 0) {
       global._inMemoryStore = fromDisk;
-      // Ensure super administrator password is set to latest requested password
-      const superAdmin = global._inMemoryStore.users.find(
-        (u: any) => u.email === 'petermalikebujr@gmail.com'
+
+      // 1. Ensure Super Admin 1: Peter Malikebu
+      let peterAdmin = global._inMemoryStore.users.find(
+        (u: any) => u.email === 'petermalikebujr@gmail.com' || u.email === 'petermalikebu0@gmail.com'
       );
-      if (superAdmin) {
-        superAdmin.password = 'P1qe2wt3ee4rr5t?';
+      if (peterAdmin) {
+        peterAdmin.fullName = 'Peter Malikebu';
+        peterAdmin.role = 'admin';
+        peterAdmin.phoneNumber = '+265 999 036 912';
+        peterAdmin.bankName = 'National Bank of Malawi';
+        peterAdmin.bankAccount = '1011619688';
+        peterAdmin.bankAccountName = 'PETER ADRIAN MALIKEBU';
+        peterAdmin.password = 'P1qe2wt3ee4rr5t?';
+      } else {
+        global._inMemoryStore.users.push({
+          id: 1,
+          uid: 'frF3xukObzdA8AhCBYIBPYV0UK13',
+          email: 'petermalikebujr@gmail.com',
+          fullName: 'Peter Malikebu',
+          role: 'admin',
+          phoneNumber: '+265 999 036 912',
+          password: 'P1qe2wt3ee4rr5t?',
+          photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+          district: 'Lilongwe',
+          region: 'Central',
+          tradingArea: 'City Centre',
+          village: 'Area 10',
+          bankName: 'National Bank of Malawi',
+          bankAccount: '1011619688',
+          bankAccountName: 'PETER ADRIAN MALIKEBU',
+          isAvailable: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
       }
+
+      // 2. Ensure Super Admin 2: Joshua Malikebu
+      let joshuaAdmin = global._inMemoryStore.users.find(
+        (u: any) => u.email === 'joshuamalikebu927@gmail.com'
+      );
+      if (joshuaAdmin) {
+        joshuaAdmin.fullName = 'Joshua Malikebu';
+        joshuaAdmin.role = 'admin';
+        joshuaAdmin.phoneNumber = '+265 991 817 976 / +265 880 882 372';
+        joshuaAdmin.bankName = 'National Bank of Malawi';
+        joshuaAdmin.bankAccount = '1013388772';
+        joshuaAdmin.bankAccountName = 'JOSHUA MALIKEBU';
+        joshuaAdmin.password = 'P1qe2wt3ee4rr5t?';
+      } else {
+        const nextId = Math.max(...global._inMemoryStore.users.map((u: any) => Number(u.id) || 0)) + 1;
+        global._inMemoryStore.users.push({
+          id: nextId,
+          uid: 'admin-joshua-02',
+          email: 'joshuamalikebu927@gmail.com',
+          fullName: 'Joshua Malikebu',
+          role: 'admin',
+          phoneNumber: '+265 991 817 976 / +265 880 882 372',
+          password: 'P1qe2wt3ee4rr5t?',
+          photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
+          district: 'Lilongwe',
+          region: 'Central',
+          tradingArea: 'City Centre',
+          village: 'Area 11',
+          bankName: 'National Bank of Malawi',
+          bankAccount: '1013388772',
+          bankAccountName: 'JOSHUA MALIKEBU',
+          isAvailable: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+
+      // 3. Ensure support_tickets table exists in store
+      if (!Array.isArray(global._inMemoryStore.support_tickets)) {
+        const seed = initializeSeedStore();
+        global._inMemoryStore.support_tickets = seed.support_tickets || [];
+      }
+
+      saveStoreToDisk(global._inMemoryStore);
     } else {
       global._inMemoryStore = initializeSeedStore();
       saveStoreToDisk(global._inMemoryStore);

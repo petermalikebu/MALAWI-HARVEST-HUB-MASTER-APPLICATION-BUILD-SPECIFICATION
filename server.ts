@@ -33,6 +33,11 @@ async function startServer() {
     next();
   });
 
+  // Catch unmatched /api routes and return JSON 404, preventing HTML SPA fallback
+  app.all('/api/*', (_req, res) => {
+    res.status(404).json({ error: 'API route not found' });
+  });
+
   const isProduction = process.env.NODE_ENV === 'production';
   const port = parseInt(process.env.PORT || '3000', 10);
 

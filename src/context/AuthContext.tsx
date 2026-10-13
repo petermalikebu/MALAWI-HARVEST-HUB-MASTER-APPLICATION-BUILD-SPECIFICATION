@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { signInWithPopup, signOut as fbSignOut, User as FbUser } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase.ts';
 import { User, UserRole } from '../types/index.ts';
+import { safeParseJson, safeParseResponse } from '../lib/api.ts';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -47,9 +48,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!isLoggedOut && savedUid) {
           const res = await fetch(`/api/users/${savedUid}`);
           if (res.ok) {
-            const u: User = await res.json();
-            setCurrentUser(u);
-            return;
+            const u: User | null = await safeParseJson(res, null);
+            if (u) {
+              setCurrentUser(u);
+              return;
+            }
           }
         }
 
@@ -72,8 +75,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await fetch(`/api/users/${currentUser.uid}`);
       if (res.ok) {
-        const u = await res.json();
-        setCurrentUser(u);
+        const u = await safeParseJson(res, null);
+        if (u) setCurrentUser(u);
       }
     } catch (err) {
       console.error('Failed to refresh user:', err);
@@ -89,13 +92,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Invalid email or password.');
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Invalid email or password.');
       }
 
-      const user: User = data.user;
+      const user: User = parsed.data?.user;
+      if (!user) {
+        throw new Error('User record missing in response');
+      }
       setCurrentUser(user);
       sessionStorage.removeItem('mhh_logged_out');
       sessionStorage.setItem('mhh_active_uid', user.uid);
@@ -129,17 +134,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify(data),
       });
 
-      const resData = await res.json();
-
-      if (!res.ok) {
-        throw new Error(resData.error || 'Registration failed.');
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Registration failed.');
       }
 
       // DO NOT auto-login as instructed by user:
       // prompt him or her to sign in after signing up.
       return {
         success: true,
-        message: resData.message || 'Account created successfully! Please sign in with your email and password.',
+        message: parsed.data?.message || 'Account created successfully! Please sign in with your email and password.',
       };
     } finally {
       setLoading(false);
@@ -155,8 +159,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ uid: currentUser.uid, photoUrl }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setCurrentUser(data.user);
+        const data = await safeParseJson(res, null);
+        if (data?.user) setCurrentUser(data.user);
       }
     } catch (err) {
       console.error('Failed to upload profile photo:', err);
@@ -197,9 +201,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (syncRes.ok) {
-        const dbUser = await syncRes.json();
-        setCurrentUser(dbUser);
-        sessionStorage.setItem('mhh_active_uid', dbUser.uid);
+        const dbUser = await safeParseJson(syncRes, null);
+        if (dbUser) {
+          setCurrentUser(dbUser);
+          sessionStorage.setItem('mhh_active_uid', dbUser.uid);
+        }
       }
     } catch (err) {
       console.error('Google Sign In failed:', err);
@@ -226,8 +232,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }),
       });
       if (res.ok) {
-        const updated = await res.json();
-        setCurrentUser(updated);
+        const updated = await safeParseJson(res, null);
+        if (updated) setCurrentUser(updated);
       }
     } catch (err) {
       console.error('Failed to update profile:', err);

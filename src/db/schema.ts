@@ -19,6 +19,9 @@ export const users = pgTable('users', {
   vehicleType: text('vehicle_type').default(''),
   vehicleRegistration: text('vehicle_registration').default(''),
   vehicleCapacityKg: integer('vehicle_capacity_kg').default(0),
+  bankName: text('bank_name').default('National Bank of Malawi'),
+  bankAccount: text('bank_account').default(''),
+  bankAccountName: text('bank_account_name').default(''),
   isAvailable: boolean('is_available').default(true),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -220,6 +223,31 @@ export const auditLogs = pgTable('audit_logs', {
   newValue: text('new_value'),
   reason: text('reason'),
   createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Support Tickets & Suggestions / User Queries
+export const supportTickets = pgTable('support_tickets', {
+  id: serial('id').primaryKey(),
+  ticketNumber: text('ticket_number').notNull().unique(),
+  userId: integer('user_id'),
+  userUid: text('user_uid').notNull(),
+  userName: text('user_name').notNull(),
+  userEmail: text('user_email').notNull(),
+  userPhone: text('user_phone').default(''),
+  userRole: text('user_role').notNull(), // farmer | buyer | transporter | admin | finance_admin
+  userDistrict: text('user_district').default('Lilongwe'),
+  category: text('category').notNull().default('problem'), // problem | suggestion | payment_query | transport_query | commodity_query | other
+  subject: text('subject').notNull(),
+  message: text('message').notNull(),
+  status: text('status').notNull().default('pending'), // pending | in_progress | replied | resolved
+  priority: text('priority').notNull().default('normal'), // normal | high | urgent
+  adminReply: text('admin_reply').default(''),
+  repliedByAdminName: text('replied_by_admin_name').default(''),
+  repliedByAdminUid: text('replied_by_admin_uid').default(''),
+  repliedAt: timestamp('replied_at'),
+  replies: text('replies').default('[]'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 // Relationships

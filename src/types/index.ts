@@ -16,6 +16,9 @@ export interface User {
   vehicleType?: string;
   vehicleRegistration?: string;
   vehicleCapacityKg?: number;
+  bankName?: string;
+  bankAccount?: string;
+  bankAccountName?: string;
   isAvailable?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -302,6 +305,21 @@ export const MALAWI_DISTRICTS = [
   'Likoma',
 ];
 
+export function getDistrictRegion(district?: string): 'Central' | 'Southern' | 'Northern' {
+  if (!district) return 'Central';
+  const d = district.trim().toLowerCase();
+  const northern = ['chitipa', 'karonga', 'likoma', 'mzimba', 'mzuzu', 'nkhatabay', 'nkhata bay', 'rumphi'];
+  if (northern.includes(d)) return 'Northern';
+
+  const southern = [
+    'balaka', 'blantyre', 'chikwawa', 'chiradzulu', 'machinga', 'mangochi',
+    'mulanje', 'mwanza', 'neno', 'nsanje', 'phalombe', 'thyolo', 'zomba'
+  ];
+  if (southern.includes(d)) return 'Southern';
+
+  return 'Central';
+}
+
 export const VEHICLE_TYPES = [
   'Pickup (1-2 Ton)',
   'Light Truck (3-5 Ton)',
@@ -311,43 +329,35 @@ export const VEHICLE_TYPES = [
   'Motorcycle / Tricycle',
 ];
 
-export const DISTRICT_TO_REGION: Record<string, string> = {
-  // Northern Region
-  'Chitipa': 'Northern',
-  'Karonga': 'Northern',
-  'Likoma': 'Northern',
-  'Mzimba': 'Northern',
-  'Mzuzu': 'Northern',
-  'Nkhatabay': 'Northern',
-  'Nkhata Bay': 'Northern',
-  'Rumphi': 'Northern',
-  // Central Region
-  'Dedza': 'Central',
-  'Dowa': 'Central',
-  'Kasungu': 'Central',
-  'Lilongwe': 'Central',
-  'Mchinji': 'Central',
-  'Nkhotakota': 'Central',
-  'Ntcheu': 'Central',
-  'Ntchisi': 'Central',
-  'Salima': 'Central',
-  // Southern Region
-  'Balaka': 'Southern',
-  'Blantyre': 'Southern',
-  'Chikwawa': 'Southern',
-  'Chiradzulu': 'Southern',
-  'Machinga': 'Southern',
-  'Mangochi': 'Southern',
-  'Mulanje': 'Southern',
-  'Mwanza': 'Southern',
-  'Neno': 'Southern',
-  'Nsanje': 'Southern',
-  'Phalombe': 'Southern',
-  'Thyolo': 'Southern',
-  'Zomba': 'Southern',
-};
+export interface SupportTicketReply {
+  id: string;
+  senderRole: 'user' | 'admin' | 'farmer' | 'buyer' | 'transporter';
+  senderName: string;
+  senderUid: string;
+  message: string;
+  timestamp: string;
+}
 
-export function getDistrictRegion(district?: string): string {
-  if (!district) return 'Central';
-  return DISTRICT_TO_REGION[district] || 'Central';
+export interface SupportTicket {
+  id: number;
+  ticketNumber: string;
+  userId?: number;
+  userUid: string;
+  userName: string;
+  userEmail: string;
+  userPhone?: string;
+  userRole: UserRole;
+  userDistrict?: string;
+  category: 'problem' | 'suggestion' | 'payment_query' | 'transport_query' | 'commodity_query' | 'other';
+  subject: string;
+  message: string;
+  status: 'pending' | 'in_progress' | 'replied' | 'resolved';
+  priority: 'normal' | 'high' | 'urgent';
+  adminReply?: string;
+  repliedByAdminName?: string;
+  repliedByAdminUid?: string;
+  repliedAt?: string;
+  replies?: SupportTicketReply[];
+  createdAt?: string;
+  updatedAt?: string;
 }

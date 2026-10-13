@@ -15,13 +15,15 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
+  MessageSquare,
 } from 'lucide-react';
+import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const { subscribe } = useRealtime();
 
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'audit' | 'settings'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'audit' | 'settings' | 'queries'>('users');
   const [usersList, setUsersList] = useState<User[]>([]);
   const [commoditiesList, setCommoditiesList] = useState<Commodity[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>([]);
@@ -282,6 +284,15 @@ export const AdminDashboard: React.FC = () => {
           <span>Audit Logs ({auditLogsList.length})</span>
         </button>
         <button
+          onClick={() => setActiveSubTab('queries')}
+          className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
+            activeSubTab === 'queries' ? 'bg-purple-100 text-purple-900 font-extrabold' : 'text-stone-600 hover:bg-stone-100'
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>Queries &amp; Help Desk</span>
+        </button>
+        <button
           onClick={() => setActiveSubTab('settings')}
           className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
             activeSubTab === 'settings' ? 'bg-purple-100 text-purple-900' : 'text-stone-600 hover:bg-stone-100'
@@ -294,11 +305,43 @@ export const AdminDashboard: React.FC = () => {
 
       {/* SUB TAB 1: USERS */}
       {activeSubTab === 'users' && (
-        <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs">
-          <div className="p-4 border-b border-stone-100 flex items-center justify-between">
-            <h3 className="font-bold text-stone-900 text-sm">Registered Ecosystem Users</h3>
-            <span className="text-xs text-stone-500">Live PostgreSQL `users` table</span>
+        <div className="space-y-4">
+          {/* Two Official Platform Administrators Info Banner */}
+          <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white rounded-2xl p-5 border border-purple-700/50 shadow-xs space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-purple-300" />
+              <h3 className="font-extrabold text-sm text-white">
+                Official Platform Administrators &amp; Central Escrow Accounts
+              </h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div className="bg-white/10 rounded-xl p-3 border border-white/10 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-xs">Peter Malikebu</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-400/20 text-purple-200 font-bold uppercase">Super Admin 1</span>
+                </div>
+                <p className="text-purple-200 text-[11px]">Email: <strong className="text-white">petermalikebujr@gmail.com</strong></p>
+                <p className="text-purple-200 text-[11px]">Phone: <strong className="text-white">+265 999 036 912</strong></p>
+                <p className="text-purple-200 text-[11px]">National Bank of Malawi Acc: <strong className="text-emerald-300">1011619688</strong> (PETER ADRIAN MALIKEBU)</p>
+              </div>
+
+              <div className="bg-white/10 rounded-xl p-3 border border-white/10 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-xs">Joshua Malikebu</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-400/20 text-purple-200 font-bold uppercase">Super Admin 2</span>
+                </div>
+                <p className="text-purple-200 text-[11px]">Email: <strong className="text-white">joshuamalikebu927@gmail.com</strong></p>
+                <p className="text-purple-200 text-[11px]">Phone: <strong className="text-white">0991817976 / 0880882372</strong></p>
+                <p className="text-purple-200 text-[11px]">National Bank of Malawi Acc: <strong className="text-emerald-300">1013388772</strong> (JOSHUA MALIKEBU)</p>
+              </div>
+            </div>
           </div>
+
+          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs">
+            <div className="p-4 border-b border-stone-100 flex items-center justify-between">
+              <h3 className="font-bold text-stone-900 text-sm">Registered Ecosystem Users</h3>
+              <span className="text-xs text-stone-500">Live PostgreSQL `users` table</span>
+            </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider text-[10px]">
@@ -407,6 +450,7 @@ export const AdminDashboard: React.FC = () => {
             </table>
           </div>
         </div>
+      </div>
       )}
 
       {/* SUB TAB 2: COMMODITIES */}
@@ -653,6 +697,11 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </form>
         </div>
+      )}
+
+      {/* SUB TAB 7: QUERIES & HELP DESK */}
+      {activeSubTab === 'queries' && (
+        <SupportQueriesDesk />
       )}
 
       {/* MODAL: ADMIN CANCEL ORDER */}

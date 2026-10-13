@@ -14,6 +14,7 @@ import { ImpactDashboard } from './components/impact/ImpactDashboard.tsx';
 import { MobileAppContainer } from './components/mobile/MobileAppContainer.tsx';
 import { SignInView } from './components/common/SignInView.tsx';
 import { FarmerTransportHire } from './components/farmer/FarmerTransportHire.tsx';
+import { SupportQueriesDesk } from './components/support/SupportQueriesDesk.tsx';
 import { ShieldAlert } from 'lucide-react';
 
 function MainContent() {
@@ -146,6 +147,8 @@ function MainContent() {
         return <ImpactDashboard />;
       case 'fee_simulator':
         return <FeeSimulator />;
+      case 'support_queries':
+        return <SupportQueriesDesk />;
       default:
         return <FarmerDashboard />;
     }

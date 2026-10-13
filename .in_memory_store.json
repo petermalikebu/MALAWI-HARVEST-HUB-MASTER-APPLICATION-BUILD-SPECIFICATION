@@ -13,12 +13,15 @@
       "region": "Central",
       "tradingArea": "City Centre",
       "village": "Area 10",
+      "bankName": "National Bank of Malawi",
+      "bankAccount": "1011619688",
+      "bankAccountName": "PETER ADRIAN MALIKEBU",
       "vehicleType": "",
       "vehicleRegistration": "",
       "vehicleCapacityKg": 0,
       "isAvailable": true,
-      "createdAt": "2026-10-10T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 2,
@@ -37,8 +40,8 @@
       "vehicleRegistration": "",
       "vehicleCapacityKg": 0,
       "isAvailable": true,
-      "createdAt": "2026-10-10T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 3,
@@ -57,8 +60,8 @@
       "vehicleRegistration": "",
       "vehicleCapacityKg": 0,
       "isAvailable": true,
-      "createdAt": "2026-10-10T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 4,
@@ -77,8 +80,8 @@
       "vehicleRegistration": "MZ 4421",
       "vehicleCapacityKg": 5000,
       "isAvailable": true,
-      "createdAt": "2026-10-10T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 5,
@@ -97,8 +100,8 @@
       "vehicleRegistration": "LL 8920",
       "vehicleCapacityKg": 2000,
       "isAvailable": true,
-      "createdAt": "2026-10-10T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 6,
@@ -117,41 +120,31 @@
       "vehicleRegistration": "",
       "vehicleCapacityKg": 0,
       "isAvailable": true,
-      "createdAt": "2026-10-10T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 7,
-      "createdAt": "2026-10-10T13:20:06.680Z",
-      "updatedAt": "2026-10-10T13:20:06.680Z",
-      "uid": "usr-1791638406680-326",
-      "email": "mavuto.farmer@mhh.mw",
-      "password": "password123",
-      "photoUrl": "",
-      "fullName": "Mavuto Banda",
-      "role": "farmer",
-      "phoneNumber": "+265 888 999 111",
-      "district": "Kasungu",
+      "uid": "admin-joshua-02",
+      "email": "joshuamalikebu927@gmail.com",
+      "fullName": "Joshua Malikebu",
+      "role": "admin",
+      "phoneNumber": "+265 991 817 976 / +265 880 882 372",
+      "password": "P1qe2wt3ee4rr5t?",
+      "photoUrl": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80",
+      "district": "Lilongwe",
       "region": "Central",
-      "tradingArea": "",
-      "village": "",
+      "tradingArea": "City Centre",
+      "village": "Area 11",
+      "bankName": "National Bank of Malawi",
+      "bankAccount": "1013388772",
+      "bankAccountName": "JOSHUA MALIKEBU",
       "vehicleType": "",
       "vehicleRegistration": "",
       "vehicleCapacityKg": 0,
-      "isAvailable": true
-    },
-    {
-      "id": 8,
-      "createdAt": "2026-10-10T13:57:51.328Z",
-      "updatedAt": "2026-10-10T13:57:51.328Z",
-      "uid": "non-existent-farmer-uid",
-      "email": "non-existent-farmer-uid@harvesthub.mw",
-      "fullName": "Smallholder Farmer",
-      "role": "farmer",
-      "district": "Zomba",
-      "region": "Central",
-      "tradingArea": "Chiimilire",
-      "isAvailable": true
+      "isAvailable": true,
+      "createdAt": "2026-10-13T05:24:13.500Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     }
   ],
   "categories": [
@@ -160,35 +153,35 @@
       "name": "Grains & Cereals",
       "description": "White & yellow maize, sorghum, millet, paddy & polished rice",
       "imageUrl": "https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=600&auto=format&fit=crop&q=80",
-      "createdAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 2,
       "name": "Legumes & Pulses",
       "description": "Soya beans, sugar beans, red kidney beans, pigeon peas, cowpeas",
       "imageUrl": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=600&auto=format&fit=crop&q=80",
-      "createdAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 3,
       "name": "Oilseeds & Nuts",
       "description": "Chalimbana groundnuts, sunflower seed, sesame seed",
       "imageUrl": "https://images.unsplash.com/photo-1599940824399-b87987ceb72a?w=600&auto=format&fit=crop&q=80",
-      "createdAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 4,
       "name": "Roots & Tubers",
       "description": "Cassava, sweet potatoes, Irish potatoes",
       "imageUrl": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop&q=80",
-      "createdAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 5,
       "name": "Commercial Crops",
       "description": "Dark fire-cured tobacco, burley, macadamia, tea, coffee",
       "imageUrl": "https://images.unsplash.com/photo-1527842891421-42eec6e703ea?w=600&auto=format&fit=crop&q=80",
-      "createdAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-13T05:24:13.500Z"
     }
   ],
   "commodities": [
@@ -207,12 +200,12 @@
       "location": "Kamwendo Depot",
       "region": "Central",
       "quality": "Grade A - Premium Dry (Moisture <13%)",
-      "availabilityDate": "2026-10-10",
+      "availabilityDate": "2026-10-13",
       "description": "Well dried 2026 harvest white maize, bagged in clean 50kg polypropylene sacks. Suitable for large millers and food processors.",
       "imageUrl": "https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=600&auto=format&fit=crop&q=80",
       "status": "available",
-      "createdAt": "2026-10-08T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-11T05:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 2,
@@ -229,12 +222,12 @@
       "location": "Bua Valley Trading Center",
       "region": "Central",
       "quality": "Grade A - Premium Cleaned",
-      "availabilityDate": "2026-10-10",
+      "availabilityDate": "2026-10-13",
       "description": "High oil-content yellow soya beans, winnowed and graded. Excellent for feed processing and oil pressing companies.",
       "imageUrl": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=600&auto=format&fit=crop&q=80",
       "status": "available",
-      "createdAt": "2026-10-07T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-10T05:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 3,
@@ -251,12 +244,12 @@
       "location": "Tembwe Agricultural Cooperative",
       "region": "Central",
       "quality": "Grade A - Jumbo Confectionery",
-      "availabilityDate": "2026-10-10",
+      "availabilityDate": "2026-10-13",
       "description": "Famous large-kernel Chalimbana nuts, hand sorted. Low aflatoxin certified by local extension officers.",
       "imageUrl": "https://images.unsplash.com/photo-1599940824399-b87987ceb72a?w=600&auto=format&fit=crop&q=80",
       "status": "available",
-      "createdAt": "2026-10-06T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-09T05:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 4,
@@ -273,12 +266,12 @@
       "location": "Lakeside Scheme Boma",
       "region": "Central",
       "quality": "Grade A - First Milling Aromatic",
-      "availabilityDate": "2026-10-10",
+      "availabilityDate": "2026-10-13",
       "description": "Fragrant natural long grain Kilombero rice from irrigation scheme. Broken grain ratio under 5%.",
       "imageUrl": "https://images.unsplash.com/photo-1586201375763-71825d48722a?w=600&auto=format&fit=crop&q=80",
       "status": "available",
-      "createdAt": "2026-10-09T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-12T05:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 5,
@@ -295,12 +288,12 @@
       "location": "Bembeke Highlands Depot",
       "region": "Central",
       "quality": "Grade A - Premium Uniform",
-      "availabilityDate": "2026-10-10",
+      "availabilityDate": "2026-10-13",
       "description": "High altitude highland red speckled sugar beans. Cook fast with rich gravy, bagged in 50kg bags.",
       "imageUrl": "https://images.unsplash.com/photo-1551462147-37885acc36f1?w=600&auto=format&fit=crop&q=80",
       "status": "available",
-      "createdAt": "2026-10-05T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-08T05:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 6,
@@ -317,39 +310,17 @@
       "location": "Mitundu Cooperative Shed",
       "region": "Central",
       "quality": "Grade 1 - Heavy Bodied Wrap",
-      "availabilityDate": "2026-10-10",
+      "availabilityDate": "2026-10-13",
       "description": "Cured and tied in hands according to Tobacco Commission standards. Ready for export consignment.",
       "imageUrl": "https://images.unsplash.com/photo-1527842891421-42eec6e703ea?w=600&auto=format&fit=crop&q=80",
       "status": "available",
-      "createdAt": "2026-10-04T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-07T05:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "id": 7,
-      "createdAt": "2026-10-10T13:57:51.328Z",
-      "updatedAt": "2026-10-10T13:57:51.328Z",
-      "farmerId": 8,
-      "farmerUid": "non-existent-farmer-uid",
-      "farmerName": "Smallholder Farmer",
-      "commodityName": "Mbatata",
-      "category": "Legumes & Pulses",
-      "quantity": 1000,
-      "initialQuantity": 1000,
-      "unit": "kg",
-      "pricePerUnit": "1000",
-      "district": "Zomba",
-      "location": "Chiimilire",
-      "region": "Central",
-      "quality": "Grade B - Standard Market Produce",
-      "availabilityDate": "2026-10-10",
-      "description": "Mbatata sa ufa",
-      "imageUrl": "https://example.com/test.jpg",
-      "status": "available"
-    },
-    {
-      "id": 8,
-      "createdAt": "2026-10-10T14:00:04.811Z",
-      "updatedAt": "2026-10-10T14:00:04.811Z",
+      "createdAt": "2026-10-13T05:24:49.517Z",
+      "updatedAt": "2026-10-13T05:24:49.517Z",
       "farmerId": 2,
       "farmerUid": "farmer-chimwemwe-01",
       "farmerName": "Chimwemwe Phiri",
@@ -365,29 +336,7 @@
       "quality": "Grade B - Standard Market Produce",
       "availabilityDate": "2026-10-10",
       "description": "Mbatata sa ufa zokoma zedi pamtengo it ziii",
-      "imageUrl": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop&q=80",
-      "status": "available"
-    },
-    {
-      "id": 9,
-      "createdAt": "2026-10-10T14:00:24.251Z",
-      "updatedAt": "2026-10-10T14:00:24.251Z",
-      "farmerId": 2,
-      "farmerUid": "farmer-chimwemwe-01",
-      "farmerName": "Chimwemwe Phiri",
-      "commodityName": "Mbatata Sweet Potatoes",
-      "category": "Legumes & Pulses",
-      "quantity": 1000,
-      "initialQuantity": 1000,
-      "unit": "kg",
-      "pricePerUnit": "1000",
-      "district": "Zomba",
-      "location": "Chiimilire",
-      "region": "Southern",
-      "quality": "Grade B - Standard Market Produce",
-      "availabilityDate": "2026-10-10",
-      "description": "Mbatata sa ufa zokoma zedi pamtengo it ziii",
-      "imageUrl": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop&q=80",
+      "imageUrl": "https://images.unsplash.com/photo-1596560548464-f010549b84d7?w=600&auto=format&fit=crop&q=80",
       "status": "available"
     }
   ],
@@ -415,12 +364,12 @@
       "totalAmount": "350000",
       "deliveryLocation": "Area 25 Warehouse",
       "deliveryDistrict": "Lilongwe",
-      "deliveryDate": "2026-10-10",
+      "deliveryDate": "2026-10-13",
       "notes": "Please verify packaging before loading.",
       "status": "completed",
       "paymentStatus": "paid",
-      "createdAt": "2026-10-07T13:20:02.636Z",
-      "updatedAt": "2026-10-09T13:20:02.636Z"
+      "createdAt": "2026-10-10T05:24:13.501Z",
+      "updatedAt": "2026-10-12T05:24:13.501Z"
     },
     {
       "id": 2,
@@ -445,12 +394,12 @@
       "totalAmount": "210000",
       "deliveryLocation": "Kanengo Industrial Area",
       "deliveryDistrict": "Lilongwe",
-      "deliveryDate": "2026-10-11",
+      "deliveryDate": "2026-10-14",
       "notes": "Scheduled for grain mill delivery.",
       "status": "in_transit",
       "paymentStatus": "escrowed",
-      "createdAt": "2026-10-09T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-12T05:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     }
   ],
   "transport_jobs": [
@@ -473,16 +422,16 @@
       "destinationLocation": "Area 25 Warehouse",
       "destinationDistrict": "Lilongwe",
       "requiredVehicleType": "Light Truck (3-5 Ton)",
-      "preferredDate": "2026-10-10",
+      "preferredDate": "2026-10-13",
       "specialRequirements": "Tarpaulin cover required against rain",
       "transportFee": "25000",
       "paymentStatus": "verified_by_finance",
       "status": "completed",
       "currentLocation": "Delivered at destination",
       "estimatedArrival": "Completed",
-      "createdAt": "2026-10-07T13:20:02.636Z",
-      "completedAt": "2026-10-09T13:20:02.636Z",
-      "updatedAt": "2026-10-09T13:20:02.636Z"
+      "createdAt": "2026-10-10T05:24:13.501Z",
+      "completedAt": "2026-10-12T05:24:13.501Z",
+      "updatedAt": "2026-10-12T05:24:13.501Z"
     },
     {
       "id": 2,
@@ -503,15 +452,15 @@
       "destinationLocation": "Kanengo Industrial Area",
       "destinationDistrict": "Lilongwe",
       "requiredVehicleType": "Light Truck (3-5 Ton)",
-      "preferredDate": "2026-10-11",
+      "preferredDate": "2026-10-14",
       "specialRequirements": "Clean dry bed",
       "transportFee": "20000",
       "paymentStatus": "verified_by_finance",
       "status": "in_transit",
       "currentLocation": "Mchinji Roundabout En-route Kanengo",
       "estimatedArrival": "14:30 Today",
-      "createdAt": "2026-10-09T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-12T05:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     }
   ],
   "transactions": [
@@ -532,8 +481,8 @@
       "netTransporterAmount": "25000",
       "status": "completed",
       "paymentMethod": "Airtel Money / TNM Mpamba Escrow",
-      "createdAt": "2026-10-07T13:20:02.636Z",
-      "updatedAt": "2026-10-09T13:20:02.636Z"
+      "createdAt": "2026-10-10T05:24:13.501Z",
+      "updatedAt": "2026-10-12T05:24:13.501Z"
     },
     {
       "id": 2,
@@ -552,8 +501,8 @@
       "netTransporterAmount": "20000",
       "status": "pending",
       "paymentMethod": "Airtel Money / TNM Mpamba Escrow",
-      "createdAt": "2026-10-09T13:20:02.636Z",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "createdAt": "2026-10-12T05:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     }
   ],
   "revenue_ledger": [
@@ -572,7 +521,7 @@
       "transporterEarnings": "25000",
       "status": "settled",
       "createdSource": "system_escrow_engine",
-      "createdAt": "2026-10-09T13:20:02.636Z"
+      "createdAt": "2026-10-12T05:24:13.501Z"
     }
   ],
   "platform_settings": [
@@ -580,13 +529,13 @@
       "key": "commission_rate",
       "value": "0.04",
       "description": "Platform commission fee percentage (4% capped)",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
       "key": "escrow_hold_hours",
       "value": "24",
       "description": "Escrow dispute window following delivery confirmation",
-      "updatedAt": "2026-10-10T13:20:02.636Z"
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     }
   ],
   "notifications": [
@@ -598,7 +547,7 @@
       "type": "finance",
       "relatedOrderId": 1,
       "isRead": false,
-      "createdAt": "2026-10-09T13:20:02.636Z"
+      "createdAt": "2026-10-12T05:24:13.501Z"
     },
     {
       "id": 2,
@@ -608,7 +557,7 @@
       "type": "transport",
       "relatedOrderId": 2,
       "isRead": false,
-      "createdAt": "2026-10-09T13:20:02.636Z"
+      "createdAt": "2026-10-12T05:24:13.501Z"
     },
     {
       "id": 3,
@@ -617,7 +566,25 @@
       "message": "Malawi Harvest Hub Central System running across 28 agricultural districts.",
       "type": "system",
       "isRead": true,
-      "createdAt": "2026-10-08T13:20:02.636Z"
+      "createdAt": "2026-10-11T05:24:13.501Z"
+    },
+    {
+      "id": 4,
+      "createdAt": "2026-10-13T05:24:39.537Z",
+      "updatedAt": "2026-10-13T05:24:39.537Z",
+      "userUid": "all",
+      "title": "New Support Query [TKT-9536-613]",
+      "message": "Chimwemwe Phiri (farmer) submitted a query: \"Testing Mbatata Produce Entry\". Review in Administrator Help Desk.",
+      "type": "system"
+    },
+    {
+      "id": 5,
+      "createdAt": "2026-10-13T05:24:43.036Z",
+      "updatedAt": "2026-10-13T05:24:43.036Z",
+      "userUid": "farmer-chimwemwe-01",
+      "title": "Reply to Query [TKT-9536-613]",
+      "message": "Joshua Malikebu replied to your query \"Testing Mbatata Produce Entry\": Hello Chimwemwe! Both photo upload and region assignment for Mbatata are working seamlessly now....",
+      "type": "system"
     }
   ],
   "audit_logs": [
@@ -632,7 +599,7 @@
       "previousValue": null,
       "newValue": "Production Readiness Active",
       "reason": "Platform initialization with agricultural catalog",
-      "createdAt": "2026-10-05T13:20:02.636Z"
+      "createdAt": "2026-10-08T05:24:13.501Z"
     },
     {
       "id": 2,
@@ -644,87 +611,136 @@
       "recordAffected": "Order #MHH-ORD-882104",
       "newValue": "500 kg White Maize (Grade A) for MWK 350,000",
       "reason": "Direct buyer order placement via escrow",
-      "createdAt": "2026-10-07T13:20:02.636Z"
+      "createdAt": "2026-10-10T05:24:13.501Z"
     },
     {
       "id": 3,
-      "createdAt": "2026-10-10T13:20:06.680Z",
-      "updatedAt": "2026-10-10T13:20:06.680Z",
-      "userUid": "usr-1791638406680-326",
-      "userEmail": "mavuto.farmer@mhh.mw",
-      "userName": "Mavuto Banda",
+      "createdAt": "2026-10-13T05:24:39.538Z",
+      "updatedAt": "2026-10-13T05:24:39.538Z",
+      "userUid": "farmer-chimwemwe-01",
+      "userEmail": "chimwemwe.phiri@mhh.mw",
+      "userName": "Chimwemwe Phiri",
       "role": "farmer",
-      "action": "USER_REGISTERED_CREDENTIALS",
-      "recordAffected": "User #7 (Mavuto Banda, Role: farmer)"
+      "action": "QUERY_SUBMITTED",
+      "recordAffected": "Support Ticket TKT-9536-613",
+      "newValue": "[problem] Testing Mbatata Produce Entry"
     },
     {
       "id": 4,
-      "createdAt": "2026-10-10T13:20:11.608Z",
-      "updatedAt": "2026-10-10T13:20:11.608Z",
-      "userUid": "usr-1791638406680-326",
-      "userEmail": "mavuto.farmer@mhh.mw",
-      "userName": "Mavuto Banda",
-      "role": "farmer",
-      "action": "USER_LOGGED_IN",
-      "recordAffected": "User #7 (Mavuto Banda, Role: farmer)"
+      "createdAt": "2026-10-13T05:24:43.036Z",
+      "updatedAt": "2026-10-13T05:24:43.036Z",
+      "userUid": "admin-joshua-02",
+      "userEmail": "admin@harvesthub.mw",
+      "userName": "Joshua Malikebu",
+      "role": "admin",
+      "action": "QUERY_REPLIED",
+      "recordAffected": "Support Ticket #4 (TKT-9536-613)",
+      "newValue": "Hello Chimwemwe! Both photo upload and region assignment for Mbatata are working seamlessly now."
     },
     {
       "id": 5,
-      "createdAt": "2026-10-10T13:20:19.247Z",
-      "updatedAt": "2026-10-10T13:20:19.247Z",
-      "userUid": "buyer-alinafe-02",
-      "userEmail": "alinafe.banda@mhh.mw",
-      "userName": "Alinafe Banda",
-      "role": "buyer",
-      "action": "USER_LOGGED_IN",
-      "recordAffected": "User #3 (Alinafe Banda, Role: buyer)"
-    },
-    {
-      "id": 6,
-      "createdAt": "2026-10-10T13:20:22.115Z",
-      "updatedAt": "2026-10-10T13:20:22.115Z",
-      "userUid": "transporter-kondwani-03",
-      "userEmail": "kondwani.chirwa@mhh.mw",
-      "userName": "Kondwani Chirwa",
-      "role": "transporter",
-      "action": "USER_LOGGED_IN",
-      "recordAffected": "User #4 (Kondwani Chirwa, Role: transporter)"
-    },
-    {
-      "id": 7,
-      "createdAt": "2026-10-10T13:57:51.329Z",
-      "updatedAt": "2026-10-10T13:57:51.329Z",
-      "userUid": "non-existent-farmer-uid",
-      "userEmail": "non-existent-farmer-uid@harvesthub.mw",
-      "userName": "Smallholder Farmer",
+      "createdAt": "2026-10-13T05:24:49.517Z",
+      "updatedAt": "2026-10-13T05:24:49.517Z",
+      "userUid": "farmer-chimwemwe-01",
+      "userEmail": "chimwemwe.phiri@mhh.mw",
+      "userName": "Chimwemwe Phiri",
       "role": "farmer",
       "action": "COMMODITY_CREATED",
       "recordAffected": "Commodity #7 (Mbatata)",
       "newValue": "1000 kg @ MWK 1000/unit in Zomba"
+    }
+  ],
+  "support_tickets": [
+    {
+      "id": 1,
+      "ticketNumber": "TKT-2026-001",
+      "userId": 2,
+      "userUid": "farmer-chimwemwe-01",
+      "userName": "Chimwemwe Phiri",
+      "userEmail": "chimwemwe.phiri@mhh.mw",
+      "userPhone": "+265 888 123 456",
+      "userRole": "farmer",
+      "userDistrict": "Mchinji",
+      "category": "problem",
+      "subject": "Clarification on produce weight calibration at Kamwendo depot",
+      "message": "Hello Admin team, we had a slight variation between digital scale and field bags for sugar beans. Please advise on recommended depot scale calibration procedure.",
+      "status": "replied",
+      "priority": "normal",
+      "adminReply": "Hello Chimwemwe, thank you for alerting us. Kamwendo depot has an authorized platform scale calibration officer arriving tomorrow at 9 AM. You can verify your weights directly with our depot supervisor.",
+      "repliedByAdminName": "Peter Malikebu",
+      "repliedByAdminUid": "frF3xukObzdA8AhCBYIBPYV0UK13",
+      "repliedAt": "2026-10-13T05:24:13.500Z",
+      "replies": "[{\"id\":\"rep-1\",\"senderRole\":\"farmer\",\"senderName\":\"Chimwemwe Phiri\",\"senderUid\":\"farmer-chimwemwe-01\",\"message\":\"Hello Admin team, we had a slight variation between digital scale and field bags for sugar beans. Please advise on recommended depot scale calibration procedure.\",\"timestamp\":\"2026-10-13T00:24:13.501Z\"},{\"id\":\"rep-2\",\"senderRole\":\"admin\",\"senderName\":\"Peter Malikebu\",\"senderUid\":\"frF3xukObzdA8AhCBYIBPYV0UK13\",\"message\":\"Hello Chimwemwe, thank you for alerting us. Kamwendo depot has an authorized platform scale calibration officer arriving tomorrow at 9 AM. You can verify your weights directly with our depot supervisor.\",\"timestamp\":\"2026-10-13T03:24:13.501Z\"}]",
+      "createdAt": "2026-10-12T23:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
-      "id": 8,
-      "createdAt": "2026-10-10T14:00:04.812Z",
-      "updatedAt": "2026-10-10T14:00:04.812Z",
-      "userUid": "farmer-chimwemwe-01",
-      "userEmail": "chimwemwe.phiri@mhh.mw",
-      "userName": "Chimwemwe Phiri",
-      "role": "farmer",
-      "action": "COMMODITY_CREATED",
-      "recordAffected": "Commodity #8 (Mbatata)",
-      "newValue": "1000 kg @ MWK 1000/unit in Zomba"
+      "id": 2,
+      "ticketNumber": "TKT-2026-002",
+      "userId": 3,
+      "userUid": "buyer-alinafe-02",
+      "userName": "Alinafe Banda",
+      "userEmail": "alinafe.banda@mhh.mw",
+      "userPhone": "+265 999 234 567",
+      "userRole": "buyer",
+      "userDistrict": "Lilongwe",
+      "category": "suggestion",
+      "subject": "Add instant SMS confirmation when payment is verified by finance",
+      "message": "Can we please have an SMS alert sent to buyers immediately when finance admin locks our National Bank transfer into escrow? It would speed up transport coordination.",
+      "status": "replied",
+      "priority": "normal",
+      "adminReply": "Greetings Alinafe, wonderful suggestion! We have prioritized SMS notifications with TNM and Airtel gateway integration in this release. Thank you for helping us improve!",
+      "repliedByAdminName": "Joshua Malikebu",
+      "repliedByAdminUid": "admin-joshua-02",
+      "repliedAt": "2026-10-13T05:24:13.500Z",
+      "replies": "[{\"id\":\"rep-3\",\"senderRole\":\"buyer\",\"senderName\":\"Alinafe Banda\",\"senderUid\":\"buyer-alinafe-02\",\"message\":\"Can we please have an SMS alert sent to buyers immediately when finance admin locks our National Bank transfer into escrow? It would speed up transport coordination.\",\"timestamp\":\"2026-10-12T17:24:13.501Z\"},{\"id\":\"rep-4\",\"senderRole\":\"admin\",\"senderName\":\"Joshua Malikebu\",\"senderUid\":\"admin-joshua-02\",\"message\":\"Greetings Alinafe, wonderful suggestion! We have prioritized SMS notifications with TNM and Airtel gateway integration in this release. Thank you for helping us improve!\",\"timestamp\":\"2026-10-13T02:24:13.501Z\"}]",
+      "createdAt": "2026-10-12T15:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
     },
     {
-      "id": 9,
-      "createdAt": "2026-10-10T14:00:24.252Z",
-      "updatedAt": "2026-10-10T14:00:24.252Z",
+      "id": 3,
+      "ticketNumber": "TKT-2026-003",
+      "userId": 4,
+      "userUid": "transporter-kondwani-03",
+      "userName": "Kondwani Chirwa",
+      "userEmail": "kondwani.chirwa@mhh.mw",
+      "userPhone": "+265 881 345 678",
+      "userRole": "transporter",
+      "userDistrict": "Dedza",
+      "category": "transport_query",
+      "subject": "Route advisory for Dedza-Bembeke road works during rainy spells",
+      "message": "Road maintenance near Linthipe bridge can slow down 5-ton trucks. Suggest adding an ETA note for drivers on this route.",
+      "status": "pending",
+      "priority": "high",
+      "adminReply": "",
+      "repliedByAdminName": "",
+      "repliedByAdminUid": "",
+      "repliedAt": null,
+      "replies": "[{\"id\":\"rep-5\",\"senderRole\":\"transporter\",\"senderName\":\"Kondwani Chirwa\",\"senderUid\":\"transporter-kondwani-03\",\"message\":\"Road maintenance near Linthipe bridge can slow down 5-ton trucks. Suggest adding an ETA note for drivers on this route.\",\"timestamp\":\"2026-10-13T04:24:13.501Z\"}]",
+      "createdAt": "2026-10-13T04:24:13.501Z",
+      "updatedAt": "2026-10-13T05:24:13.500Z"
+    },
+    {
+      "id": 4,
+      "createdAt": "2026-10-13T05:24:39.537Z",
+      "updatedAt": "2026-10-13T05:24:43.035Z",
+      "ticketNumber": "TKT-9536-613",
       "userUid": "farmer-chimwemwe-01",
-      "userEmail": "chimwemwe.phiri@mhh.mw",
       "userName": "Chimwemwe Phiri",
-      "role": "farmer",
-      "action": "COMMODITY_CREATED",
-      "recordAffected": "Commodity #9 (Mbatata Sweet Potatoes)",
-      "newValue": "1000 kg @ MWK 1000/unit in Zomba"
+      "userEmail": "chimwemwe.phiri@mhh.mw",
+      "userPhone": "",
+      "userRole": "farmer",
+      "userDistrict": "Mchinji",
+      "category": "problem",
+      "subject": "Testing Mbatata Produce Entry",
+      "message": "We need help testing listing sweet potatoes with grade B standard market produce.",
+      "status": "resolved",
+      "priority": "normal",
+      "adminReply": "Hello Chimwemwe! Both photo upload and region assignment for Mbatata are working seamlessly now.",
+      "repliedByAdminName": "Joshua Malikebu",
+      "repliedByAdminUid": "admin-joshua-02",
+      "replies": "[{\"id\":\"rep-1791869079536\",\"senderRole\":\"farmer\",\"senderName\":\"Chimwemwe Phiri\",\"senderUid\":\"farmer-chimwemwe-01\",\"message\":\"We need help testing listing sweet potatoes with grade B standard market produce.\",\"timestamp\":\"2026-10-13T05:24:39.536Z\"},{\"id\":\"rep-1791869083035-943\",\"senderRole\":\"admin\",\"senderName\":\"Joshua Malikebu\",\"senderUid\":\"admin-joshua-02\",\"message\":\"Hello Chimwemwe! Both photo upload and region assignment for Mbatata are working seamlessly now.\",\"timestamp\":\"2026-10-13T05:24:43.035Z\"}]",
+      "repliedAt": "2026-10-13T05:24:43.035Z"
     }
   ]
 }

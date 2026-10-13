@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   RefreshCw,
   LogOut,
+  HelpCircle,
 } from 'lucide-react';
 import { FarmerDashboard } from '../farmer/FarmerDashboard.tsx';
 import { BuyerMarketplace } from '../buyer/BuyerMarketplace.tsx';
@@ -22,6 +23,7 @@ import { BuyerOrders } from '../buyer/BuyerOrders.tsx';
 import { TransporterDashboard } from '../transporter/TransporterDashboard.tsx';
 import { AdminDashboard } from '../admin/AdminDashboard.tsx';
 import { FinanceDashboard } from '../finance/FinanceDashboard.tsx';
+import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 
 interface MobileAppContainerProps {
   onCloseMobileMode: () => void;
@@ -43,6 +45,21 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
 
   // Render content according to active tab and role
   const renderMobileContent = () => {
+    if (mobileTab === 'support' || mobileTab === 'queries') {
+      return (
+        <div className="p-3">
+          <button
+            onClick={() => setMobileTab('home')}
+            className="mb-3 px-3 py-1.5 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold flex items-center gap-1"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Back to Dashboard</span>
+          </button>
+          <SupportQueriesDesk />
+        </div>
+      );
+    }
+
     if (role === 'farmer') {
       if (mobileTab === 'home' || mobileTab === 'commodities' || mobileTab === 'orders' || mobileTab === 'earnings') {
         return <FarmerDashboard />;
@@ -193,6 +210,15 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
           The mobile client caches recent commodity listings and order contracts locally for low-connectivity rural zones. When connectivity restores, synchronization pushes records to PostgreSQL.
         </p>
       </div>
+
+      {/* Queries & Feedback Desk Link */}
+      <button
+        onClick={() => setMobileTab('support')}
+        className="w-full py-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 border border-emerald-200 transition-colors shadow-2xs"
+      >
+        <HelpCircle className="w-4 h-4 text-emerald-700" />
+        <span>Queries, Problems &amp; Suggestions Desk</span>
+      </button>
 
       {/* Prominent Sign Out Button for Mobile Users */}
       <button

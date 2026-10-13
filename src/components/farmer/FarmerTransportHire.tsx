@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
 import { TransportJob, User, MALAWI_DISTRICTS } from '../../types/index.ts';
+import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import {
   Truck,
   ShieldCheck,
@@ -61,8 +62,8 @@ export const FarmerTransportHire: React.FC<FarmerTransportHireProps> = ({ onJobC
         fetch('/api/users?role=transporter'),
       ]);
 
-      if (jobsRes.ok) setTransportJobs(await jobsRes.json());
-      if (driversRes.ok) setTransportersList(await driversRes.json());
+      if (jobsRes.ok) setTransportJobs(await safeParseJson(jobsRes, []));
+      if (driversRes.ok) setTransportersList(await safeParseJson(driversRes, []));
     } catch (err) {
       console.error('Failed to load transport hire data:', err);
     } finally {
@@ -103,15 +104,15 @@ export const FarmerTransportHire: React.FC<FarmerTransportHireProps> = ({ onJobC
         }),
       });
 
-      if (res.ok) {
-        const created = await res.json();
-        setSuccessMsg(`Transport request #${created.orderNumber} submitted! Payment of MK ${Number(created.transportFee).toLocaleString()} is in escrow awaiting Finance Admin verification and driver recommendation.`);
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        const created = parsed.data || {};
+        setSuccessMsg(`Transport request #${created.orderNumber || 'CONFIRMED'} submitted! Payment of MK ${Number(created.transportFee || 0).toLocaleString()} is in escrow awaiting Finance Admin verification and driver recommendation.`);
         setActiveSubTab('my_bookings');
         fetchData();
         if (onJobCreated) onJobCreated();
       } else {
-        const err = await res.json();
-        setErrorMsg(err.error || 'Failed to submit transport hire request');
+        setErrorMsg(parsed.error || 'Failed to submit transport hire request');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Network error occurred');
