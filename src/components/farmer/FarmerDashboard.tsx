@@ -21,6 +21,7 @@ import {
   Image,
   HelpCircle,
   MessageSquare,
+  Trash2,
 } from 'lucide-react';
 import { FarmerTransportHire } from './FarmerTransportHire.tsx';
 import { compressImageFile } from '../../lib/imageCompressor.ts';
@@ -64,6 +65,10 @@ export const FarmerDashboard: React.FC = () => {
   const [transportOrderId, setTransportOrderId] = useState<number | null>(null);
   const [transportFeeOffer, setTransportFeeOffer] = useState(30000);
   const [vehicleTypeNeeded, setVehicleTypeNeeded] = useState('Medium Truck (5-7 Ton)');
+
+  // Delete commodity dialog state
+  const [deletingCommodity, setDeletingCommodity] = useState<Commodity | null>(null);
+  const [isDeletingComm, setIsDeletingComm] = useState(false);
 
   const fetchData = async () => {
     if (!currentUser) return;
@@ -227,9 +232,9 @@ export const FarmerDashboard: React.FC = () => {
   };
 
   const handleArchiveListing = async (commId: number) => {
-    if (!confirm('Are you sure you want to archive this commodity listing?')) return;
+    if (!confirm('Are you sure you want to deactivate and close this commodity listing?')) return;
     try {
-      const res = await fetch(`/api/commodities/${commId}?userUid=${currentUser?.uid}`, {
+      const res = await fetch(`/api/commodities/${commId}?userUid=${currentUser?.uid}&action=archive`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -240,6 +245,26 @@ export const FarmerDashboard: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to archive listing:', err);
+    }
+  };
+
+  const handleDeleteCommodity = async () => {
+    if (!deletingCommodity || !currentUser) return;
+    setIsDeletingComm(true);
+    try {
+      const res = await fetch(`/api/commodities/${deletingCommodity.id}?userUid=${currentUser.uid}`, {
+        method: 'DELETE',
+      });
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Failed to remove product');
+      }
+      setDeletingCommodity(null);
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || 'Error removing product');
+    } finally {
+      setIsDeletingComm(false);
     }
   };
 
@@ -479,20 +504,32 @@ export const FarmerDashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="mt-3 pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
+                    <div className="mt-3 pt-2.5 border-t border-stone-100 flex items-center justify-between text-xs">
                       <span className="text-stone-400 text-[11px]">
                         Available: {c.availabilityDate}
                       </span>
-                      {c.status === 'available' && (
+                      <div className="flex items-center gap-2">
+                        {c.status === 'available' && (
+                          <button
+                            type="button"
+                            onClick={() => handleArchiveListing(c.id)}
+                            className="text-stone-500 hover:text-stone-800 hover:bg-stone-100 px-2 py-1 rounded-lg flex items-center gap-1 font-medium transition-colors text-xs"
+                            title="Deactivate listing temporarily"
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Close</span>
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleArchiveListing(c.id)}
-                          className="text-stone-400 hover:text-rose-600 flex items-center gap-1 font-medium transition-colors"
-                          title="Controlled cancel & archive"
+                          type="button"
+                          onClick={() => setDeletingCommodity(c)}
+                          className="text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold transition-all text-xs"
+                          title="Permanently remove this product from the marketplace"
                         >
-                          <Archive className="w-3.5 h-3.5" />
-                          <span>Close Listing</span>
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove Product</span>
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1173,6 +1210,59 @@ export const FarmerDashboard: React.FC = () => {
                 className="px-4 py-2 text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 rounded-xl"
               >
                 Broadcast Transport Job
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Commodity Confirmation Modal */}
+      {deletingCommodity && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-stone-200 p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 bg-rose-100 text-rose-700 rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="font-bold text-stone-900 text-base">Remove Product Listing</h3>
+              <p className="text-xs text-stone-600 leading-relaxed">
+                Are you sure you want to permanently remove <strong className="text-stone-900">{deletingCommodity.commodityName}</strong> ({deletingCommodity.quantity} {deletingCommodity.unit}) from your inventory and the live marketplace?
+              </p>
+            </div>
+            <div className="p-3 bg-stone-50 rounded-xl text-stone-600 text-xs space-y-1.5 border border-stone-200/80">
+              <div className="flex justify-between">
+                <span className="text-stone-500">Commodity:</span>
+                <span className="font-bold text-stone-900">{deletingCommodity.commodityName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Unit Price:</span>
+                <span className="font-semibold text-emerald-800">MWK {Number(deletingCommodity.pricePerUnit).toLocaleString()}/{deletingCommodity.unit}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Location:</span>
+                <span>{deletingCommodity.district} &bull; {deletingCommodity.region}</span>
+              </div>
+            </div>
+            <p className="text-[11px] text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 leading-relaxed">
+              Notice: This action will completely remove this product from wholesale buyers' view across all 28 districts on Malawi Harvest Hub.
+            </p>
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeletingCommodity(null)}
+                disabled={isDeletingComm}
+                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteCommodity}
+                disabled={isDeletingComm}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs disabled:opacity-50 flex items-center gap-1.5 transition-all active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeletingComm ? 'Removing Product...' : 'Confirm Remove Product'}</span>
               </button>
             </div>
           </div>

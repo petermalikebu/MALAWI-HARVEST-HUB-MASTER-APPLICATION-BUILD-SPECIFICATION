@@ -503,37 +503,203 @@ router.delete('/users/:id', async (req, res) => {
     }
 
     const isSelf = adminUser[0].id === id;
+    const targetUid = targetUser[0].uid;
+    const targetRole = targetUser[0].role;
+    const targetFullName = targetUser[0].fullName;
 
-    // Clean up notifications for this user
-    await db.delete(notifications).where(eq(notifications.userUid, targetUser[0].uid));
+    // 1. Cascade delete for Farmer: find all commodities (products) and linked orders
+    const farmerCommodities = await db.select().from(commodities).where(
+      or(
+        eq(commodities.farmerId, id),
+        eq(commodities.farmerUid, targetUid)
+      )
+    );
+    const commIds = farmerCommodities.map((c: any) => c.id);
 
-    // Delete the user from PostgreSQL (foreign keys CASCADE or SET NULL)
+    // 2. Identify all related orders for this user (as farmer/seller, as buyer, or for farmer's commodities)
+    const allUserOrders = await db.select().from(orders).where(
+      or(
+        eq(orders.farmerId, id),
+        eq(orders.farmerUid, targetUid),
+        eq(orders.buyerId, id),
+        eq(orders.buyerUid, targetUid)
+      )
+    );
+    const allOrderIdsSet = new Set<number>(allUserOrders.map((o: any) => o.id));
+
+    // Also collect orders linked to any of this farmer's commodities
+    for (const cId of commIds) {
+      const linked = await db.select().from(orders).where(eq(orders.commodityId, cId));
+      for (const lo of linked) {
+        allOrderIdsSet.add(lo.id);
+      }
+    }
+    const affectedOrderIds = Array.from(allOrderIdsSet);
+
+    // 3. Foreign key resolution: Clean up transactions, revenue ledger, and transport jobs referencing these orders
+    for (const ordId of affectedOrderIds) {
+      try {
+        await db.delete(transactions).where(eq(transactions.orderId, ordId));
+      } catch (e) {
+        console.warn(`Cleaned transactions for order #${ordId}:`, e);
+      }
+      try {
+        await db.delete(revenueLedger).where(eq(revenueLedger.sourceOrderId, ordId));
+      } catch (e) {
+        console.warn(`Cleaned revenue ledger for order #${ordId}:`, e);
+      }
+      try {
+        await db.delete(transportJobs).where(eq(transportJobs.orderId, ordId));
+      } catch (e) {
+        console.warn(`Cleaned transport jobs for order #${ordId}:`, e);
+      }
+    }
+
+    // 4. Clean up any remaining direct user references in transactions
+    try {
+      await db.delete(transactions).where(
+        or(eq(transactions.farmerId, id), eq(transactions.buyerId, id))
+      );
+    } catch (e) {
+      console.warn('Cleaned direct transactions for user:', e);
+    }
+
+    // 5. Cascade delete for Transporter (driver) & haulage jobs
+    try {
+      await db.delete(transportJobs).where(
+        or(
+          eq(transportJobs.transporterId, id),
+          eq(transportJobs.transporterUid, targetUid),
+          eq(transportJobs.farmerId, id),
+          eq(transportJobs.farmerUid, targetUid),
+          eq(transportJobs.recommendedDriverId, id)
+        )
+      );
+    } catch (e) {
+      console.warn('Cleaned direct transport jobs for user:', e);
+    }
+
+    // 6. Delete all affected orders
+    for (const ordId of affectedOrderIds) {
+      try {
+        await db.delete(orders).where(eq(orders.id, ordId));
+      } catch (e) {
+        console.warn(`Cleaned order #${ordId}:`, e);
+      }
+    }
+    await db.delete(orders).where(
+      or(
+        eq(orders.farmerId, id),
+        eq(orders.farmerUid, targetUid),
+        eq(orders.buyerId, id),
+        eq(orders.buyerUid, targetUid)
+      )
+    );
+
+    // 7. Delete all commodities belonging to this farmer
+    for (const cId of commIds) {
+      try {
+        await db.delete(commodities).where(eq(commodities.id, cId));
+      } catch (e) {
+        console.warn(`Cleaned commodity #${cId}:`, e);
+      }
+    }
+    await db.delete(commodities).where(
+      or(eq(commodities.farmerId, id), eq(commodities.farmerUid, targetUid))
+    );
+
+    // 8. Clean up password reset requests for this user
+    await db.delete(passwordResetRequests).where(
+      or(eq(passwordResetRequests.userId, id), eq(passwordResetRequests.userUid, targetUid))
+    );
+
+    // 9. Clean up support tickets for this user
+    await db.delete(supportTickets).where(
+      or(eq(supportTickets.userId, id), eq(supportTickets.userUid, targetUid))
+    );
+
+    // 10. Clean up notifications for this user
+    await db.delete(notifications).where(eq(notifications.userUid, targetUid));
+
+    // 11. Delete the user from PostgreSQL users table
     await db.delete(users).where(eq(users.id, id));
+
+    // 8. Clean up in-memory store if active
+    const store = (global as any)._inMemoryStore;
+    if (store) {
+      if (Array.isArray(store.commodities)) {
+        store.commodities = store.commodities.filter(
+          (c: any) => c.farmerId !== id && c.farmerUid !== targetUid
+        );
+      }
+      if (Array.isArray(store.orders)) {
+        store.orders = store.orders.filter(
+          (o: any) =>
+            o.farmerId !== id &&
+            o.farmerUid !== targetUid &&
+            o.buyerId !== id &&
+            o.buyerUid !== targetUid &&
+            !commIds.includes(o.commodityId)
+        );
+      }
+      if (Array.isArray(store.transport_jobs)) {
+        store.transport_jobs = store.transport_jobs.filter(
+          (t: any) =>
+            t.transporterId !== id &&
+            t.transporterUid !== targetUid &&
+            t.farmerId !== id &&
+            t.farmerUid !== targetUid
+        );
+      }
+      if (Array.isArray(store.support_tickets)) {
+        store.support_tickets = store.support_tickets.filter(
+          (s: any) => s.userId !== id && s.userUid !== targetUid
+        );
+      }
+      if (Array.isArray(store.password_reset_requests)) {
+        store.password_reset_requests = store.password_reset_requests.filter(
+          (p: any) => p.userId !== id && p.userUid !== targetUid
+        );
+      }
+      if (Array.isArray(store.notifications)) {
+        store.notifications = store.notifications.filter(
+          (n: any) => n.userUid !== targetUid
+        );
+      }
+      if (Array.isArray(store.users)) {
+        store.users = store.users.filter(
+          (u: any) => u.id !== id && u.uid !== targetUid
+        );
+      }
+    }
 
     await logAudit({
       userUid: adminUser[0].uid,
       userEmail: adminUser[0].email,
       userName: adminUser[0].fullName,
       role: 'admin',
-      action: isSelf ? 'ADMIN_SELF_REMOVED' : 'USER_REMOVED_BY_ADMIN',
-      recordAffected: `User #${id} (${targetUser[0].fullName}, Role: ${targetUser[0].role})`,
+      action: isSelf ? 'ADMIN_SELF_REMOVED' : 'USER_CASCADE_REMOVED_BY_ADMIN',
+      recordAffected: `User #${id} (${targetFullName}, Role: ${targetRole})`,
       reason: isSelf
         ? 'Administrator deleted their own account'
-        : targetUser[0].role === 'admin'
-        ? 'Administrator removed a fellow administrator'
-        : `Administrator removed ${targetUser[0].role} account`,
+        : `Administrator permanently removed ${targetRole} account along with all associated commodities, orders, and data`,
     });
 
-    broadcastEvent('user_deleted', { id, uid: targetUser[0].uid, isSelf });
+    // Broadcast real-time events to all clients
+    broadcastEvent('user_deleted', { id, uid: targetUid, isSelf });
     broadcastEvent('user_updated', { id, action: 'deleted' });
+    broadcastEvent('commodity_deleted', { farmerUid: targetUid });
+    broadcastEvent('commodity_updated', { action: 'deleted' });
+    broadcastEvent('order_updated', { action: 'deleted' });
+    broadcastEvent('transport_updated', { action: 'deleted' });
 
     return res.json({
       success: true,
       message: isSelf
         ? 'Your administrator account has been deleted successfully.'
-        : `User ${targetUser[0].fullName} (${targetUser[0].role}) has been removed.`,
+        : `User ${targetFullName} (${targetRole}) and all their associated data & products have been permanently removed.`,
       deletedId: id,
-      deletedUid: targetUser[0].uid,
+      deletedUid: targetUid,
       isSelf,
     });
   } catch (error: any) {
@@ -827,48 +993,123 @@ router.delete('/commodities/:id', async (req, res) => {
     const id = parseInt(req.params.id, 10);
     const userUid = req.query.userUid as string;
     const reason = req.query.reason as string || 'Listing closed by seller';
+    const action = req.query.action as string; // 'archive' or default 'delete'
 
     const existing = await db.select().from(commodities).where(eq(commodities.id, id)).limit(1);
-    if (existing.length === 0) return res.status(404).json({ error: 'Listing not found' });
+    if (existing.length === 0) return res.status(404).json({ error: 'Listing not found or already removed' });
 
-    // Check if there are active pending orders
-    const pendingOrders = await db.select().from(orders).where(
-      and(
-        eq(orders.commodityId, id),
-        or(
-          eq(orders.status, 'pending'),
-          eq(orders.status, 'accepted'),
-          eq(orders.status, 'transport_requested'),
-          eq(orders.status, 'in_transit')
-        )
-      )
-    );
+    // Verify ownership: must be the creator (farmer) who listed it or an administrator
+    let isAuthorized = false;
+    let requesterUser: any = null;
 
-    if (pendingOrders.length > 0) {
-      return res.status(400).json({
-        error: `Cannot remove listing with ${pendingOrders.length} active order(s) in progress.`
-      });
+    if (!userUid) {
+      isAuthorized = true;
+    } else {
+      const requesterList = await db.select().from(users).where(eq(users.uid, userUid)).limit(1);
+      if (requesterList.length > 0) {
+        requesterUser = requesterList[0];
+        if (
+          requesterUser.role === 'admin' ||
+          requesterUser.uid === existing[0].farmerUid ||
+          requesterUser.id === existing[0].farmerId ||
+          (existing[0].farmerName && requesterUser.fullName && existing[0].farmerName.trim().toLowerCase() === requesterUser.fullName.trim().toLowerCase())
+        ) {
+          isAuthorized = true;
+        }
+      } else if (existing[0].farmerUid === userUid) {
+        isAuthorized = true;
+      }
     }
 
-    const updated = await db.update(commodities)
-      .set({ status: 'cancelled', updatedAt: new Date() })
-      .where(eq(commodities.id, id))
-      .returning();
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'Unauthorized: You can only remove your own products' });
+    }
+
+    if (action === 'archive') {
+      const updated = await db.update(commodities)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(eq(commodities.id, id))
+        .returning();
+
+      await logAudit({
+        userUid: userUid || existing[0].farmerUid,
+        userEmail: requesterUser?.email || 'user@harvesthub.mw',
+        userName: requesterUser?.fullName || existing[0].farmerName,
+        role: requesterUser?.role || 'farmer',
+        action: 'COMMODITY_CANCELLED',
+        recordAffected: `Commodity #${id} (${existing[0].commodityName})`,
+        reason,
+      });
+
+      broadcastEvent('commodity_updated', updated[0]);
+      return res.json({ message: 'Commodity listing deactivated and archived successfully', commodity: updated[0] });
+    }
+
+    // Permanent Product Removal: cascade clean up linked records to respect foreign keys
+    const linkedOrders = await db.select().from(orders).where(eq(orders.commodityId, id));
+    const linkedOrderIds = linkedOrders.map((o: any) => o.id);
+
+    for (const ordId of linkedOrderIds) {
+      try {
+        await db.delete(transactions).where(eq(transactions.orderId, ordId));
+      } catch (e) {
+        console.warn(`Cleaned transactions for order #${ordId}:`, e);
+      }
+      try {
+        await db.delete(revenueLedger).where(eq(revenueLedger.sourceOrderId, ordId));
+      } catch (e) {
+        console.warn(`Cleaned revenue ledger for order #${ordId}:`, e);
+      }
+      try {
+        await db.delete(transportJobs).where(eq(transportJobs.orderId, ordId));
+      } catch (e) {
+        console.warn(`Cleaned transport jobs for order #${ordId}:`, e);
+      }
+      try {
+        await db.delete(orders).where(eq(orders.id, ordId));
+      } catch (e) {
+        console.warn(`Cleaned order #${ordId}:`, e);
+      }
+    }
+
+    // Delete any remaining orders referencing this commodity
+    try {
+      await db.delete(orders).where(eq(orders.commodityId, id));
+    } catch (e) {
+      console.warn(`Cleaned orders for commodity #${id}:`, e);
+    }
+
+    // Delete the commodity itself
+    await db.delete(commodities).where(eq(commodities.id, id));
+
+    const store = (global as any)._inMemoryStore;
+    if (store && Array.isArray(store.commodities)) {
+      store.commodities = store.commodities.filter((c: any) => c.id !== id);
+    }
+    if (store && Array.isArray(store.orders)) {
+      store.orders = store.orders.filter((o: any) => o.commodityId !== id);
+    }
 
     await logAudit({
       userUid: userUid || existing[0].farmerUid,
       userEmail: 'user@harvesthub.mw',
       userName: existing[0].farmerName,
       role: 'farmer',
-      action: 'COMMODITY_CANCELLED',
+      action: 'COMMODITY_DELETED',
       recordAffected: `Commodity #${id} (${existing[0].commodityName})`,
-      reason,
+      reason: reason || 'Product removed by farmer',
     });
 
-    broadcastEvent('commodity_updated', updated[0]);
-    return res.json({ message: 'Commodity listing cancelled and archived successfully', commodity: updated[0] });
+    broadcastEvent('commodity_deleted', { id });
+    broadcastEvent('commodity_updated', { id, action: 'deleted' });
+    return res.json({
+      success: true,
+      message: `Product "${existing[0].commodityName}" removed successfully from the marketplace and your inventory.`,
+      deletedId: id,
+    });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message || 'Failed to cancel commodity listing' });
+    console.error('Error removing commodity:', error);
+    return res.status(500).json({ error: error.message || 'Failed to remove commodity' });
   }
 });
 

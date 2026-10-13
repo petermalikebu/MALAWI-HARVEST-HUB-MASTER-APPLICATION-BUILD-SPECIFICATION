@@ -22,6 +22,9 @@ import {
   KeyRound,
   Mail,
   Phone,
+  Sprout,
+  Truck,
+  ShoppingCart,
 } from 'lucide-react';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 
@@ -52,6 +55,30 @@ export const AdminDashboard: React.FC = () => {
   // Order cancellation modal
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState('Administrative intervention / dispute resolution');
+
+  // Commodity deletion modal
+  const [deletingCommodity, setDeletingCommodity] = useState<Commodity | null>(null);
+  const [isDeletingComm, setIsDeletingComm] = useState(false);
+
+  const handleDeleteCommodity = async () => {
+    if (!deletingCommodity || !currentUser) return;
+    setIsDeletingComm(true);
+    try {
+      const res = await fetch(`/api/commodities/${deletingCommodity.id}?userUid=${currentUser.uid}`, {
+        method: 'DELETE',
+      });
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Failed to remove product listing');
+      }
+      setDeletingCommodity(null);
+      fetchAll();
+    } catch (err: any) {
+      alert(err.message || 'Error removing product listing');
+    } finally {
+      setIsDeletingComm(false);
+    }
+  };
 
   const handleDeleteUser = async () => {
     if (!deletingUser || !currentUser) return;
