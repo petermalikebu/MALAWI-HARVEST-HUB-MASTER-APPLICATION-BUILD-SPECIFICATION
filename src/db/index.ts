@@ -746,6 +746,7 @@ function initializeSeedStore(): Record<string, any[]> {
     notifications,
     audit_logs: auditLogs,
     support_tickets: supportTickets,
+    password_reset_requests: [],
   };
 }
 
@@ -858,6 +859,11 @@ export function getInMemoryStore(): Record<string, any[]> {
       if (!Array.isArray(global._inMemoryStore.support_tickets)) {
         const seed = initializeSeedStore();
         global._inMemoryStore.support_tickets = seed.support_tickets || [];
+      }
+
+      // 4. Ensure password_reset_requests table exists in store
+      if (!Array.isArray(global._inMemoryStore.password_reset_requests)) {
+        global._inMemoryStore.password_reset_requests = [];
       }
 
       saveStoreToDisk(global._inMemoryStore);

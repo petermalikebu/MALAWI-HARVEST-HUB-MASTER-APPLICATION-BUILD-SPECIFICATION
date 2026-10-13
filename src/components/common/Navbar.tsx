@@ -19,6 +19,7 @@ import {
   Lock,
   ShieldAlert,
   HelpCircle,
+  LogIn,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -27,6 +28,7 @@ interface NavbarProps {
   isMobileSimulator: boolean;
   setIsMobileSimulator: (val: boolean) => void;
   onOpenNotifications: () => void;
+  onOpenAuthModal?: (mode?: 'signin' | 'register' | 'reset_password') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,6 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isMobileSimulator,
   setIsMobileSimulator,
   onOpenNotifications,
+  onOpenAuthModal,
 }) => {
   const { currentUser, logout } = useAuth();
   const { isConnected, unreadCount } = useRealtime();
@@ -77,13 +80,16 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Brand Logo & Name */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-green-700 flex items-center justify-center text-white shadow-sm ring-2 ring-emerald-500/20">
+          <div
+            onClick={() => setActiveTab(currentUser ? (currentUser.role === 'admin' ? 'admin_overview' : 'farmer_commodities') : 'landing')}
+            className="flex items-center gap-3 cursor-pointer group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-green-700 flex items-center justify-center text-white shadow-sm ring-2 ring-emerald-500/20 group-hover:scale-105 transition-transform">
               <Sprout className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-stone-900 tracking-tight text-lg">
+                <span className="font-bold text-stone-900 tracking-tight text-lg group-hover:text-emerald-800 transition-colors">
                   Malawi Harvest Hub
                 </span>
                 <span className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase bg-emerald-100 text-emerald-800 rounded">
@@ -96,8 +102,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Center Navigation depending on Role */}
+          {/* Center Navigation depending on Role or Guest */}
           <nav className="hidden lg:flex items-center gap-1 bg-stone-100/80 p-1 rounded-xl border border-stone-200/60">
+            {!currentUser && (
+              <>
+                <button
+                  onClick={() => setActiveTab('landing')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                    activeTab === 'landing'
+                      ? 'bg-white text-emerald-800 shadow-xs border border-stone-200/60 font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  Overview
+                </button>
+                <button
+                  onClick={() => setActiveTab('marketplace')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                    activeTab === 'marketplace'
+                      ? 'bg-white text-emerald-800 shadow-xs border border-stone-200/60 font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  Browse Produce
+                </button>
+              </>
+            )}
             {currentUser?.role === 'farmer' && (
               <>
                 <button
@@ -568,9 +598,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             ) : (
               <button
-                onClick={() => setActiveTab('signin')}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shadow-2xs"
+                onClick={() => {
+                  if (onOpenAuthModal) onOpenAuthModal('signin');
+                  else setActiveTab('signin');
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shadow-xs active:scale-95"
               >
+                <LogIn className="w-3.5 h-3.5" />
                 <span>Sign In / Register</span>
               </button>
             )}

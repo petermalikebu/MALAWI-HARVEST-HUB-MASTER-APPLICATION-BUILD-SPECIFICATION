@@ -12,6 +12,7 @@ import {
   notifications,
   auditLogs,
   supportTickets,
+  passwordResetRequests,
 } from '../db/schema.ts';
 import { eq, desc, and, or, sql } from 'drizzle-orm';
 import { broadcastEvent } from './realtime.ts';
@@ -2218,11 +2219,20 @@ router.get('/notifications', async (req, res) => {
     const userUid = req.query.userUid as string;
     if (!userUid) return res.json([]);
 
+    const userList = await db.select().from(users).where(eq(users.uid, userUid)).limit(1);
+    const isAdmin = userList[0]?.role === 'admin' || userUid.includes('admin') || userUid === 'frF3xukObzdA8AhCBYIBPYV0UK13';
+
     const list = await db.select().from(notifications).where(
-      or(
-        eq(notifications.userUid, userUid),
-        eq(notifications.userUid, 'all')
-      )
+      isAdmin
+        ? or(
+            eq(notifications.userUid, userUid),
+            eq(notifications.userUid, 'all'),
+            eq(notifications.userUid, 'all_admins')
+          )
+        : or(
+            eq(notifications.userUid, userUid),
+            eq(notifications.userUid, 'all')
+          )
     ).orderBy(desc(notifications.createdAt)).limit(50);
 
     return res.json(list);
@@ -2569,6 +2579,346 @@ router.patch('/queries/:id/status', async (req, res) => {
     return res.json(finalItem);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to update query status' });
+  }
+});
+
+// ==========================================
+// PASSWORD RESET APPROVAL WORKFLOW
+// ==========================================
+
+// 1. Submit Password Reset Request (User)
+router.post('/password-reset/request', async (req, res) => {
+  try {
+    const { email, phoneNumber } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({ error: 'Email address is required to request a password reset.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = (phoneNumber || '').trim();
+
+    // Look up user by email or phone in database
+    const allUsers = await db.select().from(users);
+    let matchedUser = allUsers.find(
+      (u: any) => u.email && u.email.toLowerCase().trim() === cleanEmail
+    );
+
+    // Resilient fallback: match by phone digits if provided and email wasn't found
+    if (!matchedUser && cleanPhone) {
+      const phoneDigits = cleanPhone.replace(/\D/g, '');
+      if (phoneDigits.length >= 7) {
+        matchedUser = allUsers.find((u: any) => {
+          if (!u.phoneNumber) return false;
+          const uDigits = u.phoneNumber.replace(/\D/g, '');
+          return uDigits.includes(phoneDigits) || phoneDigits.includes(uDigits);
+        });
+      }
+    }
+
+    if (!matchedUser) {
+      return res.status(404).json({
+        error: `No registered account found for ${email}. Please check your spelling or register a new account.`,
+      });
+    }
+
+    const requestId = `RST-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+
+    const inserted = await db.insert(passwordResetRequests).values({
+      requestId,
+      userId: matchedUser.id,
+      userUid: matchedUser.uid,
+      userEmail: matchedUser.email,
+      userPhone: cleanPhone || matchedUser.phoneNumber || '',
+      userName: matchedUser.fullName,
+      userRole: matchedUser.role,
+      status: 'pending',
+    }).returning();
+
+    const requestRecord = inserted && inserted.length > 0 ? inserted[0] : {
+      id: Date.now(),
+      requestId,
+      userId: matchedUser.id,
+      userUid: matchedUser.uid,
+      userEmail: matchedUser.email,
+      userPhone: cleanPhone || matchedUser.phoneNumber || '',
+      userName: matchedUser.fullName,
+      userRole: matchedUser.role,
+      status: 'pending',
+      createdAt: new Date(),
+    };
+
+    // Create system notification for all administrators
+    const adminNotif = {
+      userUid: 'all_admins',
+      title: `Password Reset Request: ${matchedUser.fullName}`,
+      message: `${matchedUser.fullName} (${matchedUser.email}, Phone: ${cleanPhone || matchedUser.phoneNumber || 'N/A'}, Role: ${matchedUser.role}) has requested a password reset. Requires Admin Approval.`,
+      type: 'system',
+      isRead: false,
+    };
+    await db.insert(notifications).values(adminNotif);
+
+    await logAudit({
+      userUid: matchedUser.uid,
+      userEmail: matchedUser.email,
+      userName: matchedUser.fullName,
+      role: matchedUser.role,
+      action: 'PASSWORD_RESET_REQUESTED',
+      recordAffected: `Reset Request #${requestRecord.requestId} (${matchedUser.fullName})`,
+      newValue: `Phone: ${cleanPhone || matchedUser.phoneNumber || 'N/A'}, Status: pending`,
+    });
+
+    broadcastEvent('password_reset_requested', requestRecord);
+    broadcastEvent('notification', adminNotif);
+
+    return res.status(201).json({
+      success: true,
+      requestId,
+      message: 'Password reset request submitted. Awaiting administrator approval.',
+      request: requestRecord,
+    });
+  } catch (error: any) {
+    console.error('Error submitting password reset request:', error);
+    return res.status(500).json({ error: error.message || 'Failed to submit password reset request' });
+  }
+});
+
+// 2. Check Password Reset Status (User polling / sync)
+router.get('/password-reset/status/:requestId', async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const reqList = await db.select().from(passwordResetRequests).where(eq(passwordResetRequests.requestId, requestId)).limit(1);
+    const item = reqList[0];
+
+    if (!item) {
+      return res.status(404).json({ error: 'Password reset request not found' });
+    }
+
+    return res.json({
+      success: true,
+      request: item,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to check reset status' });
+  }
+});
+
+// 3. List Password Reset Requests (Admin Dashboard)
+router.get('/password-reset/requests', async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = db.select().from(passwordResetRequests);
+
+    let results;
+    if (status) {
+      results = await query.where(eq(passwordResetRequests.status, String(status))).orderBy(desc(passwordResetRequests.createdAt));
+    } else {
+      results = await query.orderBy(desc(passwordResetRequests.createdAt));
+    }
+
+    return res.json(results || []);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch password reset requests' });
+  }
+});
+
+// 4. Approve Password Reset Request (Admin)
+router.post('/password-reset/approve', async (req, res) => {
+  try {
+    const { requestId, adminName, adminUid, adminNote } = req.body;
+    if (!requestId) {
+      return res.status(400).json({ error: 'Request ID is required' });
+    }
+
+    const reqList = await db.select().from(passwordResetRequests).where(eq(passwordResetRequests.requestId, requestId)).limit(1);
+    const item = reqList[0];
+
+    if (!item) {
+      return res.status(404).json({ error: 'Password reset request not found' });
+    }
+
+    if (item.status === 'completed') {
+      return res.status(400).json({ error: 'This request has already been completed.' });
+    }
+
+    const approvedAt = new Date();
+    const updated = await db.update(passwordResetRequests)
+      .set({
+        status: 'approved',
+        approvedByAdminName: adminName || 'Peter Malikebu',
+        approvedByAdminUid: adminUid || 'admin-01',
+        adminNote: adminNote || 'Approved by platform administrator',
+        approvedAt,
+        updatedAt: approvedAt,
+      })
+      .where(eq(passwordResetRequests.requestId, requestId))
+      .returning();
+
+    const updatedRecord = updated && updated.length > 0 ? updated[0] : {
+      ...item,
+      status: 'approved',
+      approvedByAdminName: adminName || 'Peter Malikebu',
+      approvedAt,
+    };
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@harvesthub.mw',
+      userName: adminName || 'Administrator',
+      role: 'admin',
+      action: 'PASSWORD_RESET_APPROVED',
+      recordAffected: `Reset Request #${requestId} for ${item.userName} (${item.userEmail})`,
+      newValue: 'Status changed to approved',
+    });
+
+    // Notify user in real-time
+    broadcastEvent('password_reset_approved', {
+      requestId,
+      userEmail: item.userEmail,
+      userName: item.userName,
+      approvedByAdminName: adminName || 'Peter Malikebu',
+      approvedAt,
+    });
+
+    return res.json({
+      success: true,
+      message: `Password reset request #${requestId} for ${item.userName} has been approved.`,
+      request: updatedRecord,
+    });
+  } catch (error: any) {
+    console.error('Error approving password reset:', error);
+    return res.status(500).json({ error: error.message || 'Failed to approve password reset request' });
+  }
+});
+
+// 5. Reject Password Reset Request (Admin)
+router.post('/password-reset/reject', async (req, res) => {
+  try {
+    const { requestId, adminName, adminUid, reason } = req.body;
+    if (!requestId) {
+      return res.status(400).json({ error: 'Request ID is required' });
+    }
+
+    const reqList = await db.select().from(passwordResetRequests).where(eq(passwordResetRequests.requestId, requestId)).limit(1);
+    const item = reqList[0];
+
+    if (!item) {
+      return res.status(404).json({ error: 'Password reset request not found' });
+    }
+
+    const updated = await db.update(passwordResetRequests)
+      .set({
+        status: 'rejected',
+        adminNote: reason || 'Rejected by platform administrator',
+        updatedAt: new Date(),
+      })
+      .where(eq(passwordResetRequests.requestId, requestId))
+      .returning();
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@harvesthub.mw',
+      userName: adminName || 'Administrator',
+      role: 'admin',
+      action: 'PASSWORD_RESET_REJECTED',
+      recordAffected: `Reset Request #${requestId} for ${item.userName}`,
+      reason: reason || 'Identity could not be verified',
+    });
+
+    broadcastEvent('password_reset_rejected', {
+      requestId,
+      userEmail: item.userEmail,
+      reason: reason || 'Request rejected by administrator.',
+    });
+
+    return res.json({
+      success: true,
+      message: `Password reset request #${requestId} has been rejected.`,
+      request: updated[0] || item,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to reject password reset request' });
+  }
+});
+
+// 6. Confirm and Set New Password (User)
+router.post('/password-reset/confirm', async (req, res) => {
+  try {
+    const { requestId, newPassword } = req.body;
+    if (!requestId || !newPassword) {
+      return res.status(400).json({ error: 'Request ID and new password are required.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long.' });
+    }
+
+    const reqList = await db.select().from(passwordResetRequests).where(eq(passwordResetRequests.requestId, requestId)).limit(1);
+    const resetItem = reqList[0];
+
+    if (!resetItem) {
+      return res.status(404).json({ error: 'Password reset request not found' });
+    }
+
+    if (resetItem.status !== 'approved') {
+      return res.status(400).json({
+        error: resetItem.status === 'completed'
+          ? 'This password reset has already been completed. Please sign in with your updated password.'
+          : 'This password reset request has not been approved by an administrator yet.',
+      });
+    }
+
+    // Update user's password in users table
+    const cleanPassword = newPassword.trim();
+    await db.update(users)
+      .set({
+        password: cleanPassword,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.uid, resetItem.userUid));
+
+    // Also update in-memory store if active
+    const store = (global as any)._inMemoryStore;
+    if (store && Array.isArray(store.users)) {
+      const u = store.users.find((u: any) => u.uid === resetItem.userUid || u.email === resetItem.userEmail);
+      if (u) {
+        u.password = cleanPassword;
+        u.updatedAt = new Date();
+      }
+    }
+
+    // Mark reset request as completed
+    const completedAt = new Date();
+    await db.update(passwordResetRequests)
+      .set({
+        status: 'completed',
+        completedAt,
+        updatedAt: completedAt,
+      })
+      .where(eq(passwordResetRequests.requestId, requestId));
+
+    await logAudit({
+      userUid: resetItem.userUid,
+      userEmail: resetItem.userEmail,
+      userName: resetItem.userName,
+      role: resetItem.userRole,
+      action: 'PASSWORD_RESET_COMPLETED',
+      recordAffected: `User #${resetItem.userUid} (${resetItem.userName})`,
+      newValue: 'Password successfully changed and verified',
+    });
+
+    broadcastEvent('password_reset_completed', {
+      requestId,
+      userEmail: resetItem.userEmail,
+    });
+
+    return res.json({
+      success: true,
+      email: resetItem.userEmail,
+      message: 'Password reset completed successfully! Please sign in with your new password.',
+    });
+  } catch (error: any) {
+    console.error('Error confirming new password:', error);
+    return res.status(500).json({ error: error.message || 'Failed to complete password reset' });
   }
 });
 

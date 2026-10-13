@@ -13,15 +13,18 @@ import { FeeSimulator } from './components/finance/FeeSimulator.tsx';
 import { ImpactDashboard } from './components/impact/ImpactDashboard.tsx';
 import { MobileAppContainer } from './components/mobile/MobileAppContainer.tsx';
 import { SignInView } from './components/common/SignInView.tsx';
+import { LandingView } from './components/landing/LandingView.tsx';
 import { FarmerTransportHire } from './components/farmer/FarmerTransportHire.tsx';
 import { SupportQueriesDesk } from './components/support/SupportQueriesDesk.tsx';
 import { ShieldAlert } from 'lucide-react';
 
 function MainContent() {
   const { currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('farmer_commodities');
+  const [activeTab, setActiveTab] = useState<string>('landing');
   const [isMobileSimulator, setIsMobileSimulator] = useState<boolean>(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'register' | 'reset_password'>('signin');
 
   // Helper to route to the correct portal based on user's registered role
   const navigateByRole = (role?: string) => {
@@ -64,8 +67,49 @@ function MainContent() {
   }, [currentUser?.uid, currentUser?.role]);
 
   const renderDesktopView = () => {
-    if (!currentUser || activeTab === 'signin') {
-      return <SignInView onLoginSuccess={(u) => navigateByRole(u.role)} />;
+    // Unauthenticated visitor experience
+    if (!currentUser) {
+      if (activeTab === 'signin') {
+        return (
+          <SignInView
+            onLoginSuccess={(u) => navigateByRole(u.role)}
+            onBackToLanding={() => setActiveTab('landing')}
+          />
+        );
+      }
+      if (activeTab === 'marketplace') {
+        return <BuyerMarketplace onOrderPlaced={() => {
+          setAuthModalMode('signin');
+          setIsAuthModalOpen(true);
+        }} />;
+      }
+      if (activeTab === 'impact_dashboard') {
+        return <ImpactDashboard />;
+      }
+      if (activeTab === 'fee_simulator') {
+        return <FeeSimulator />;
+      }
+      if (activeTab === 'support_queries') {
+        return <SupportQueriesDesk />;
+      }
+      return (
+        <LandingView
+          onOpenSignIn={() => {
+            setAuthModalMode('signin');
+            setIsAuthModalOpen(true);
+          }}
+          onExploreMarketplace={() => setActiveTab('marketplace')}
+        />
+      );
+    }
+
+    if (activeTab === 'landing') {
+      return (
+        <LandingView
+          onOpenSignIn={() => navigateByRole(currentUser.role)}
+          onExploreMarketplace={() => setActiveTab('marketplace')}
+        />
+      );
     }
 
     // Role-based Access Guards
@@ -162,6 +206,10 @@ function MainContent() {
         isMobileSimulator={isMobileSimulator}
         setIsMobileSimulator={setIsMobileSimulator}
         onOpenNotifications={() => setIsNotificationOpen(true)}
+        onOpenAuthModal={(mode = 'signin') => {
+          setAuthModalMode(mode);
+          setIsAuthModalOpen(true);
+        }}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -174,6 +222,19 @@ function MainContent() {
           renderDesktopView()
         )}
       </main>
+
+      {/* Interactive Sign In / Register / Password Reset Modal Overlay */}
+      {isAuthModalOpen && !currentUser && (
+        <SignInView
+          isModal={true}
+          initialMode={authModalMode}
+          onClose={() => setIsAuthModalOpen(false)}
+          onLoginSuccess={(u) => {
+            setIsAuthModalOpen(false);
+            navigateByRole(u.role);
+          }}
+        />
+      )}
 
       <NotificationDrawer
         isOpen={isNotificationOpen}

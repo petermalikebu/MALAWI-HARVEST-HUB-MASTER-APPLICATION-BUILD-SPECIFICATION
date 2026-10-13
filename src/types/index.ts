@@ -361,3 +361,22 @@ export interface SupportTicket {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface PasswordResetRequest {
+  id: number;
+  requestId: string;
+  userId?: number;
+  userUid: string;
+  userEmail: string;
+  userPhone?: string;
+  userName: string;
+  userRole: UserRole;
+  status: 'pending' | 'approved' | 'rejected' | 'completed';
+  adminNote?: string;
+  approvedByAdminName?: string;
+  approvedByAdminUid?: string;
+  approvedAt?: string;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}

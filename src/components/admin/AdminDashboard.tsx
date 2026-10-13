@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
-import { User, Commodity, Order, AuditLogItem, Category } from '../../types/index.ts';
+import { User, Commodity, Order, AuditLogItem, Category, PasswordResetRequest } from '../../types/index.ts';
+import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import {
   ShieldCheck,
   Users,
@@ -14,8 +15,13 @@ import {
   Trash2,
   AlertTriangle,
   CheckCircle,
+  CheckCircle2,
+  XCircle,
   Clock,
   MessageSquare,
+  KeyRound,
+  Mail,
+  Phone,
 } from 'lucide-react';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 
@@ -23,14 +29,16 @@ export const AdminDashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const { subscribe } = useRealtime();
 
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'audit' | 'settings' | 'queries'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
   const [usersList, setUsersList] = useState<User[]>([]);
   const [commoditiesList, setCommoditiesList] = useState<Commodity[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [auditLogsList, setAuditLogsList] = useState<AuditLogItem[]>([]);
   const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+  const [passwordResetsList, setPasswordResetsList] = useState<PasswordResetRequest[]>([]);
   const [commissionRate, setCommissionRate] = useState<string>('0.04');
   const [loading, setLoading] = useState(true);
+  const [processingResetId, setProcessingResetId] = useState<string | null>(null);
 
   // User deletion state
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
@@ -52,9 +60,9 @@ export const AdminDashboard: React.FC = () => {
       const res = await fetch(`/api/users/${deletingUser.id}?adminUid=${currentUser.uid}`, {
         method: 'DELETE',
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to remove user');
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Failed to remove user');
       }
       const isSelf = deletingUser.id === currentUser.id || deletingUser.uid === currentUser.uid;
       setDeletingUser(null);
@@ -75,22 +83,24 @@ export const AdminDashboard: React.FC = () => {
   const fetchAll = async () => {
     try {
       setLoading(true);
-      const [uRes, cRes, oRes, aRes, catRes, sRes] = await Promise.all([
+      const [uRes, cRes, oRes, aRes, catRes, sRes, pRes] = await Promise.all([
         fetch('/api/users'),
         fetch('/api/commodities'),
         fetch('/api/orders'),
         fetch('/api/audit-logs'),
         fetch('/api/categories'),
         fetch('/api/settings'),
+        fetch('/api/password-reset/requests'),
       ]);
 
-      if (uRes.ok) setUsersList(await uRes.json());
-      if (cRes.ok) setCommoditiesList(await cRes.json());
-      if (oRes.ok) setOrdersList(await oRes.json());
-      if (aRes.ok) setAuditLogsList(await aRes.json());
-      if (catRes.ok) setCategoriesList(await catRes.json());
+      if (uRes.ok) setUsersList(await safeParseJson(uRes, []));
+      if (cRes.ok) setCommoditiesList(await safeParseJson(cRes, []));
+      if (oRes.ok) setOrdersList(await safeParseJson(oRes, []));
+      if (aRes.ok) setAuditLogsList(await safeParseJson(aRes, []));
+      if (catRes.ok) setCategoriesList(await safeParseJson(catRes, []));
+      if (pRes.ok) setPasswordResetsList(await safeParseJson(pRes, []));
       if (sRes.ok) {
-        const settings = await sRes.json();
+        const settings: any[] = await safeParseJson(sRes, []);
         const cr = settings.find((s: any) => s.key === 'commission_rate');
         if (cr) setCommissionRate(cr.value);
       }
@@ -109,12 +119,87 @@ export const AdminDashboard: React.FC = () => {
     const unsubAudit = subscribe('audit_logged', () => fetchAll());
     const unsubOrder = subscribe('order_updated', () => fetchAll());
     const unsubComm = subscribe('commodity_updated', () => fetchAll());
+    const unsubResetReq = subscribe('password_reset_requested', () => fetchAll());
+    const unsubResetApp = subscribe('password_reset_approved', () => fetchAll());
+    const unsubResetComp = subscribe('password_reset_completed', () => fetchAll());
+
+    // Polling fallback every 3.5s to ensure admin always has immediate visibility
+    const pollInterval = setInterval(() => {
+      fetch('/api/password-reset/requests')
+        .then((r) => r.json())
+        .then((list) => {
+          if (Array.isArray(list)) setPasswordResetsList(list);
+        })
+        .catch(() => {});
+    }, 3500);
+
     return () => {
       unsubAudit();
       unsubOrder();
       unsubComm();
+      unsubResetReq();
+      unsubResetApp();
+      unsubResetComp();
+      clearInterval(pollInterval);
     };
   }, [subscribe]);
+
+  const handleApproveReset = async (requestId: string) => {
+    setProcessingResetId(requestId);
+    try {
+      const res = await fetch('/api/password-reset/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId,
+          adminName: currentUser?.fullName || 'Peter Malikebu',
+          adminUid: currentUser?.uid || 'admin-01',
+          adminNote: 'Approved by administrator upon identity verification',
+        }),
+      });
+
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Failed to approve password reset request');
+      }
+
+      await fetchAll();
+    } catch (err: any) {
+      alert(err.message || 'Error approving password reset');
+    } finally {
+      setProcessingResetId(null);
+    }
+  };
+
+  const handleRejectReset = async (requestId: string) => {
+    const reason = prompt('Please enter the reason for rejection (e.g. Identity could not be verified):');
+    if (!reason) return;
+
+    setProcessingResetId(requestId);
+    try {
+      const res = await fetch('/api/password-reset/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId,
+          adminName: currentUser?.fullName || 'Peter Malikebu',
+          adminUid: currentUser?.uid || 'admin-01',
+          reason,
+        }),
+      });
+
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Failed to reject password reset request');
+      }
+
+      await fetchAll();
+    } catch (err: any) {
+      alert(err.message || 'Error rejecting password reset');
+    } finally {
+      setProcessingResetId(null);
+    }
+  };
 
   const handleChangeRole = async (userId: number, newRole: string) => {
     try {
@@ -237,6 +322,80 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Pending Password Resets Banner Alert */}
+      {passwordResetsList.filter((r) => r.status === 'pending').length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 text-amber-950 space-y-3.5 shadow-sm animate-in slide-in-from-top-1 duration-150">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-200 text-amber-900 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+                <KeyRound className="w-5 h-5 text-amber-800" />
+              </div>
+              <div>
+                <h4 className="font-bold text-xs sm:text-sm flex items-center gap-2">
+                  <span>{passwordResetsList.filter((r) => r.status === 'pending').length} Password Reset Request(s) Awaiting Administrator Approval</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping inline-block" />
+                </h4>
+                <p className="text-[11px] text-amber-800">
+                  Registered users have requested a password change. Verify their identity and authorize their reset to grant them access to their account.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveSubTab('password_resets')}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-colors shrink-0 self-start sm:self-auto"
+            >
+              Open Full Authorization Queue
+            </button>
+          </div>
+
+          {/* Quick direct approval cards for pending requests */}
+          <div className="grid grid-cols-1 gap-2 pt-1 border-t border-amber-200/80">
+            {passwordResetsList
+              .filter((r) => r.status === 'pending')
+              .slice(0, 3)
+              .map((req) => (
+                <div
+                  key={req.id}
+                  className="bg-white/95 p-3 rounded-xl border border-amber-200 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs shadow-2xs"
+                >
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-bold text-stone-900">{req.userName}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold uppercase tracking-wider">
+                      {req.userRole}
+                    </span>
+                    <span className="text-stone-700 font-medium">{req.userEmail}</span>
+                    {req.userPhone && (
+                      <span className="text-stone-500 font-mono text-[11px] bg-stone-100 px-1.5 py-0.5 rounded">
+                        {req.userPhone}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-stone-400 font-mono">
+                      Ref: #{req.requestId}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+                    <button
+                      onClick={() => handleRejectReset(req.requestId)}
+                      disabled={processingResetId === req.requestId}
+                      className="px-2.5 py-1.5 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50 text-[11px] font-bold disabled:opacity-50 transition-colors"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => handleApproveReset(req.requestId)}
+                      disabled={processingResetId === req.requestId}
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs disabled:opacity-50 transition-all flex items-center gap-1.5 active:scale-95"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{processingResetId === req.requestId ? 'Approving...' : 'Approve Password Reset'}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Sub Tabs */}
       <div className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto text-xs font-bold">
         <button
@@ -282,6 +441,20 @@ export const AdminDashboard: React.FC = () => {
         >
           <FileText className="w-3.5 h-3.5" />
           <span>Audit Logs ({auditLogsList.length})</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('password_resets')}
+          className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
+            activeSubTab === 'password_resets'
+              ? 'bg-purple-100 text-purple-900 font-extrabold ring-1 ring-purple-300'
+              : 'text-stone-600 hover:bg-stone-100'
+          }`}
+        >
+          <KeyRound className="w-3.5 h-3.5" />
+          <span>Password Resets ({passwordResetsList.filter((r) => r.status === 'pending').length})</span>
+          {passwordResetsList.filter((r) => r.status === 'pending').length > 0 && (
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          )}
         </button>
         <button
           onClick={() => setActiveSubTab('queries')}
@@ -702,6 +875,181 @@ export const AdminDashboard: React.FC = () => {
       {/* SUB TAB 7: QUERIES & HELP DESK */}
       {activeSubTab === 'queries' && (
         <SupportQueriesDesk />
+      )}
+
+      {/* SUB TAB 8: PASSWORD RESETS APPROVAL CONSOLE */}
+      {activeSubTab === 'password_resets' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-stone-900 flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-purple-700" />
+                <span>Password Reset Requests &amp; Security Authorizations</span>
+              </h2>
+              <p className="text-xs text-stone-500">
+                Official administrator authorization queue. Review user identity and approve or reject password reset requests in real time.
+              </p>
+            </div>
+            <button
+              onClick={fetchAll}
+              className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh Queue</span>
+            </button>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80">
+              <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Awaiting Approval</span>
+              <p className="text-2xl font-black text-amber-950 mt-1">
+                {passwordResetsList.filter((r) => r.status === 'pending').length}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200/80">
+              <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Approved</span>
+              <p className="text-2xl font-black text-emerald-950 mt-1">
+                {passwordResetsList.filter((r) => r.status === 'approved').length}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200/80">
+              <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Completed</span>
+              <p className="text-2xl font-black text-blue-950 mt-1">
+                {passwordResetsList.filter((r) => r.status === 'completed').length}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200/80">
+              <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider">Total Requests</span>
+              <p className="text-2xl font-black text-stone-900 mt-1">
+                {passwordResetsList.length}
+              </p>
+            </div>
+          </div>
+
+          {/* Requests List */}
+          {passwordResetsList.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center space-y-3 shadow-xs">
+              <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+              </div>
+              <h3 className="font-bold text-stone-900 text-sm">No Password Reset Requests Pending</h3>
+              <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                All password reset requests have been processed. When a user requests a password change, it will appear here immediately for review and approval.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {passwordResetsList.map((req) => (
+                <div
+                  key={req.id}
+                  className={`bg-white rounded-2xl border p-5 shadow-xs transition-all ${
+                    req.status === 'pending'
+                      ? 'border-amber-300 ring-1 ring-amber-200 bg-amber-50/20'
+                      : 'border-stone-200'
+                  }`}
+                >
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-stone-900 text-sm">{req.userName}</span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-stone-100 text-stone-700">
+                          {req.userRole}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            req.status === 'pending'
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                              : req.status === 'approved'
+                              ? 'bg-emerald-100 text-emerald-900'
+                              : req.status === 'completed'
+                              ? 'bg-blue-100 text-blue-900'
+                              : 'bg-rose-100 text-rose-900'
+                          }`}
+                        >
+                          {req.status === 'pending'
+                            ? 'Awaiting Approval'
+                            : req.status === 'approved'
+                            ? 'Approved (Pending User Input)'
+                            : req.status === 'completed'
+                            ? 'Reset Completed'
+                            : 'Rejected'}
+                        </span>
+                        <span className="text-[11px] font-mono text-stone-400">
+                          Ref: #{req.requestId}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs text-stone-600 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <Mail className="w-3.5 h-3.5 text-stone-400" />
+                          <span className="font-medium text-stone-800">{req.userEmail}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3.5 h-3.5 text-stone-400" />
+                          <span className="font-medium text-stone-800">{req.userPhone || 'No phone provided'}</span>
+                        </span>
+                        <span className="flex items-center gap-1 text-stone-400 text-[11px]">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{req.createdAt ? new Date(req.createdAt).toLocaleString() : ''}</span>
+                        </span>
+                      </div>
+
+                      {req.approvedByAdminName && (
+                        <p className="text-[11px] text-emerald-700 font-medium pt-1">
+                          Approved by Administrator: {req.approvedByAdminName}{' '}
+                          {req.approvedAt ? `on ${new Date(req.approvedAt).toLocaleTimeString()}` : ''}
+                        </p>
+                      )}
+
+                      {req.adminNote && (
+                        <p className="text-[11px] text-stone-500 italic">
+                          Note: "{req.adminNote}"
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {req.status === 'pending' ? (
+                        <>
+                          <button
+                            onClick={() => handleRejectReset(req.requestId)}
+                            disabled={processingResetId === req.requestId}
+                            className="px-3 py-2 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Reject</span>
+                          </button>
+                          <button
+                            onClick={() => handleApproveReset(req.requestId)}
+                            disabled={processingResetId === req.requestId}
+                            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>{processingResetId === req.requestId ? 'Approving...' : 'Approve Password Reset'}</span>
+                          </button>
+                        </>
+                      ) : req.status === 'approved' ? (
+                        <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Approved &bull; Waiting for User to Set Password</span>
+                        </span>
+                      ) : req.status === 'completed' ? (
+                        <span className="text-xs text-blue-700 font-semibold flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Password Changed Successfully</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-stone-400 italic">Rejected</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* MODAL: ADMIN CANCEL ORDER */}

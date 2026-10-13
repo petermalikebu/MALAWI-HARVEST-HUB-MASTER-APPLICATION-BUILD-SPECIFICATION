@@ -250,6 +250,26 @@ export const supportTickets = pgTable('support_tickets', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Password Reset Requests with Admin Approval Workflow
+export const passwordResetRequests = pgTable('password_reset_requests', {
+  id: serial('id').primaryKey(),
+  requestId: text('request_id').notNull().unique(),
+  userId: integer('user_id'),
+  userUid: text('user_uid').notNull(),
+  userEmail: text('user_email').notNull(),
+  userPhone: text('user_phone').default(''),
+  userName: text('user_name').notNull(),
+  userRole: text('user_role').notNull(),
+  status: text('status').notNull().default('pending'), // pending | approved | rejected | completed
+  adminNote: text('admin_note').default(''),
+  approvedByAdminName: text('approved_by_admin_name').default(''),
+  approvedByAdminUid: text('approved_by_admin_uid').default(''),
+  approvedAt: timestamp('approved_at'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Relationships
 export const usersRelations = relations(users, ({ many }) => ({
   commodities: many(commodities),

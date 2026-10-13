@@ -159,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ uid: currentUser.uid, photoUrl }),
       });
       if (res.ok) {
-        const data = await safeParseJson(res, null);
+        const data: any = await safeParseJson(res, null);
         if (data?.user) setCurrentUser(data.user);
       }
     } catch (err) {
@@ -201,7 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (syncRes.ok) {
-        const dbUser = await safeParseJson(syncRes, null);
+        const dbUser: User | null = await safeParseJson<User | null>(syncRes, null);
         if (dbUser) {
           setCurrentUser(dbUser);
           sessionStorage.setItem('mhh_active_uid', dbUser.uid);
