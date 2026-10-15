@@ -7,7 +7,7 @@
       "fullName": "Peter Malikebu",
       "role": "admin",
       "phoneNumber": "+265 999 036 912",
-      "password": "P1qe2wt3ee4rr5t?",
+      "password": "d3e3f3ce93763aecab01e34b45398df14307269ebaa4feef13e24382b4de15b4",
       "photoUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
       "district": "Lilongwe",
       "region": "Central",
@@ -21,7 +21,7 @@
       "vehicleCapacityKg": 0,
       "isAvailable": true,
       "createdAt": "2026-10-13T05:24:13.500Z",
-      "updatedAt": "2026-10-13T05:24:13.500Z"
+      "updatedAt": "2026-10-15T01:31:21.751Z"
     },
     {
       "id": 2,
@@ -30,7 +30,7 @@
       "fullName": "Chimwemwe Phiri",
       "role": "farmer",
       "phoneNumber": "+265 888 123 456",
-      "password": "password123",
+      "password": "a5df8ddb61cd4880f3dbf6ab54d4331ca29963bf8758ca406f2976ad9bea5127",
       "photoUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
       "district": "Mchinji",
       "region": "Central",
@@ -41,7 +41,7 @@
       "vehicleCapacityKg": 0,
       "isAvailable": true,
       "createdAt": "2026-10-13T05:24:13.500Z",
-      "updatedAt": "2026-10-13T05:24:13.500Z"
+      "updatedAt": "2026-10-15T01:31:13.034Z"
     },
     {
       "id": 3,
@@ -50,7 +50,7 @@
       "fullName": "Alinafe Banda",
       "role": "buyer",
       "phoneNumber": "+265 999 234 567",
-      "password": "password123",
+      "password": "34987773eee9c58e5185925efde53dfd4ee406c7f6a6bfe3f87f37684cc34c86",
       "photoUrl": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80",
       "district": "Lilongwe",
       "region": "Central",
@@ -61,7 +61,7 @@
       "vehicleCapacityKg": 0,
       "isAvailable": true,
       "createdAt": "2026-10-13T05:24:13.500Z",
-      "updatedAt": "2026-10-13T05:24:13.500Z"
+      "updatedAt": "2026-10-15T01:19:57.817Z"
     },
     {
       "id": 4,
@@ -110,7 +110,7 @@
       "fullName": "Chisomo Mwale",
       "role": "finance_admin",
       "phoneNumber": "+265 992 456 789",
-      "password": "password123",
+      "password": "4ebf36aad9441be2224e0767c0d3bc4920b5e82330404ec137ae6196a6830ba9",
       "photoUrl": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=300&auto=format&fit=crop&q=80",
       "district": "Lilongwe",
       "region": "Central",
@@ -121,7 +121,7 @@
       "vehicleCapacityKg": 0,
       "isAvailable": true,
       "createdAt": "2026-10-13T05:24:13.500Z",
-      "updatedAt": "2026-10-13T05:24:13.500Z"
+      "updatedAt": "2026-10-15T01:28:21.089Z"
     },
     {
       "id": 7,
@@ -571,11 +571,12 @@
     {
       "id": 4,
       "createdAt": "2026-10-13T05:24:39.537Z",
-      "updatedAt": "2026-10-13T05:24:39.537Z",
+      "updatedAt": "2026-10-15T01:30:11.270Z",
       "userUid": "all",
       "title": "New Support Query [TKT-9536-613]",
       "message": "Chimwemwe Phiri (farmer) submitted a query: \"Testing Mbatata Produce Entry\". Review in Administrator Help Desk.",
-      "type": "system"
+      "type": "system",
+      "isRead": true
     },
     {
       "id": 5,
@@ -585,6 +586,26 @@
       "title": "Reply to Query [TKT-9536-613]",
       "message": "Joshua Malikebu replied to your query \"Testing Mbatata Produce Entry\": Hello Chimwemwe! Both photo upload and region assignment for Mbatata are working seamlessly now....",
       "type": "system"
+    },
+    {
+      "id": 6,
+      "createdAt": "2026-10-15T01:19:49.963Z",
+      "updatedAt": "2026-10-15T01:30:08.169Z",
+      "userUid": "all_admins",
+      "title": "Password Reset Request: Alinafe Banda",
+      "message": "Alinafe Banda (alinafe.banda@mhh.mw, Phone: +265 999 234 567, Role: buyer) has requested a password reset. Requires Admin Approval.",
+      "type": "system",
+      "isRead": true
+    },
+    {
+      "id": 7,
+      "createdAt": "2026-10-15T01:26:45.588Z",
+      "updatedAt": "2026-10-15T01:26:45.588Z",
+      "userUid": "all_admins",
+      "title": "Password Reset Request: Chisomo Mwale",
+      "message": "Chisomo Mwale (chisomo.mwale@mhh.mw, Phone: +265 992 456 789, Role: finance_admin) has requested a password reset. Requires Admin Approval.",
+      "type": "system",
+      "isRead": false
     }
   ],
   "audit_logs": [
@@ -648,6 +669,146 @@
       "action": "COMMODITY_CREATED",
       "recordAffected": "Commodity #7 (Mbatata)",
       "newValue": "1000 kg @ MWK 1000/unit in Zomba"
+    },
+    {
+      "id": 6,
+      "createdAt": "2026-10-15T01:19:32.261Z",
+      "updatedAt": "2026-10-15T01:19:32.261Z",
+      "userUid": "farmer-chimwemwe-01",
+      "userEmail": "chimwemwe.phiri@mhh.mw",
+      "userName": "Chimwemwe Phiri",
+      "role": "farmer",
+      "action": "USER_LOGGED_IN",
+      "recordAffected": "User #2 (Chimwemwe Phiri, Role: farmer)"
+    },
+    {
+      "id": 7,
+      "createdAt": "2026-10-15T01:19:36.831Z",
+      "updatedAt": "2026-10-15T01:19:36.831Z",
+      "userUid": "farmer-chimwemwe-01",
+      "userEmail": "chimwemwe.phiri@mhh.mw",
+      "userName": "Chimwemwe Phiri",
+      "role": "farmer",
+      "action": "PASSWORD_UPDATED",
+      "recordAffected": "User #2 (Chimwemwe Phiri)",
+      "newValue": "Password updated and securely hashed"
+    },
+    {
+      "id": 8,
+      "createdAt": "2026-10-15T01:19:44.901Z",
+      "updatedAt": "2026-10-15T01:19:44.901Z",
+      "userUid": "farmer-chimwemwe-01",
+      "userEmail": "chimwemwe.phiri@mhh.mw",
+      "userName": "Chimwemwe Phiri",
+      "role": "farmer",
+      "action": "USER_LOGGED_IN",
+      "recordAffected": "User #2 (Chimwemwe Phiri, Role: farmer)"
+    },
+    {
+      "id": 9,
+      "createdAt": "2026-10-15T01:19:49.963Z",
+      "updatedAt": "2026-10-15T01:19:49.963Z",
+      "userUid": "buyer-alinafe-02",
+      "userEmail": "alinafe.banda@mhh.mw",
+      "userName": "Alinafe Banda",
+      "role": "buyer",
+      "action": "PASSWORD_RESET_REQUESTED",
+      "recordAffected": "Reset Request #RST-JSKH28-MV8UPXAI (Alinafe Banda)",
+      "newValue": "Phone: +265 999 234 567, Status: pending"
+    },
+    {
+      "id": 10,
+      "createdAt": "2026-10-15T01:19:53.853Z",
+      "updatedAt": "2026-10-15T01:19:53.853Z",
+      "userUid": "frF3xukObzdA8AhCBYIBPYV0UK13",
+      "userEmail": "admin@harvesthub.mw",
+      "userName": "Peter Malikebu",
+      "role": "admin",
+      "action": "PASSWORD_RESET_APPROVED",
+      "recordAffected": "Reset Request #RST-JSKH28-MV8UPXAI for Alinafe Banda (alinafe.banda@mhh.mw)",
+      "newValue": "Status changed to approved"
+    },
+    {
+      "id": 11,
+      "createdAt": "2026-10-15T01:19:57.818Z",
+      "updatedAt": "2026-10-15T01:19:57.818Z",
+      "userUid": "buyer-alinafe-02",
+      "userEmail": "alinafe.banda@mhh.mw",
+      "userName": "Alinafe Banda",
+      "role": "buyer",
+      "action": "PASSWORD_RESET_COMPLETED",
+      "recordAffected": "User #buyer-alinafe-02 (Alinafe Banda)",
+      "newValue": "Password successfully changed, securely hashed, and committed"
+    },
+    {
+      "id": 12,
+      "createdAt": "2026-10-15T01:20:07.352Z",
+      "updatedAt": "2026-10-15T01:20:07.352Z",
+      "userUid": "buyer-alinafe-02",
+      "userEmail": "alinafe.banda@mhh.mw",
+      "userName": "Alinafe Banda",
+      "role": "buyer",
+      "action": "USER_LOGGED_IN",
+      "recordAffected": "User #3 (Alinafe Banda, Role: buyer)"
+    },
+    {
+      "id": 13,
+      "createdAt": "2026-10-15T01:20:15.389Z",
+      "updatedAt": "2026-10-15T01:20:15.389Z",
+      "userUid": "frF3xukObzdA8AhCBYIBPYV0UK13",
+      "userEmail": "petermalikebujr@gmail.com",
+      "userName": "Peter Malikebu",
+      "role": "admin",
+      "action": "PASSWORD_UPDATED",
+      "recordAffected": "User #1 (Peter Malikebu)",
+      "newValue": "Password updated and securely hashed"
+    },
+    {
+      "id": 14,
+      "createdAt": "2026-10-15T01:26:45.589Z",
+      "updatedAt": "2026-10-15T01:26:45.589Z",
+      "userUid": "finance-chisomo-05",
+      "userEmail": "chisomo.mwale@mhh.mw",
+      "userName": "Chisomo Mwale",
+      "role": "finance_admin",
+      "action": "PASSWORD_RESET_REQUESTED",
+      "recordAffected": "Reset Request #RST-UB88HE-MV8UYTZN (Chisomo Mwale)",
+      "newValue": "Phone: +265 992 456 789, Status: pending"
+    },
+    {
+      "id": 15,
+      "createdAt": "2026-10-15T01:27:54.579Z",
+      "updatedAt": "2026-10-15T01:27:54.579Z",
+      "userUid": "frF3xukObzdA8AhCBYIBPYV0UK13",
+      "userEmail": "admin@harvesthub.mw",
+      "userName": "Peter Malikebu",
+      "role": "admin",
+      "action": "PASSWORD_RESET_APPROVED",
+      "recordAffected": "Reset Request #RST-UB88HE-MV8UYTZN for Chisomo Mwale (chisomo.mwale@mhh.mw)",
+      "newValue": "Status changed to approved"
+    },
+    {
+      "id": 16,
+      "createdAt": "2026-10-15T01:28:21.090Z",
+      "updatedAt": "2026-10-15T01:28:21.090Z",
+      "userUid": "finance-chisomo-05",
+      "userEmail": "chisomo.mwale@mhh.mw",
+      "userName": "Chisomo Mwale",
+      "role": "finance_admin",
+      "action": "PASSWORD_RESET_COMPLETED",
+      "recordAffected": "User #finance-chisomo-05 (Chisomo Mwale)",
+      "newValue": "Password successfully changed, securely hashed, and committed"
+    },
+    {
+      "id": 17,
+      "createdAt": "2026-10-15T01:28:34.843Z",
+      "updatedAt": "2026-10-15T01:28:34.843Z",
+      "userUid": "finance-chisomo-05",
+      "userEmail": "chisomo.mwale@mhh.mw",
+      "userName": "Chisomo Mwale",
+      "role": "finance_admin",
+      "action": "USER_LOGGED_IN",
+      "recordAffected": "User #6 (Chisomo Mwale, Role: finance_admin)"
     }
   ],
   "support_tickets": [
@@ -741,6 +902,44 @@
       "repliedByAdminUid": "admin-joshua-02",
       "replies": "[{\"id\":\"rep-1791869079536\",\"senderRole\":\"farmer\",\"senderName\":\"Chimwemwe Phiri\",\"senderUid\":\"farmer-chimwemwe-01\",\"message\":\"We need help testing listing sweet potatoes with grade B standard market produce.\",\"timestamp\":\"2026-10-13T05:24:39.536Z\"},{\"id\":\"rep-1791869083035-943\",\"senderRole\":\"admin\",\"senderName\":\"Joshua Malikebu\",\"senderUid\":\"admin-joshua-02\",\"message\":\"Hello Chimwemwe! Both photo upload and region assignment for Mbatata are working seamlessly now.\",\"timestamp\":\"2026-10-13T05:24:43.035Z\"}]",
       "repliedAt": "2026-10-13T05:24:43.035Z"
+    }
+  ],
+  "password_reset_requests": [
+    {
+      "id": 1,
+      "createdAt": "2026-10-15T01:19:49.962Z",
+      "updatedAt": "2026-10-15T01:19:57.817Z",
+      "requestId": "RST-JSKH28-MV8UPXAI",
+      "userId": 3,
+      "userUid": "buyer-alinafe-02",
+      "userEmail": "alinafe.banda@mhh.mw",
+      "userPhone": "+265 999 234 567",
+      "userName": "Alinafe Banda",
+      "userRole": "buyer",
+      "status": "completed",
+      "approvedByAdminName": "Peter Malikebu",
+      "approvedByAdminUid": "frF3xukObzdA8AhCBYIBPYV0UK13",
+      "adminNote": "Approved by platform administrator",
+      "approvedAt": "2026-10-15T01:19:53.852Z",
+      "completedAt": "2026-10-15T01:19:57.817Z"
+    },
+    {
+      "id": 2,
+      "createdAt": "2026-10-15T01:26:45.587Z",
+      "updatedAt": "2026-10-15T01:28:21.089Z",
+      "requestId": "RST-UB88HE-MV8UYTZN",
+      "userId": 6,
+      "userUid": "finance-chisomo-05",
+      "userEmail": "chisomo.mwale@mhh.mw",
+      "userPhone": "+265 992 456 789",
+      "userName": "Chisomo Mwale",
+      "userRole": "finance_admin",
+      "status": "completed",
+      "approvedByAdminName": "Peter Malikebu",
+      "approvedByAdminUid": "frF3xukObzdA8AhCBYIBPYV0UK13",
+      "adminNote": "Approved by administrator upon identity verification",
+      "approvedAt": "2026-10-15T01:27:54.578Z",
+      "completedAt": "2026-10-15T01:28:21.089Z"
     }
   ]
 }

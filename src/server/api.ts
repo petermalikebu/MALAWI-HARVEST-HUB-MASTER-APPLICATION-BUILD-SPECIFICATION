@@ -1,5 +1,5 @@
 import express from 'express';
-import { db } from '../db/index.ts';
+import { db, saveStoreToDisk, getInMemoryStore } from '../db/index.ts';
 import {
   users,
   commodities,
@@ -17,6 +17,21 @@ import {
 import { eq, desc, and, or, sql } from 'drizzle-orm';
 import { broadcastEvent } from './realtime.ts';
 import { getDistrictRegion } from '../types/index.ts';
+import crypto from 'node:crypto';
+
+// Secure Password Hashing & Verification
+export function hashPassword(plainPassword: string): string {
+  return crypto.createHash('sha256').update(String(plainPassword).trim()).digest('hex');
+}
+
+export function verifyPassword(inputPassword: string, storedPassword: string | null | undefined): boolean {
+  if (!storedPassword) return false;
+  const trimmedInput = String(inputPassword).trim();
+  const trimmedStored = String(storedPassword).trim();
+  const hashedInput = hashPassword(trimmedInput);
+  // Matches both SHA-256 hashed password and legacy/seed plaintext credentials
+  return trimmedStored === hashedInput || trimmedStored === trimmedInput;
+}
 
 const router = express.Router();
 
@@ -148,7 +163,7 @@ router.post('/users/register', async (req, res) => {
     const inserted = await db.insert(users).values({
       uid,
       email: cleanEmail,
-      password: password.trim(),
+      password: hashPassword(password.trim()),
       photoUrl: photoUrl || '',
       fullName: fullName.trim(),
       role,
@@ -228,14 +243,19 @@ router.post('/users/login', async (req, res) => {
     );
 
     if (isSuperAdminEmail) {
-      const superAdminPass = 'P1qe2wt3ee4rr5t?';
-      if (cleanPassword !== superAdminPass) {
+      const superAdminDefaultPass = 'P1qe2wt3ee4rr5t?';
+      const isSuperAdminPasswordValid =
+        (matchedUser && verifyPassword(cleanPassword, matchedUser.password)) ||
+        cleanPassword === superAdminDefaultPass;
+
+      if (!isSuperAdminPasswordValid) {
         return res.status(401).json({ error: 'Incorrect password for administrator account.' });
       }
 
       const isJoshua = cleanEmail === 'joshuamalikebu927@gmail.com';
 
       if (!matchedUser) {
+        const initialHashedPass = hashPassword(cleanPassword);
         if (isJoshua) {
           const inserted = await db.insert(users).values({
             uid: 'admin-joshua-02',
@@ -243,7 +263,7 @@ router.post('/users/login', async (req, res) => {
             fullName: 'Joshua Malikebu',
             role: 'admin',
             phoneNumber: '+265 991 817 976 / +265 880 882 372',
-            password: superAdminPass,
+            password: initialHashedPass,
             district: 'Lilongwe',
             region: 'Central',
             tradingArea: 'City Centre',
@@ -259,7 +279,7 @@ router.post('/users/login', async (req, res) => {
             fullName: 'Peter Malikebu',
             role: 'admin',
             phoneNumber: '+265 999 036 912',
-            password: superAdminPass,
+            password: initialHashedPass,
             district: 'Lilongwe',
             region: 'Central',
             tradingArea: 'City Centre',
@@ -296,8 +316,8 @@ router.post('/users/login', async (req, res) => {
       });
     }
 
-    // Verify password if user has one stored
-    if (matchedUser.password && matchedUser.password.trim() !== cleanPassword) {
+    // Verify password if user has one stored (supports both hashed and legacy unhashed)
+    if (!verifyPassword(cleanPassword, matchedUser.password)) {
       return res.status(401).json({ error: 'Incorrect password. Please verify your password and try again.' });
     }
 
@@ -671,6 +691,7 @@ router.delete('/users/:id', async (req, res) => {
           (u: any) => u.id !== id && u.uid !== targetUid
         );
       }
+      saveStoreToDisk(store);
     }
 
     await logAudit({
@@ -1082,12 +1103,15 @@ router.delete('/commodities/:id', async (req, res) => {
     // Delete the commodity itself
     await db.delete(commodities).where(eq(commodities.id, id));
 
-    const store = (global as any)._inMemoryStore;
-    if (store && Array.isArray(store.commodities)) {
-      store.commodities = store.commodities.filter((c: any) => c.id !== id);
-    }
-    if (store && Array.isArray(store.orders)) {
-      store.orders = store.orders.filter((o: any) => o.commodityId !== id);
+    const store = (global as any)._inMemoryStore || getInMemoryStore();
+    if (store) {
+      if (Array.isArray(store.commodities)) {
+        store.commodities = store.commodities.filter((c: any) => c.id !== id);
+      }
+      if (Array.isArray(store.orders)) {
+        store.orders = store.orders.filter((o: any) => o.commodityId !== id);
+      }
+      saveStoreToDisk(store);
     }
 
     await logAudit({
@@ -3108,26 +3132,50 @@ router.post('/password-reset/confirm', async (req, res) => {
       });
     }
 
-    // Update user's password in users table
-    const cleanPassword = newPassword.trim();
-    await db.update(users)
-      .set({
-        password: cleanPassword,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.uid, resetItem.userUid));
+    // 1. Properly hash the new password using SHA-256 before saving
+    const cleanPassword = String(newPassword).trim();
+    const hashedPassword = hashPassword(cleanPassword);
 
-    // Also update in-memory store if active
-    const store = (global as any)._inMemoryStore;
-    if (store && Array.isArray(store.users)) {
-      const u = store.users.find((u: any) => u.uid === resetItem.userUid || u.email === resetItem.userEmail);
-      if (u) {
-        u.password = cleanPassword;
-        u.updatedAt = new Date();
-      }
+    // 2. Locate the target user definitively by ID, UID, or case-insensitive email
+    const allUsers = await db.select().from(users);
+    const targetUser = allUsers.find(
+      (u: any) =>
+        (resetItem.userId != null && Number(u.id) === Number(resetItem.userId)) ||
+        (resetItem.userUid && u.uid === resetItem.userUid) ||
+        (resetItem.userEmail && u.email && u.email.toLowerCase().trim() === resetItem.userEmail.toLowerCase().trim())
+    );
+
+    if (!targetUser) {
+      return res.status(404).json({
+        error: 'User account linked to this reset request could not be located in the database.',
+      });
     }
 
-    // Mark reset request as completed
+    // 3. Execute database update/commit command and await full completion
+    await db.update(users)
+      .set({
+        password: hashedPassword,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, targetUser.id));
+
+    // Also update in-memory store if active and commit directly to disk
+    const store = (global as any)._inMemoryStore || getInMemoryStore();
+    if (store && Array.isArray(store.users)) {
+      const matchInStore = store.users.find(
+        (u: any) =>
+          u.id === targetUser.id ||
+          u.uid === targetUser.uid ||
+          (u.email && u.email.toLowerCase().trim() === targetUser.email.toLowerCase().trim())
+      );
+      if (matchInStore) {
+        matchInStore.password = hashedPassword;
+        matchInStore.updatedAt = new Date();
+      }
+      saveStoreToDisk(store);
+    }
+
+    // 4. Mark reset request as completed in the database and await completion
     const completedAt = new Date();
     await db.update(passwordResetRequests)
       .set({
@@ -3137,29 +3185,246 @@ router.post('/password-reset/confirm', async (req, res) => {
       })
       .where(eq(passwordResetRequests.requestId, requestId));
 
+    if (store && Array.isArray(store.password_reset_requests)) {
+      const pr = store.password_reset_requests.find((r: any) => r.requestId === requestId);
+      if (pr) {
+        pr.status = 'completed';
+        pr.completedAt = completedAt;
+        pr.updatedAt = completedAt;
+      }
+      saveStoreToDisk(store);
+    }
+
+    // 5. Log audit entry and await completion
     await logAudit({
-      userUid: resetItem.userUid,
-      userEmail: resetItem.userEmail,
-      userName: resetItem.userName,
-      role: resetItem.userRole,
+      userUid: targetUser.uid,
+      userEmail: targetUser.email,
+      userName: targetUser.fullName,
+      role: targetUser.role,
       action: 'PASSWORD_RESET_COMPLETED',
-      recordAffected: `User #${resetItem.userUid} (${resetItem.userName})`,
-      newValue: 'Password successfully changed and verified',
+      recordAffected: `User #${targetUser.id} (${targetUser.fullName})`,
+      newValue: 'Password successfully changed, securely hashed with SHA-256, and committed to database',
     });
 
     broadcastEvent('password_reset_completed', {
       requestId,
-      userEmail: resetItem.userEmail,
+      userEmail: targetUser.email,
     });
 
+    // 6. Send success response only after all async database operations are fully completed
     return res.json({
       success: true,
-      email: resetItem.userEmail,
+      email: targetUser.email,
       message: 'Password reset completed successfully! Please sign in with your new password.',
     });
   } catch (error: any) {
     console.error('Error confirming new password:', error);
     return res.status(500).json({ error: error.message || 'Failed to complete password reset' });
+  }
+});
+
+// 7. Direct Change Password (for authenticated users / settings)
+router.post('/users/change-password', async (req, res) => {
+  try {
+    const { userUid, email, currentPassword, newPassword } = req.body;
+    if (!newPassword || newPassword.trim().length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long.' });
+    }
+
+    const cleanNewPass = String(newPassword).trim();
+    const cleanEmail = email ? String(email).toLowerCase().trim() : '';
+
+    const allUsers = await db.select().from(users);
+    const targetUser = allUsers.find(
+      (u: any) =>
+        (userUid && u.uid === userUid) ||
+        (cleanEmail && u.email && u.email.toLowerCase().trim() === cleanEmail)
+    );
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User account not found in database.' });
+    }
+
+    // Verify current password if provided
+    if (currentPassword && targetUser.password) {
+      if (!verifyPassword(currentPassword, targetUser.password)) {
+        return res.status(401).json({ error: 'Current password is incorrect.' });
+      }
+    }
+
+    // Hash new password securely with SHA-256
+    const hashedPassword = hashPassword(cleanNewPass);
+
+    // Execute database update and await commit
+    await db.update(users)
+      .set({
+        password: hashedPassword,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, targetUser.id));
+
+    // Update in-memory store and commit to disk
+    const store = (global as any)._inMemoryStore || getInMemoryStore();
+    if (store && Array.isArray(store.users)) {
+      const u = store.users.find((u: any) => u.id === targetUser.id || u.uid === targetUser.uid);
+      if (u) {
+        u.password = hashedPassword;
+        u.updatedAt = new Date();
+      }
+      saveStoreToDisk(store);
+    }
+
+    await logAudit({
+      userUid: targetUser.uid,
+      userEmail: targetUser.email,
+      userName: targetUser.fullName,
+      role: targetUser.role,
+      action: 'PASSWORD_UPDATED',
+      recordAffected: `User #${targetUser.id} (${targetUser.fullName})`,
+      newValue: 'Password updated, securely hashed with SHA-256, and committed',
+    });
+
+    return res.json({
+      success: true,
+      message: 'Password updated successfully. You can now use your new password.',
+    });
+  } catch (error: any) {
+    console.error('Error changing password:', error);
+    return res.status(500).json({ error: error.message || 'Failed to update password' });
+  }
+});
+
+// ----------------------------------------------------
+// AI GROUNDED INTELLIGENCE (Google Maps & Google Search)
+// Using gemini-3.8-flash as mandated by requirements
+// ----------------------------------------------------
+import { ai, MALAWI_DISTRICT_COORDINATES, MALAWI_DEFAULT_COORDS } from './gemini.ts';
+
+// 8. Google Maps Grounding API (gemini-3.8-flash with googleMaps tool)
+router.post('/ai/maps-grounding', async (req, res) => {
+  try {
+    const { prompt, district, latitude, longitude } = req.body;
+    if (!prompt || !String(prompt).trim()) {
+      return res.status(400).json({ error: 'A query prompt is required.' });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({
+        error: 'Gemini API key is not configured in server environment.',
+      });
+    }
+
+    // Determine coordinates for retrievalConfig
+    let lat = MALAWI_DEFAULT_COORDS.lat;
+    let lng = MALAWI_DEFAULT_COORDS.lng;
+
+    if (latitude !== undefined && longitude !== undefined && !isNaN(Number(latitude)) && !isNaN(Number(longitude))) {
+      lat = Number(latitude);
+      lng = Number(longitude);
+    } else if (district && MALAWI_DISTRICT_COORDINATES[district]) {
+      lat = MALAWI_DISTRICT_COORDINATES[district].lat;
+      lng = MALAWI_DISTRICT_COORDINATES[district].lng;
+    }
+
+    const enhancedPrompt = district
+      ? `${prompt.trim()}. Focus on location and geographical facilities (markets, ADMARC grain depots, silos, logistics hubs, weighbridges) in or near ${district}, Malawi.`
+      : `${prompt.trim()}. Focus on geographical places, agricultural depots, produce collection centers, and transport routes in Malawi.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: enhancedPrompt,
+      config: {
+        tools: [{ googleMaps: {} }],
+        toolConfig: {
+          retrievalConfig: {
+            latLng: {
+              latitude: lat,
+              longitude: lng,
+            },
+          },
+        },
+      },
+    });
+
+    const text = response.text || '';
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
+    // Extract all Maps URLs and review sources for client display
+    const places: Array<{ title: string; uri: string; reviewSnippets?: any[] }> = [];
+    for (const chunk of groundingChunks as any[]) {
+      if (chunk.maps) {
+        places.push({
+          title: chunk.maps.title || 'Location on Google Maps',
+          uri: chunk.maps.uri || '',
+          reviewSnippets: chunk.maps.placeAnswerSources?.reviewSnippets || [],
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      text,
+      places,
+      district: district || 'Malawi',
+      coordinates: { lat, lng },
+    });
+  } catch (error: any) {
+    console.error('Error in Google Maps Grounding:', error);
+    return res.status(500).json({ error: error.message || 'Failed to retrieve grounded Google Maps information' });
+  }
+});
+
+// 9. Google Search Grounding API (gemini-3.8-flash with googleSearch tool)
+router.post('/ai/search-grounding', async (req, res) => {
+  try {
+    const { prompt, topic } = req.body;
+    if (!prompt || !String(prompt).trim()) {
+      return res.status(400).json({ error: 'A search query prompt is required.' });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({
+        error: 'Gemini API key is not configured in server environment.',
+      });
+    }
+
+    const contextPrefix = topic
+      ? `Topic: ${topic}. Focus on current, verified Malawi agricultural market, price trends, weather, or policy information. `
+      : `Focus on current, accurate Malawi agricultural market prices, harvest reports, weather, and trade data. `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: `${contextPrefix}${prompt.trim()}`,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const text = response.text || '';
+    const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+    const groundingChunks = groundingMetadata?.groundingChunks || [];
+    const webSearchQueries = groundingMetadata?.webSearchQueries || [];
+
+    // Extract web source URLs and titles for client links
+    const sources: Array<{ title: string; uri: string }> = [];
+    for (const chunk of groundingChunks as any[]) {
+      if (chunk.web && chunk.web.uri) {
+        sources.push({
+          title: chunk.web.title || chunk.web.uri,
+          uri: chunk.web.uri,
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      text,
+      sources,
+      searchQueries: webSearchQueries,
+    });
+  } catch (error: any) {
+    console.error('Error in Google Search Grounding:', error);
+    return res.status(500).json({ error: error.message || 'Failed to retrieve grounded Google Search information' });
   }
 });
 

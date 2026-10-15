@@ -670,6 +670,7 @@ export const AdminDashboard: React.FC = () => {
                   <th className="p-3">Price (MWK)</th>
                   <th className="p-3">Location</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -695,6 +696,16 @@ export const AdminDashboard: React.FC = () => {
                       }`}>
                         {c.status.replace('_', ' ')}
                       </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        onClick={() => setDeletingCommodity(c)}
+                        className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg inline-flex items-center gap-1.5 transition-colors"
+                        title="Permanently remove this product from the marketplace"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove Product</span>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1159,9 +1170,42 @@ export const AdminDashboard: React.FC = () => {
                     You are removing fellow administrator <strong>{deletingUser.fullName}</strong> ({deletingUser.email}). Their administrative credentials, privileges, and profile will be deleted from the database.
                   </p>
                 </div>
+              ) : deletingUser.role === 'farmer' ? (
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-1.5">
+                  <p className="font-bold text-emerald-900 flex items-center gap-1.5">
+                    <Sprout className="w-4 h-4 text-emerald-700" />
+                    <span>Permanently Removing Farmer &amp; All Associated Products</span>
+                  </p>
+                  <p className="text-xs text-emerald-800">
+                    Are you sure you want to permanently delete Farmer <strong>{deletingUser.fullName}</strong> ({deletingUser.email})? 
+                    This will permanently delete their account <strong>AND all of their commodity product listings, related contracts, and orders</strong> from the marketplace.
+                  </p>
+                </div>
+              ) : deletingUser.role === 'transporter' ? (
+                <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 space-y-1.5">
+                  <p className="font-bold text-blue-900 flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-blue-700" />
+                    <span>Permanently Removing Transporter &amp; Driver Information</span>
+                  </p>
+                  <p className="text-xs text-blue-800">
+                    Are you sure you want to permanently delete Transporter <strong>{deletingUser.fullName}</strong> ({deletingUser.email})? 
+                    This will permanently delete their account, registered vehicle information, and all assigned haulage and delivery jobs.
+                  </p>
+                </div>
+              ) : deletingUser.role === 'buyer' ? (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-1.5">
+                  <p className="font-bold text-amber-900 flex items-center gap-1.5">
+                    <ShoppingCart className="w-4 h-4 text-amber-700" />
+                    <span>Permanently Removing Buyer &amp; Trade Records</span>
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    Are you sure you want to permanently delete Buyer <strong>{deletingUser.fullName}</strong> ({deletingUser.email})? 
+                    This will permanently delete their account, order history, bids, and purchase records.
+                  </p>
+                </div>
               ) : (
                 <p>
-                  Are you sure you want to permanently delete <strong>{deletingUser.fullName}</strong> (Role: <span className="capitalize font-semibold">{deletingUser.role}</span>) from the central PostgreSQL database?
+                  Are you sure you want to permanently delete <strong>{deletingUser.fullName}</strong> (Role: <span className="capitalize font-semibold">{deletingUser.role}</span>) from the central PostgreSQL database? All related records will be permanently removed.
                 </p>
               )}
             </div>
@@ -1187,8 +1231,75 @@ export const AdminDashboard: React.FC = () => {
                     ? 'Permanently Delete My Admin Account'
                     : deletingUser.role === 'admin'
                     ? 'Remove Fellow Administrator'
-                    : 'Confirm Removal'}
+                    : `Permanently Delete ${deletingUser.role}`}
                 </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Commodity Deletion Confirmation Modal */}
+      {deletingCommodity && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-stone-200 p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 bg-rose-100 text-rose-700 rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-extrabold text-stone-900 text-base">
+                Remove Product Listing
+              </h3>
+              <p className="text-xs text-stone-500">
+                Are you sure you want to remove this product from the marketplace?
+              </p>
+            </div>
+
+            <div className="bg-stone-50 rounded-2xl p-4 border border-stone-100 text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-stone-500">Product:</span>
+                <span className="font-bold text-stone-900">{deletingCommodity.commodityName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Farmer:</span>
+                <span className="font-semibold text-stone-800">{deletingCommodity.farmerName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Available Stock:</span>
+                <span className="font-medium text-stone-800">
+                  {deletingCommodity.quantity.toLocaleString()} {deletingCommodity.unit}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Unit Price:</span>
+                <span className="font-bold text-emerald-700">
+                  MWK {Number(deletingCommodity.pricePerUnit).toLocaleString()}/{deletingCommodity.unit}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-500 leading-relaxed">
+              This will permanently delete this product listing and cancel any associated pending orders. This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingCommodity(null)}
+                disabled={isDeletingComm}
+                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteCommodity}
+                disabled={isDeletingComm}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs disabled:opacity-50 flex items-center gap-1.5 transition-all active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeletingComm ? 'Removing Product...' : 'Confirm Remove Product'}</span>
               </button>
             </div>
           </div>

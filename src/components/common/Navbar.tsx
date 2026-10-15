@@ -20,6 +20,7 @@ import {
   ShieldAlert,
   HelpCircle,
   LogIn,
+  Sparkles,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -125,6 +126,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   Browse Produce
+                </button>
+                <button
+                  onClick={() => setActiveTab('agri_intelligence')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
+                    activeTab === 'agri_intelligence'
+                      ? 'bg-white text-emerald-800 shadow-xs border border-stone-200/60 font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Agri-Intelligence</span>
                 </button>
               </>
             )}
@@ -330,6 +342,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               Fee Simulator
+            </button>
+            <button
+              onClick={() => setActiveTab('agri_intelligence')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                activeTab === 'agri_intelligence'
+                  ? 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white shadow-xs'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200'
+              }`}
+              title="Real-time agricultural market intelligence grounded with Google Maps & Google Search"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Agri-Intelligence</span>
+              <span className="hidden xl:inline text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-200/60 text-emerald-950 font-bold">
+                Maps &amp; Search
+              </span>
             </button>
           </nav>
 

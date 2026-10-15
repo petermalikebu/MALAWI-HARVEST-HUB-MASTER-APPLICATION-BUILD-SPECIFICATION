@@ -755,7 +755,7 @@ import path from 'node:path';
 
 const BACKUP_FILE = path.resolve(process.cwd(), '.in_memory_store.json');
 
-function saveStoreToDisk(store: Record<string, any[]>) {
+export function saveStoreToDisk(store: Record<string, any[]>) {
   try {
     fs.writeFileSync(BACKUP_FILE, JSON.stringify(store, null, 2), 'utf-8');
   } catch (err) {
@@ -795,7 +795,9 @@ export function getInMemoryStore(): Record<string, any[]> {
         peterAdmin.bankName = 'National Bank of Malawi';
         peterAdmin.bankAccount = '1011619688';
         peterAdmin.bankAccountName = 'PETER ADRIAN MALIKEBU';
-        peterAdmin.password = 'P1qe2wt3ee4rr5t?';
+        if (!peterAdmin.password) {
+          peterAdmin.password = 'P1qe2wt3ee4rr5t?';
+        }
       } else {
         global._inMemoryStore.users.push({
           id: 1,
@@ -830,7 +832,9 @@ export function getInMemoryStore(): Record<string, any[]> {
         joshuaAdmin.bankName = 'National Bank of Malawi';
         joshuaAdmin.bankAccount = '1013388772';
         joshuaAdmin.bankAccountName = 'JOSHUA MALIKEBU';
-        joshuaAdmin.password = 'P1qe2wt3ee4rr5t?';
+        if (!joshuaAdmin.password) {
+          joshuaAdmin.password = 'P1qe2wt3ee4rr5t?';
+        }
       } else {
         const nextId = Math.max(...global._inMemoryStore.users.map((u: any) => Number(u.id) || 0)) + 1;
         global._inMemoryStore.users.push({
@@ -919,8 +923,10 @@ function evaluateSqlCondition(item: any, sqlObj: any): boolean {
   for (const chunk of chunks) {
     if (chunk && chunk.name) {
       colName = chunk.name;
+    } else if (chunk && chunk.column && chunk.column.name) {
+      colName = chunk.column.name;
     }
-    if (chunk && chunk.constructor && chunk.constructor.name === 'Param') {
+    if (chunk && typeof chunk === 'object' && 'value' in chunk && !Array.isArray(chunk.value)) {
       paramVal = chunk.value;
     }
   }
@@ -928,6 +934,9 @@ function evaluateSqlCondition(item: any, sqlObj: any): boolean {
   if (colName && paramVal !== undefined) {
     const itemVal = resolveItemProp(item, colName);
     if (itemVal === undefined || itemVal === null) return paramVal === null;
+    if (typeof itemVal === 'string' && typeof paramVal === 'string') {
+      return itemVal.toLowerCase().trim() === paramVal.toLowerCase().trim();
+    }
     return String(itemVal) === String(paramVal);
   }
 

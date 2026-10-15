@@ -16,6 +16,7 @@ import { SignInView } from './components/common/SignInView.tsx';
 import { LandingView } from './components/landing/LandingView.tsx';
 import { FarmerTransportHire } from './components/farmer/FarmerTransportHire.tsx';
 import { SupportQueriesDesk } from './components/support/SupportQueriesDesk.tsx';
+import { AgriIntelligenceView } from './components/intelligence/AgriIntelligenceView.tsx';
 import { ShieldAlert } from 'lucide-react';
 
 function MainContent() {
@@ -91,6 +92,9 @@ function MainContent() {
       }
       if (activeTab === 'support_queries') {
         return <SupportQueriesDesk />;
+      }
+      if (activeTab === 'agri_intelligence') {
+        return <AgriIntelligenceView />;
       }
       return (
         <LandingView
@@ -193,6 +197,8 @@ function MainContent() {
         return <FeeSimulator />;
       case 'support_queries':
         return <SupportQueriesDesk />;
+      case 'agri_intelligence':
+        return <AgriIntelligenceView />;
       default:
         return <FarmerDashboard />;
     }
