@@ -346,17 +346,39 @@ router.post('/users/profile-photo', async (req, res) => {
     const { uid, photoUrl } = req.body;
     if (!uid) return res.status(400).json({ error: 'User UID is required' });
 
-    const existing = await db.select().from(users).where(eq(users.uid, uid)).limit(1);
-    if (existing.length === 0) return res.status(404).json({ error: 'User not found' });
+    const allUsers = await db.select().from(users);
+    const existing = allUsers.find(
+      (u: any) =>
+        u.uid === uid ||
+        String(u.id) === String(uid) ||
+        (u.email && u.email.toLowerCase().trim() === String(uid).toLowerCase().trim())
+    );
+    if (!existing) return res.status(404).json({ error: 'User not found' });
 
+    const cleanPhoto = photoUrl || '';
     const updated = await db.update(users)
-      .set({ photoUrl: photoUrl || '', updatedAt: new Date() })
-      .where(eq(users.uid, uid))
+      .set({ photoUrl: cleanPhoto, updatedAt: new Date() })
+      .where(eq(users.id, existing.id))
       .returning();
 
-    broadcastEvent('user_updated', updated[0]);
-    return res.json({ success: true, user: updated[0] });
+    // Explicitly update in-memory store and persist to disk
+    const store = (global as any)._inMemoryStore;
+    if (store && Array.isArray(store.users)) {
+      const storeUser = store.users.find(
+        (u: any) => u.id === existing.id || u.uid === existing.uid
+      );
+      if (storeUser) {
+        storeUser.photoUrl = cleanPhoto;
+        storeUser.updatedAt = new Date();
+      }
+      saveStoreToDisk(store);
+    }
+
+    const updatedUser = updated.length > 0 ? updated[0] : { ...existing, photoUrl: cleanPhoto };
+    broadcastEvent('user_updated', updatedUser);
+    return res.json({ success: true, user: updatedUser });
   } catch (error: any) {
+    console.error('Error updating profile photo:', error);
     return res.status(500).json({ error: error.message || 'Failed to update profile photo' });
   }
 });
@@ -364,7 +386,22 @@ router.post('/users/profile-photo', async (req, res) => {
 // Sync or register user profile in PostgreSQL
 router.post('/users/sync', async (req, res) => {
   try {
-    const { uid, email, fullName, role, phoneNumber, district, region, tradingArea, village, vehicleType, vehicleRegistration, vehicleCapacityKg } = req.body;
+    const {
+      uid,
+      email,
+      fullName,
+      role,
+      phoneNumber,
+      district,
+      region,
+      tradingArea,
+      village,
+      vehicleType,
+      vehicleRegistration,
+      vehicleCapacityKg,
+      photoUrl,
+    } = req.body;
+
     if (!uid || !email) {
       return res.status(400).json({ error: 'UID and Email are required' });
     }
@@ -377,31 +414,41 @@ router.post('/users/sync', async (req, res) => {
       email === 'petermalikebu0@gmail.com';
 
     const isFarmerChimwemwe = uid === 'farmer-chimwemwe-01' || email === 'chimwemwe.phiri@mhh.mw';
-
     const resolvedRole = isAdminEmail ? 'admin' : isFarmerChimwemwe ? 'farmer' : (role || 'farmer');
 
-    const existing = await db.select().from(users).where(eq(users.uid, uid)).limit(1);
+    const allUsers = await db.select().from(users);
+    const existing = allUsers.filter(
+      (u: any) =>
+        u.uid === uid ||
+        (u.email && u.email.toLowerCase().trim() === email.toLowerCase().trim())
+    );
+
     let userRecord;
 
     if (existing.length > 0) {
+      const targetUser = existing[0];
+      const newPhotoUrl = (photoUrl && String(photoUrl).trim() !== '') ? photoUrl : (targetUser.photoUrl || '');
+
       const updated = await db.update(users)
         .set({
-          fullName: fullName || existing[0].fullName,
-          email: email || existing[0].email,
-          role: isAdminEmail ? 'admin' : isFarmerChimwemwe ? 'farmer' : (role || existing[0].role),
-          phoneNumber: phoneNumber ?? existing[0].phoneNumber,
-          district: district ?? existing[0].district,
-          region: region ?? existing[0].region,
-          tradingArea: tradingArea ?? existing[0].tradingArea,
-          village: village ?? existing[0].village,
-          vehicleType: vehicleType ?? existing[0].vehicleType,
-          vehicleRegistration: vehicleRegistration ?? existing[0].vehicleRegistration,
-          vehicleCapacityKg: vehicleCapacityKg !== undefined ? Number(vehicleCapacityKg) : existing[0].vehicleCapacityKg,
+          fullName: fullName || targetUser.fullName,
+          email: email || targetUser.email,
+          role: isAdminEmail ? 'admin' : isFarmerChimwemwe ? 'farmer' : (role || targetUser.role),
+          phoneNumber: phoneNumber ?? targetUser.phoneNumber,
+          photoUrl: newPhotoUrl,
+          district: district ?? targetUser.district,
+          region: region ?? targetUser.region,
+          tradingArea: tradingArea ?? targetUser.tradingArea,
+          village: village ?? targetUser.village,
+          vehicleType: vehicleType ?? targetUser.vehicleType,
+          vehicleRegistration: vehicleRegistration ?? targetUser.vehicleRegistration,
+          vehicleCapacityKg: vehicleCapacityKg !== undefined ? Number(vehicleCapacityKg) : targetUser.vehicleCapacityKg,
           updatedAt: new Date(),
         })
-        .where(eq(users.uid, uid))
+        .where(eq(users.id, targetUser.id))
         .returning();
-      userRecord = updated[0];
+
+      userRecord = updated.length > 0 ? updated[0] : targetUser;
     } else {
       const inserted = await db.insert(users)
         .values({
@@ -409,6 +456,7 @@ router.post('/users/sync', async (req, res) => {
           email,
           fullName: fullName || email.split('@')[0],
           role: resolvedRole,
+          photoUrl: photoUrl || '',
           phoneNumber: phoneNumber || '+265 ',
           district: district || 'Lilongwe',
           region: region || 'Central',
@@ -419,6 +467,7 @@ router.post('/users/sync', async (req, res) => {
           vehicleCapacityKg: Number(vehicleCapacityKg) || 0,
         })
         .returning();
+
       userRecord = inserted[0];
     }
 
@@ -439,14 +488,21 @@ router.post('/users/sync', async (req, res) => {
   }
 });
 
-// Get user by UID
+// Get user by UID, ID or Email
 router.get('/users/:uid', async (req, res) => {
   try {
-    const list = await db.select().from(users).where(eq(users.uid, req.params.uid)).limit(1);
-    if (list.length === 0) {
+    const param = req.params.uid;
+    const all = await db.select().from(users);
+    const found = all.find(
+      (u: any) =>
+        u.uid === param ||
+        String(u.id) === param ||
+        (u.email && u.email.toLowerCase().trim() === param.toLowerCase().trim())
+    );
+    if (!found) {
       return res.status(404).json({ error: 'User not found' });
     }
-    return res.json(list[0]);
+    return res.json(found);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to get user' });
   }
@@ -2538,12 +2594,43 @@ router.put('/settings', async (req, res) => {
 
     const prev = await db.select().from(platformSettings).where(eq(platformSettings.key, key)).limit(1);
 
-    await db.insert(platformSettings)
-      .values({ key, value: String(value), description: description || '' })
-      .onConflictDoUpdate({
-        target: platformSettings.key,
-        set: { value: String(value), description: description || '', updatedAt: new Date() }
+    if (prev.length > 0) {
+      await db.update(platformSettings)
+        .set({
+          value: String(value),
+          description: description || prev[0].description,
+          updatedAt: new Date(),
+        })
+        .where(eq(platformSettings.key, key));
+    } else {
+      await db.insert(platformSettings).values({
+        key,
+        value: String(value),
+        description: description || '',
       });
+    }
+
+    // Explicitly update in-memory store platform_settings to ensure disk persistence
+    const store = (global as any)._inMemoryStore;
+    if (store && Array.isArray(store.platform_settings)) {
+      const idx = store.platform_settings.findIndex((s: any) => s.key === key);
+      if (idx >= 0) {
+        store.platform_settings[idx] = {
+          ...store.platform_settings[idx],
+          value: String(value),
+          description: description || store.platform_settings[idx].description,
+          updatedAt: new Date(),
+        };
+      } else {
+        store.platform_settings.push({
+          key,
+          value: String(value),
+          description: description || '',
+          updatedAt: new Date(),
+        });
+      }
+      saveStoreToDisk(store);
+    }
 
     await logAudit({
       userUid: adminUid || 'admin',
@@ -2560,6 +2647,7 @@ router.put('/settings', async (req, res) => {
     broadcastEvent('setting_updated', { key, value });
     return res.json({ success: true, key, value });
   } catch (error: any) {
+    console.error('Error updating platform setting:', error);
     return res.status(500).json({ error: error.message || 'Failed to update setting' });
   }
 });

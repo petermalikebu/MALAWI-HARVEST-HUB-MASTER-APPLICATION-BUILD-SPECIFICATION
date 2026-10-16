@@ -1,13 +1,52 @@
-import React, { useState } from 'react';
-import { Calculator, AlertCircle, TrendingUp, Sparkles, ShieldAlert, DollarSign } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calculator, AlertCircle, TrendingUp, Sparkles, ShieldAlert, DollarSign, RotateCcw } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext.tsx';
+import { useRealtime } from '../../context/RealtimeContext.tsx';
 
 export const FeeSimulator: React.FC = () => {
+  const { language, t } = useLanguage();
+  const { subscribe } = useRealtime();
+
   // Configurable assumptions
   const [avgTradeValue, setAvgTradeValue] = useState<number>(450000); // MWK 450,000 per trade
   const [monthlyTrades, setMonthlyTrades] = useState<number>(250); // 250 trades/month
   const [commissionRatePercent, setCommissionRatePercent] = useState<number>(4.0); // 4%
   const [avgTransportFee, setAvgTransportFee] = useState<number>(35000); // MWK 35,000 per haul
   const [transportFacilitationShare, setTransportFacilitationShare] = useState<number>(5.0); // 5% facilitation fee on transport
+  const [activeDbRate, setActiveDbRate] = useState<number>(4.0);
+
+  // Fetch active commission rate from platform settings
+  useEffect(() => {
+    const fetchActiveRate = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const list: any[] = await res.json();
+          const cr = list.find((s) => s.key === 'commission_rate');
+          if (cr && !isNaN(parseFloat(cr.value))) {
+            const ratePct = parseFloat(cr.value) * 100;
+            setActiveDbRate(ratePct);
+            setCommissionRatePercent(ratePct);
+          }
+        }
+      } catch (e) {
+        // fallback
+      }
+    };
+    fetchActiveRate();
+  }, []);
+
+  // Listen to realtime settings changes
+  useEffect(() => {
+    const unsub = subscribe('setting_updated', (data: any) => {
+      if (data?.key === 'commission_rate' && !isNaN(parseFloat(data?.value))) {
+        const ratePct = parseFloat(data.value) * 100;
+        setActiveDbRate(ratePct);
+        setCommissionRatePercent(ratePct);
+      }
+    });
+    return () => unsub();
+  }, [subscribe]);
 
   // Calculations (Client-side planning simulation ONLY; does NOT touch production database)
   const grossCommodityVolume = avgTradeValue * monthlyTrades;
@@ -19,6 +58,8 @@ export const FeeSimulator: React.FC = () => {
   const farmerNetEarnings = grossCommodityVolume - platformCommodityCommission;
   const annualProjectedRevenue = totalPlatformRevenue * 12;
 
+  const isChichewa = language === 'ch';
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -26,13 +67,21 @@ export const FeeSimulator: React.FC = () => {
         <div className="max-w-3xl space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-800/60 text-indigo-200 border border-indigo-700/40">
             <Calculator className="w-3.5 h-3.5" />
-            <span>Economic Projection & Scenario Modeling</span>
+            <span>
+              {isChichewa
+                ? 'Kuyeza Chuma & Zotsatira Zake (Scenario Modeling)'
+                : 'Economic Projection & Scenario Modeling'}
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            Fee & Revenue Scenario Simulator
+            {isChichewa
+              ? 'Makina Oyeza Malipiro a Pulatifomu (Fee Simulator)'
+              : 'Fee & Revenue Scenario Simulator'}
           </h1>
           <p className="text-indigo-100 text-sm leading-relaxed">
-            Financial planning tool for stress-testing commission tiers, transaction volume scaling, and seasonal harvest cash-flow models.
+            {isChichewa
+              ? 'Chida chowerengera momwe kusintha kwa komishoni ya malonda kumakhudzira phindu la alimi, madalaivala, ndi ndalama za pulatifomu ya Malawi Harvest Hub.'
+              : 'Financial planning tool for stress-testing commission tiers, transaction volume scaling, and seasonal harvest cash-flow models.'}
           </p>
         </div>
 
@@ -40,7 +89,10 @@ export const FeeSimulator: React.FC = () => {
         <div className="mt-6 p-3.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs flex items-center gap-2.5">
           <ShieldAlert className="w-5 h-5 text-amber-300 shrink-0" />
           <span>
-            <strong>Strict Compliance Notice:</strong> This simulator operates strictly in-memory. It does <strong>NOT</strong> modify, overwrite, or touch production PostgreSQL database records.
+            <strong>{isChichewa ? 'Chenjezo:' : 'Strict Compliance Notice:'}</strong>{' '}
+            {isChichewa
+              ? 'Kuyeza uku kumachitikira pafoni kapena pakompyuta panu panopa. Sikumasintha kapena kuwononga nkhokwe ya data (PostgreSQL).'
+              : 'This simulator operates strictly in-memory. It does NOT modify, overwrite, or touch production PostgreSQL database records.'}
           </span>
         </div>
       </div>
@@ -48,12 +100,21 @@ export const FeeSimulator: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Inputs Panel */}
         <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-stone-200 shadow-xs space-y-5">
-          <h3 className="font-bold text-stone-900 text-base">Model Assumptions</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-stone-900 text-base">
+              {isChichewa ? 'Ziwerengero Zoyambira (Model Assumptions)' : 'Model Assumptions'}
+            </h3>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+              {isChichewa ? `Nkhokwe: ${activeDbRate.toFixed(1)}%` : `Active DB: ${activeDbRate.toFixed(1)}%`}
+            </span>
+          </div>
 
           {/* Average Trade Value */}
           <div className="space-y-1.5">
             <div className="flex justify-between items-center text-xs font-bold text-stone-700">
-              <label>Average Trade Value (MWK)</label>
+              <label>
+                {isChichewa ? 'Mtengo wa Malonda Pa Avereji (MWK)' : 'Average Trade Value (MWK)'}
+              </label>
               <span className="text-indigo-700 font-mono">
                 MWK {avgTradeValue.toLocaleString()}
               </span>
@@ -68,16 +129,20 @@ export const FeeSimulator: React.FC = () => {
               className="w-full accent-indigo-600 cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-stone-400">
-              <span>MWK 50k (Small bag)</span>
-              <span>MWK 5M (Truckload)</span>
+              <span>{isChichewa ? 'MWK 50k (Chikwama chochepa)' : 'MWK 50k (Small bag)'}</span>
+              <span>{isChichewa ? 'MWK 5M (Galimoto yodzaza)' : 'MWK 5M (Truckload)'}</span>
             </div>
           </div>
 
           {/* Monthly Trades */}
           <div className="space-y-1.5">
             <div className="flex justify-between items-center text-xs font-bold text-stone-700">
-              <label>Projected Monthly Trade Transactions</label>
-              <span className="text-indigo-700 font-mono">{monthlyTrades.toLocaleString()} trades</span>
+              <label>
+                {isChichewa ? 'Chiwerengero cha Malonda pa Mwezi' : 'Projected Monthly Trade Transactions'}
+              </label>
+              <span className="text-indigo-700 font-mono">
+                {monthlyTrades.toLocaleString()} {isChichewa ? 'malonda' : 'trades'}
+              </span>
             </div>
             <input
               type="range"
@@ -89,20 +154,24 @@ export const FeeSimulator: React.FC = () => {
               className="w-full accent-indigo-600 cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-stone-400">
-              <span>10 trades</span>
-              <span>5,000 trades/mo</span>
+              <span>{isChichewa ? '10 pa mwezi' : '10 trades'}</span>
+              <span>{isChichewa ? '5,000 pa mwezi' : '5,000 trades/mo'}</span>
             </div>
           </div>
 
           {/* Commission % */}
           <div className="space-y-1.5">
             <div className="flex justify-between items-center text-xs font-bold text-stone-700">
-              <label>Platform Commission Rate</label>
-              <span className="text-indigo-700 font-mono">{commissionRatePercent.toFixed(1)}%</span>
+              <label>
+                {isChichewa ? 'Mlingo wa Komishoni (Commission Rate)' : 'Platform Commission Rate'}
+              </label>
+              <span className="text-indigo-700 font-mono font-extrabold text-sm">
+                {commissionRatePercent.toFixed(1)}%
+              </span>
             </div>
             <input
               type="range"
-              min="1"
+              min="0.5"
               max="10"
               step="0.5"
               value={commissionRatePercent}
@@ -110,16 +179,20 @@ export const FeeSimulator: React.FC = () => {
               className="w-full accent-indigo-600 cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-stone-400">
-              <span>1.0% (Subsidized)</span>
-              <span>4.0% (Default)</span>
-              <span>10.0% (Cap)</span>
+              <span>0.5% ({isChichewa ? 'Yotsika kwambiri' : 'Subsidized'})</span>
+              <span className="font-bold text-indigo-700">
+                {activeDbRate.toFixed(1)}% ({isChichewa ? 'Nkhokwe panopa' : 'Active DB'})
+              </span>
+              <span>10.0% ({isChichewa ? 'Yokwera kwambiri' : 'Cap'})</span>
             </div>
           </div>
 
           {/* Average Transport Fee */}
           <div className="space-y-1.5">
             <div className="flex justify-between items-center text-xs font-bold text-stone-700">
-              <label>Average Transport Haulage Fee (MWK)</label>
+              <label>
+                {isChichewa ? 'Mtengo wa Mayendedwe pa Avereji (MWK)' : 'Average Transport Haulage Fee (MWK)'}
+              </label>
               <span className="text-indigo-700 font-mono">
                 MWK {avgTransportFee.toLocaleString()}
               </span>
@@ -134,8 +207,8 @@ export const FeeSimulator: React.FC = () => {
               className="w-full accent-indigo-600 cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-stone-400">
-              <span>MWK 10,000 (Local)</span>
-              <span>MWK 200,000 (Inter-district)</span>
+              <span>MWK 10,000 ({isChichewa ? 'Pafupi' : 'Local'})</span>
+              <span>MWK 200,000 ({isChichewa ? 'Boma lina' : 'Inter-district'})</span>
             </div>
           </div>
 
@@ -144,12 +217,17 @@ export const FeeSimulator: React.FC = () => {
               onClick={() => {
                 setAvgTradeValue(450000);
                 setMonthlyTrades(250);
-                setCommissionRatePercent(4.0);
+                setCommissionRatePercent(activeDbRate);
                 setAvgTransportFee(35000);
               }}
-              className="text-indigo-600 hover:text-indigo-800 font-bold"
+              className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1.5"
             >
-              Reset to Base Baseline (4%)
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>
+                {isChichewa
+                  ? `Bweretsani pamtengo weniweni wa nkhokwe (${activeDbRate.toFixed(1)}%)`
+                  : `Reset to Active DB Rate (${activeDbRate.toFixed(1)}%)`}
+              </span>
             </button>
           </div>
         </div>
@@ -159,49 +237,61 @@ export const FeeSimulator: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs">
               <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                Monthly Gross Marketplace Volume (GMV)
+                {isChichewa
+                  ? 'Ndalama Zonse za Malonda pa Mwezi (GMV)'
+                  : 'Monthly Gross Marketplace Volume (GMV)'}
               </div>
               <div className="text-2xl font-extrabold text-stone-900 mt-2">
                 MWK {totalMarketplaceGrossVolume.toLocaleString()}
               </div>
               <p className="text-xs text-stone-500 mt-1">
-                Produce: MWK {grossCommodityVolume.toLocaleString()} + Logistics: MWK {totalTransportVolume.toLocaleString()}
+                {isChichewa
+                  ? `Zokolola: MWK ${grossCommodityVolume.toLocaleString()} + Mayendedwe: MWK ${totalTransportVolume.toLocaleString()}`
+                  : `Produce: MWK ${grossCommodityVolume.toLocaleString()} + Logistics: MWK ${totalTransportVolume.toLocaleString()}`}
               </p>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs">
               <div className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">
-                Monthly Platform Revenue ({commissionRatePercent}%)
+                {isChichewa
+                  ? `Ndalama za Pulatifomu pa Mwezi (${commissionRatePercent.toFixed(1)}%)`
+                  : `Monthly Platform Revenue (${commissionRatePercent.toFixed(1)}%)`}
               </div>
               <div className="text-2xl font-extrabold text-indigo-900 mt-2">
                 MWK {totalPlatformRevenue.toLocaleString()}
               </div>
               <p className="text-xs text-stone-500 mt-1">
-                Commissions from {monthlyTrades.toLocaleString()} trade settlements
+                {isChichewa
+                  ? `Zochokera m'malonda ${monthlyTrades.toLocaleString()} otsimikizidwa`
+                  : `Commissions from ${monthlyTrades.toLocaleString()} trade settlements`}
               </p>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs">
               <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
-                Farmer Net Earnings Payout
+                {isChichewa ? 'Ndalama Zomwe Alimi Alandira (Net Payout)' : 'Farmer Net Earnings Payout'}
               </div>
               <div className="text-2xl font-extrabold text-emerald-800 mt-2">
                 MWK {farmerNetEarnings.toLocaleString()}
               </div>
               <p className="text-xs text-stone-500 mt-1">
-                96% of produce sales directly distributed to rural producers
+                {isChichewa
+                  ? `${(100 - commissionRatePercent).toFixed(1)}% ya zokolola imapita mwachindunji kwa mlimi wakumudzi`
+                  : `${(100 - commissionRatePercent).toFixed(1)}% of produce sales directly distributed to rural producers`}
               </p>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs">
               <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">
-                Transporter Freight Payout
+                {isChichewa ? 'Ndalama za Madalaivala a Magalimoto' : 'Transporter Freight Payout'}
               </div>
               <div className="text-2xl font-extrabold text-blue-900 mt-2">
                 MWK {(totalTransportVolume - platformTransportFacilitation).toLocaleString()}
               </div>
               <p className="text-xs text-stone-500 mt-1">
-                Distributed to truck drivers & haulage operators
+                {isChichewa
+                  ? 'Zimaperekedwa kwa eni magalimoto & oyendetsa'
+                  : 'Distributed to truck drivers & haulage operators'}
               </p>
             </div>
           </div>
@@ -210,10 +300,10 @@ export const FeeSimulator: React.FC = () => {
           <div className="bg-gradient-to-r from-stone-900 to-indigo-950 text-white p-6 rounded-2xl shadow-md space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">
-                Annualized Sustainability Run-Rate
+                {isChichewa ? 'Chiyembekezo cha Chaka Chonse' : 'Annualized Sustainability Run-Rate'}
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
-                12 Months
+                {isChichewa ? 'Miyezi 12' : '12 Months'}
               </span>
             </div>
 
@@ -221,7 +311,9 @@ export const FeeSimulator: React.FC = () => {
               MWK {annualProjectedRevenue.toLocaleString()}
             </div>
             <p className="text-xs text-stone-300 leading-relaxed">
-              Based on steady-state fulfillment of {monthlyTrades} monthly trades at MWK {avgTradeValue.toLocaleString()} average order size. Allows Malawi Harvest Hub to self-sustain platform servers, rural field inspectors, and escrow operations.
+              {isChichewa
+                ? `Kutengera malonda ${monthlyTrades} pa mwezi pa avereji ya MWK ${avgTradeValue.toLocaleString()} pa oda. Izi zithandiza Malawi Harvest Hub kudzisamalira pakompyuta za seva, oyendera minda, ndi ntchito zoyendetsa chitetezo cha escrow.`
+                : `Based on steady-state fulfillment of ${monthlyTrades} monthly trades at MWK ${avgTradeValue.toLocaleString()} average order size. Allows Malawi Harvest Hub to self-sustain platform servers, rural field inspectors, and escrow operations.`}
             </p>
           </div>
         </div>

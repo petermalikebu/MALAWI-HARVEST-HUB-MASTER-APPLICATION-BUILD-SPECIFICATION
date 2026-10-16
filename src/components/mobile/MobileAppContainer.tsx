@@ -34,8 +34,46 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
   onCloseMobileMode,
   onOpenNotifications,
 }) => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, uploadProfilePhoto } = useAuth();
   const { isConnected, unreadCount } = useRealtime();
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const handleMobilePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    setUploadingPhoto(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawDataUrl = reader.result as string;
+      const img = new Image();
+      img.onload = async () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const MAX_SIZE = 360;
+          const minDim = Math.min(img.width, img.height);
+          const startX = (img.width - minDim) / 2;
+          const startY = (img.height - minDim) / 2;
+
+          canvas.width = MAX_SIZE;
+          canvas.height = MAX_SIZE;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, MAX_SIZE, MAX_SIZE);
+            const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+            await uploadProfilePhoto(optimizedDataUrl);
+          }
+        } catch (err) {
+          console.error('Failed to update mobile profile photo:', err);
+          alert('Could not update profile picture. Please try again.');
+        } finally {
+          setUploadingPhoto(false);
+        }
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Mobile active navigation tab
   const [mobileTab, setMobileTab] = useState<string>('home');
@@ -146,28 +184,11 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
           <input
             type="file"
             accept="image/*"
+            disabled={uploadingPhoto}
             className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file || !currentUser) return;
-              const reader = new FileReader();
-              reader.onload = async () => {
-                const dataUrl = reader.result as string;
-                try {
-                  await fetch('/api/users/profile-photo', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ uid: currentUser.uid, photoUrl: dataUrl }),
-                  });
-                  window.location.reload();
-                } catch (err) {
-                  console.error(err);
-                }
-              };
-              reader.readAsDataURL(file);
-            }}
+            onChange={handleMobilePhotoUpload}
           />
-          <span>📷 Change Profile Picture</span>
+          <span>{uploadingPhoto ? '⏳ Saving Picture...' : '📷 Change Profile Picture'}</span>
         </label>
       </div>
 

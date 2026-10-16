@@ -261,11 +261,15 @@ export const AdminDashboard: React.FC = () => {
         }),
       });
       if (res.ok) {
-        alert('Platform commission rate updated successfully in PostgreSQL database.');
+        alert(`Platform commission rate updated successfully to ${(Number(commissionRate) * 100).toFixed(1)}% across all platform trades & database.`);
         fetchAll();
+      } else {
+        const parsed = await safeParseResponse(res);
+        alert(`Failed to update settings: ${parsed.error || 'Server error'}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update settings:', err);
+      alert(`Network error updating settings: ${err.message || err}`);
     }
   };
 

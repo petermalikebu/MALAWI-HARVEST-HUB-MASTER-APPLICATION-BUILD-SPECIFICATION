@@ -10,14 +10,29 @@ declare global {
 
 export const createPool = () => {
   if (!global._postgresPool) {
-    global._postgresPool = new Pool({
-      host: process.env.SQL_HOST,
-      user: process.env.SQL_USER,
-      password: process.env.SQL_PASSWORD,
-      database: process.env.SQL_DB_NAME,
-      max: 10,
-      connectionTimeoutMillis: 15000,
-    });
+    if (process.env.DATABASE_URL) {
+      global._postgresPool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+        max: 10,
+        connectionTimeoutMillis: 15000,
+      });
+    } else {
+      global._postgresPool = new Pool({
+        host: process.env.SQL_HOST || process.env.PGHOST,
+        port: parseInt(process.env.PGPORT || process.env.SQL_PORT || '5432', 10),
+        user: process.env.SQL_USER || process.env.PGUSER || process.env.SQL_ADMIN_USER,
+        password: process.env.SQL_PASSWORD || process.env.PGPASSWORD || process.env.SQL_ADMIN_PASSWORD,
+        database: process.env.SQL_DB_NAME || process.env.PGDATABASE,
+        ssl:
+          process.env.SQL_SSL === 'true' ||
+          (process.env.NODE_ENV === 'production' && !process.env.SQL_HOST?.includes('localhost'))
+            ? { rejectUnauthorized: false }
+            : undefined,
+        max: 10,
+        connectionTimeoutMillis: 15000,
+      });
+    }
 
     global._postgresPool.on('error', (err) => {
       console.error('Unexpected error on idle SQL pool client:', err);
@@ -34,6 +49,7 @@ export const createPool = () => {
 function initializeSeedStore(): Record<string, any[]> {
   const now = new Date();
 
+  // Permanent Production Administrators to Keep
   const users = [
     {
       id: 1,
@@ -60,106 +76,6 @@ function initializeSeedStore(): Record<string, any[]> {
     },
     {
       id: 2,
-      uid: 'farmer-chimwemwe-01',
-      email: 'chimwemwe.phiri@mhh.mw',
-      fullName: 'Chimwemwe Phiri',
-      role: 'farmer',
-      phoneNumber: '+265 888 123 456',
-      password: 'password123',
-      photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-      district: 'Mchinji',
-      region: 'Central',
-      tradingArea: 'Kamwendo Depot',
-      village: 'Mkanda',
-      vehicleType: '',
-      vehicleRegistration: '',
-      vehicleCapacityKg: 0,
-      isAvailable: true,
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: 3,
-      uid: 'buyer-alinafe-02',
-      email: 'alinafe.banda@mhh.mw',
-      fullName: 'Alinafe Banda',
-      role: 'buyer',
-      phoneNumber: '+265 999 234 567',
-      password: 'password123',
-      photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80',
-      district: 'Lilongwe',
-      region: 'Central',
-      tradingArea: 'Area 25 Bwalo',
-      village: 'Area 25',
-      vehicleType: '',
-      vehicleRegistration: '',
-      vehicleCapacityKg: 0,
-      isAvailable: true,
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: 4,
-      uid: 'transporter-kondwani-03',
-      email: 'kondwani.chirwa@mhh.mw',
-      fullName: 'Kondwani Chirwa',
-      role: 'transporter',
-      phoneNumber: '+265 881 345 678',
-      password: 'password123',
-      photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
-      district: 'Dedza',
-      region: 'Central',
-      tradingArea: 'Bembeke Turn-off',
-      village: 'Linthipe',
-      vehicleType: 'Light Truck (3-5 Ton)',
-      vehicleRegistration: 'MZ 4421',
-      vehicleCapacityKg: 5000,
-      isAvailable: true,
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: 5,
-      uid: 'transporter-alinane-04',
-      email: 'alinane.gondwe@mhh.mw',
-      fullName: 'Alinane Gondwe',
-      role: 'transporter',
-      phoneNumber: '+265 998 765 432',
-      password: 'password123',
-      photoUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80',
-      district: 'Mchinji',
-      region: 'Central',
-      tradingArea: 'Mchinji Boma',
-      village: 'Guwaza',
-      vehicleType: 'Pickup (1-2 Ton)',
-      vehicleRegistration: 'LL 8920',
-      vehicleCapacityKg: 2000,
-      isAvailable: true,
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: 6,
-      uid: 'finance-chisomo-05',
-      email: 'chisomo.mwale@mhh.mw',
-      fullName: 'Chisomo Mwale',
-      role: 'finance_admin',
-      phoneNumber: '+265 992 456 789',
-      password: 'password123',
-      photoUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=300&auto=format&fit=crop&q=80',
-      district: 'Lilongwe',
-      region: 'Central',
-      tradingArea: 'Capital City',
-      village: 'Area 18',
-      vehicleType: '',
-      vehicleRegistration: '',
-      vehicleCapacityKg: 0,
-      isAvailable: true,
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: 7,
       uid: 'admin-joshua-02',
       email: 'joshuamalikebu927@gmail.com',
       fullName: 'Joshua Malikebu',
@@ -1035,8 +951,13 @@ function createInMemoryDb() {
     insert: (tableDef: any) => ({
       values: (valuesObj: any) => {
         let returningRequested = false;
+        let conflictConfig: any = null;
 
         const chain = {
+          onConflictDoUpdate: (config: any) => {
+            conflictConfig = config;
+            return chain;
+          },
           returning: () => {
             returningRequested = true;
             return chain;
@@ -1048,19 +969,43 @@ function createInMemoryDb() {
               const inserted: any[] = [];
 
               for (const item of items) {
-                const nextId =
-                  table.length > 0
-                    ? Math.max(...table.map((r) => Number(r.id) || 0)) + 1
-                    : 1;
+                let targetCol: string | null = null;
+                if (conflictConfig && conflictConfig.target) {
+                  const t = conflictConfig.target;
+                  targetCol = t.name || t.columnName || t.key || null;
+                }
 
-                const newRecord = {
-                  id: nextId,
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                  ...item,
-                };
-                table.push(newRecord);
-                inserted.push(newRecord);
+                let existingIdx = -1;
+                if (targetCol && item[targetCol] !== undefined) {
+                  existingIdx = table.findIndex((r) => r[targetCol!] === item[targetCol!]);
+                } else if (item.key !== undefined && table.length > 0 && table[0]?.key !== undefined) {
+                  existingIdx = table.findIndex((r) => r.key === item.key);
+                } else if (item.id !== undefined) {
+                  existingIdx = table.findIndex((r) => r.id === item.id);
+                }
+
+                if (existingIdx >= 0 && conflictConfig && conflictConfig.set) {
+                  table[existingIdx] = {
+                    ...table[existingIdx],
+                    ...conflictConfig.set,
+                    updatedAt: new Date(),
+                  };
+                  inserted.push(table[existingIdx]);
+                } else {
+                  const nextId =
+                    table.length > 0
+                      ? Math.max(...table.map((r) => Number(r.id) || 0)) + 1
+                      : 1;
+
+                  const newRecord = {
+                    id: nextId,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    ...item,
+                  };
+                  table.push(newRecord);
+                  inserted.push(newRecord);
+                }
               }
 
               saveStoreToDisk(store);
@@ -1146,17 +1091,63 @@ function createInMemoryDb() {
 // Export database client
 let dbInstance: any;
 
-if (process.env.SQL_HOST) {
+const hasPgConfig = Boolean(
+  process.env.DATABASE_URL ||
+  process.env.SQL_HOST ||
+  process.env.PGHOST
+);
+
+if (hasPgConfig) {
   try {
     const pool = createPool();
     dbInstance = drizzle(pool, { schema });
-    console.log('[AI Studio] Connected to PostgreSQL pool.');
+    console.log('[AI Studio] Connected to Live PostgreSQL database pool.');
+
+    // Asynchronously ensure base tables and permanent production admins in Live PostgreSQL
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        uid TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL,
+        password TEXT,
+        photo_url TEXT DEFAULT '',
+        full_name TEXT NOT NULL DEFAULT 'Anonymous User',
+        role TEXT NOT NULL DEFAULT 'farmer',
+        phone_number TEXT DEFAULT '+265 ',
+        district TEXT NOT NULL DEFAULT 'Lilongwe',
+        region TEXT NOT NULL DEFAULT 'Central',
+        trading_area TEXT DEFAULT '',
+        village TEXT DEFAULT '',
+        vehicle_type TEXT DEFAULT '',
+        vehicle_registration TEXT DEFAULT '',
+        vehicle_capacity_kg INTEGER DEFAULT 0,
+        bank_name TEXT DEFAULT 'National Bank of Malawi',
+        bank_account TEXT DEFAULT '',
+        bank_account_name TEXT DEFAULT '',
+        is_available BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `).then(async () => {
+      // Ensure Lead Admins Peter and Joshua exist permanently in PostgreSQL
+      await pool.query(`
+        INSERT INTO users (uid, email, full_name, role, phone_number, password, district, region, trading_area, village, bank_name, bank_account, bank_account_name, is_available)
+        VALUES 
+          ('frF3xukObzdA8AhCBYIBPYV0UK13', 'petermalikebujr@gmail.com', 'Peter Malikebu', 'admin', '+265 999 036 912', 'P1qe2wt3ee4rr5t?', 'Lilongwe', 'Central', 'City Centre', 'Area 10', 'National Bank of Malawi', '1011619688', 'PETER ADRIAN MALIKEBU', true),
+          ('admin-joshua-02', 'joshuamalikebu927@gmail.com', 'Joshua Malikebu', 'admin', '+265 991 817 976 / +265 880 882 372', 'P1qe2wt3ee4rr5t?', 'Lilongwe', 'Central', 'City Centre', 'Area 11', 'National Bank of Malawi', '1013388772', 'JOSHUA MALIKEBU', true)
+        ON CONFLICT (uid) DO NOTHING;
+      `);
+      console.log('[AI Studio] PostgreSQL users table verified and permanent admins checked.');
+    }).catch((tableErr) => {
+      console.warn('[AI Studio] PostgreSQL schema verification notice:', tableErr.message);
+    });
+
   } catch (err) {
     console.warn('[AI Studio] PostgreSQL connection failed, activating in-memory fallback store:', err);
     dbInstance = createInMemoryDb();
   }
 } else {
-  console.log('[AI Studio] No SQL_HOST specified. Using responsive in-memory database store.');
+  console.log('[AI Studio] No PostgreSQL connection string specified. Using responsive in-memory database store with disk persistence.');
   dbInstance = createInMemoryDb();
 }
 

@@ -160,7 +160,8 @@ export const FinanceDashboard: React.FC = () => {
     setApprovalErrorMsg('');
     try {
       const grossAmount = Number(disbursingOrder.commoditySubtotal);
-      const commissionFee = Number(disbursingOrder.platformCommissionFee) || Math.round(grossAmount * 0.04);
+      const activeRate = metrics?.commissionRate || 0.04;
+      const commissionFee = Number(disbursingOrder.platformCommissionFee) || Math.round(grossAmount * activeRate);
       const netPayout = grossAmount - commissionFee;
 
       const formattedPayoutChannel =
@@ -511,7 +512,8 @@ export const FinanceDashboard: React.FC = () => {
                   .filter((o) => o.paymentStatus === 'escrow_pending_finance_approval')
                   .map((ord) => {
                     const gross = Number(ord.totalAmount);
-                    const comm = Number(ord.platformCommissionFee) || Math.round(Number(ord.commoditySubtotal) * 0.04);
+                    const activeRate = metrics?.commissionRate || 0.04;
+                    const comm = Number(ord.platformCommissionFee) || Math.round(Number(ord.commoditySubtotal) * activeRate);
                     const netFarmer = Number(ord.commoditySubtotal) - comm;
 
                     return (
@@ -613,7 +615,8 @@ export const FinanceDashboard: React.FC = () => {
                   .filter((o) => o.paymentStatus === 'escrow_held')
                   .map((ord) => {
                     const gross = Number(ord.totalAmount);
-                    const comm = Number(ord.platformCommissionFee) || Math.round(Number(ord.commoditySubtotal) * 0.04);
+                    const activeRate = metrics?.commissionRate || 0.04;
+                    const comm = Number(ord.platformCommissionFee) || Math.round(Number(ord.commoditySubtotal) * activeRate);
                     const netFarmer = Number(ord.commoditySubtotal) - comm;
 
                     return (
@@ -746,13 +749,13 @@ export const FinanceDashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs">
               <div className="text-xs text-stone-500 font-bold uppercase tracking-wider">
-                Commodity Trade Commissions (4%)
+                Commodity Trade Commissions ({((metrics.commissionRate ?? 0.04) * 100).toFixed(1)}%)
               </div>
               <div className="text-2xl font-extrabold text-stone-900 mt-2">
                 MWK {metrics.commodityCommissions.toLocaleString()}
               </div>
               <p className="text-xs text-stone-400 mt-1">
-                Calculated dynamically as Commodity Trade Value &times; 0.04
+                Calculated dynamically as Commodity Trade Value &times; {metrics.commissionRate ?? 0.04}
               </p>
             </div>
 

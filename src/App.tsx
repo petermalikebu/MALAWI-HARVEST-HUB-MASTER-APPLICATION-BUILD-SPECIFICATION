@@ -17,10 +17,12 @@ import { LandingView } from './components/landing/LandingView.tsx';
 import { FarmerTransportHire } from './components/farmer/FarmerTransportHire.tsx';
 import { SupportQueriesDesk } from './components/support/SupportQueriesDesk.tsx';
 import { AgriIntelligenceView } from './components/intelligence/AgriIntelligenceView.tsx';
+import { LanguageProvider, useLanguage } from './context/LanguageContext.tsx';
 import { ShieldAlert } from 'lucide-react';
 
 function MainContent() {
   const { currentUser } = useAuth();
+  const { language, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<string>('landing');
   const [isMobileSimulator, setIsMobileSimulator] = useState<boolean>(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
@@ -254,10 +256,14 @@ function MainContent() {
       <footer className="bg-white border-t border-stone-200 py-6 text-center text-xs text-stone-500">
         <div className="max-w-7xl mx-auto px-4 space-y-1">
           <p className="font-semibold text-stone-700">
-            Malawi Harvest Hub &bull; Empowering Agricultural Commerce Across 28 Districts
+            {language === 'ch'
+              ? 'Malawi Harvest Hub • Kupatsa Mphamvu Malonda a Ulimi M\'maboma Onse 28 a Malawi'
+              : 'Malawi Harvest Hub • Empowering Agricultural Commerce Across 28 Districts'}
           </p>
           <p>
-            Connected to Cloud SQL PostgreSQL Central Database &bull; Realtime WebSockets &bull; 4% Capped Escrow
+            {language === 'ch'
+              ? 'Yolumikizidwa ku PostgreSQL Database • Realtime WebSockets • Chitetezo cha Escrow'
+              : 'Connected to Cloud SQL PostgreSQL Central Database • Realtime WebSockets • Capped Escrow'}
           </p>
         </div>
       </footer>
@@ -268,9 +274,11 @@ function MainContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <RealtimeProvider>
-        <MainContent />
-      </RealtimeProvider>
+      <LanguageProvider>
+        <RealtimeProvider>
+          <MainContent />
+        </RealtimeProvider>
+      </LanguageProvider>
     </AuthProvider>
   );
 }

@@ -27,6 +27,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
 
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [commissionRate, setCommissionRate] = useState<number>(0.04);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -70,12 +71,20 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
   const fetchCommodities = async () => {
     try {
       setLoading(true);
-      const [commRes, catRes] = await Promise.all([
+      const [commRes, catRes, setRes] = await Promise.all([
         fetch('/api/commodities?status=available'),
         fetch('/api/categories'),
+        fetch('/api/settings'),
       ]);
       if (commRes.ok) setCommodities(await safeParseJson(commRes, []));
       if (catRes.ok) setCategories(await safeParseJson(catRes, []));
+      if (setRes.ok) {
+        const settingsList = await safeParseJson<any[]>(setRes, []);
+        const cr = settingsList.find((s: any) => s.key === 'commission_rate');
+        if (cr && !isNaN(parseFloat(cr.value))) {
+          setCommissionRate(parseFloat(cr.value));
+        }
+      }
     } catch (err) {
       console.error('Failed to load marketplace commodities:', err);
     } finally {
@@ -87,13 +96,19 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
     fetchCommodities();
   }, []);
 
-  // Listen to realtime stock updates
+  // Listen to realtime stock and settings updates
   useEffect(() => {
     const unsubCreated = subscribe('commodity_created', () => fetchCommodities());
     const unsubUpdated = subscribe('commodity_updated', () => fetchCommodities());
+    const unsubSetting = subscribe('setting_updated', (data: any) => {
+      if (data?.key === 'commission_rate' && !isNaN(parseFloat(data?.value))) {
+        setCommissionRate(parseFloat(data.value));
+      }
+    });
     return () => {
       unsubCreated();
       unsubUpdated();
+      unsubSetting();
     };
   }, [subscribe]);
 
@@ -192,9 +207,10 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
   // Calculate pricing breakdown in modal
   const unitPrice = orderingCommodity ? Number(orderingCommodity.pricePerUnit) : 0;
   const commoditySubtotal = orderQuantity * unitPrice;
-  const platformFee = Math.round(commoditySubtotal * 0.04); // 4%
+  const platformFee = Math.round(commoditySubtotal * commissionRate);
   const transportFee = includeTransport ? transportEstimate : 0;
   const grandTotal = commoditySubtotal + transportFee;
+  const commissionPercentageText = (commissionRate * 100).toFixed(1);
 
   return (
     <div className="space-y-6">
@@ -209,7 +225,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
             Direct Farmgate Produce Sourcing
           </h1>
           <p className="text-amber-100 text-sm leading-relaxed">
-            Purchase verified agricultural commodities directly from smallholder farmers across Mchinji, Kasungu, Dedza, Salima, and all 28 districts of Malawi. Guaranteed transparent pricing with integrated 4% escrow protection.
+            Purchase verified agricultural commodities directly from smallholder farmers across Mchinji, Kasungu, Dedza, Salima, and all 28 districts of Malawi. Guaranteed transparent pricing with integrated {commissionPercentageText}% escrow protection.
           </p>
         </div>
 
@@ -217,7 +233,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-amber-700/60 text-xs">
           <div className="flex items-center gap-2 text-amber-200">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>4% Capped Escrow Commission</span>
+            <span>{commissionPercentageText}% Capped Escrow Commission</span>
           </div>
           <div className="flex items-center gap-2 text-amber-200">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -575,7 +591,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                     </span>
                   </div>
                   <div className="flex justify-between text-stone-600">
-                    <span>Platform Commission (4% included):</span>
+                    <span>Platform Commission ({commissionPercentageText}% included):</span>
                     <span className="font-medium text-emerald-700">
                       MWK {platformFee.toLocaleString()}
                     </span>

@@ -53,17 +53,27 @@ export const FarmerTransportHire: React.FC<FarmerTransportHireProps> = ({ onJobC
     requestedDriverId: '',
   });
 
+  const [platformCommissionRate, setPlatformCommissionRate] = useState<number>(0.04);
+
   const fetchData = async () => {
     if (!currentUser) return;
     try {
       setLoading(true);
-      const [jobsRes, driversRes] = await Promise.all([
+      const [jobsRes, driversRes, setRes] = await Promise.all([
         fetch(`/api/transport/jobs?farmerUid=${currentUser.uid}`),
         fetch('/api/users?role=transporter'),
+        fetch('/api/settings'),
       ]);
 
       if (jobsRes.ok) setTransportJobs(await safeParseJson(jobsRes, []));
       if (driversRes.ok) setTransportersList(await safeParseJson(driversRes, []));
+      if (setRes.ok) {
+        const settingsList = await safeParseJson<any[]>(setRes, []);
+        const cr = settingsList.find((s: any) => s.key === 'commission_rate');
+        if (cr && !isNaN(parseFloat(cr.value))) {
+          setPlatformCommissionRate(parseFloat(cr.value));
+        }
+      }
     } catch (err) {
       console.error('Failed to load transport hire data:', err);
     } finally {
@@ -78,9 +88,15 @@ export const FarmerTransportHire: React.FC<FarmerTransportHireProps> = ({ onJobC
   useEffect(() => {
     const unsub = subscribe('transport_updated', () => fetchData());
     const unsubReq = subscribe('transport_requested', () => fetchData());
+    const unsubSetting = subscribe('setting_updated', (data: any) => {
+      if (data?.key === 'commission_rate' && !isNaN(parseFloat(data?.value))) {
+        setPlatformCommissionRate(parseFloat(data.value));
+      }
+    });
     return () => {
       unsub();
       unsubReq();
+      unsubSetting();
     };
   }, [subscribe]);
 
@@ -121,7 +137,7 @@ export const FarmerTransportHire: React.FC<FarmerTransportHireProps> = ({ onJobC
     }
   };
 
-  const platformFee = Math.round(Number(form.transportFee) * 0.04);
+  const platformFee = Math.round(Number(form.transportFee) * platformCommissionRate);
   const totalEscrowFee = Number(form.transportFee) + platformFee;
 
   return (
@@ -458,7 +474,7 @@ export const FarmerTransportHire: React.FC<FarmerTransportHireProps> = ({ onJobC
                       </span>
                     </div>
                     <div className="flex justify-between text-stone-600">
-                      <span>Transit Insurance & Escrow (4%):</span>
+                      <span>Transit Insurance & Escrow ({(platformCommissionRate * 100).toFixed(1)}%):</span>
                       <span className="font-semibold text-stone-900">
                         MK {platformFee.toLocaleString()}
                       </span>
