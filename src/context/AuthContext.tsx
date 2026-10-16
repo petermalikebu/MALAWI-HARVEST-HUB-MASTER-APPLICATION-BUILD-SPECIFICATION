@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           const res = await fetch(`/api/users/${savedUid}`);
           if (res.ok) {
-            const u: User | null = await safeParseJson(res, null);
+            const u = await safeParseJson<User | null>(res, null);
             if (u) {
               const localPhoto =
                 (u.uid ? localStorage.getItem(`mhh_user_photo_${u.uid}`) : null) ||
@@ -108,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await fetch(`/api/users/${currentUser.uid}`);
       if (res.ok) {
-        const u = await safeParseJson(res, null);
+        const u = await safeParseJson<User | null>(res, null);
         if (u) {
           setCurrentUser(u);
           localStorage.setItem('mhh_cached_user', JSON.stringify(u));

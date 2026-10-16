@@ -13,7 +13,7 @@
  */
 export async function safeParseJson<T = any>(
   response: Response,
-  fallback: T
+  fallback: any = null
 ): Promise<T> {
   try {
     const contentType = response.headers.get('content-type') || '';
