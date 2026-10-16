@@ -98,12 +98,18 @@ export const FinanceDashboard: React.FC = () => {
     const unsubOrder = subscribe('order_updated', () => fetchFinanceData());
     const unsubTrp = subscribe('transport_updated', () => fetchFinanceData());
     const unsubTrpReq = subscribe('transport_requested', () => fetchFinanceData());
+    const unsubCommRate = subscribe('commission_rate_updated', () => fetchFinanceData());
+    const unsubSetting = subscribe('setting_updated', (data: any) => {
+      if (data?.key === 'commission_rate') fetchFinanceData();
+    });
     return () => {
       unsubRev();
       unsubTx();
       unsubOrder();
       unsubTrp();
       unsubTrpReq();
+      unsubCommRate();
+      unsubSetting();
     };
   }, [subscribe]);
 
@@ -284,15 +290,21 @@ export const FinanceDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-rose-900 to-stone-900 text-white rounded-2xl p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-800/60 text-rose-200 border border-rose-700/40">
-              <Coins className="w-3.5 h-3.5" />
-              <span>Permanent Revenue & Escrow Ledger &bull; Auditable Finance</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-800/60 text-rose-200 border border-rose-700/40">
+                <Coins className="w-3.5 h-3.5" />
+                <span>Permanent Revenue & Escrow Ledger &bull; Auditable Finance</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Active Platform Commission: {metrics ? (metrics.commissionRate * 100).toFixed(1) : '4.0'}%</span>
+              </div>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Platform Revenue & Financial Ledger
+              Platform Revenue &amp; Financial Ledger
             </h1>
             <p className="text-rose-100 text-sm leading-relaxed">
-              Every kwacha tracked via immutable database records. Real-time reconciliation of 4% commodity trade commissions, transport fees, and farmer disbursements.
+              Every kwacha tracked via immutable database records. Real-time reconciliation of {metrics ? (metrics.commissionRate * 100).toFixed(1) : '4.0'}% commodity trade commissions, transport fees, and farmer disbursements.
             </p>
           </div>
 
@@ -318,7 +330,7 @@ export const FinanceDashboard: React.FC = () => {
         {metrics && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-rose-800/60">
             <div>
-              <div className="text-xs text-rose-200 font-medium">Total Platform Revenue (4%)</div>
+              <div className="text-xs text-rose-200 font-medium">Total Platform Revenue ({((metrics.commissionRate ?? 0.04) * 100).toFixed(1)}%)</div>
               <div className="text-xl sm:text-2xl font-extrabold text-white mt-0.5">
                 MWK {metrics.totalRevenue.toLocaleString()}
               </div>
@@ -572,7 +584,7 @@ export const FinanceDashboard: React.FC = () => {
                             MWK {gross.toLocaleString()}
                           </div>
                           <div className="text-[11px] text-rose-600 font-medium">
-                            Platform 4% Commission: MWK {comm.toLocaleString()}
+                            Platform {(activeRate * 100).toFixed(1)}% Commission: MWK {comm.toLocaleString()}
                           </div>
                           <div className="pt-1 border-t border-stone-200 text-xs font-bold text-emerald-800">
                             Net Farmer Payout: MWK {netFarmer.toLocaleString()}
@@ -663,7 +675,7 @@ export const FinanceDashboard: React.FC = () => {
                             MWK {netFarmer.toLocaleString()}
                           </div>
                           <div className="text-[10px] text-stone-500">
-                            Gross: MWK {gross.toLocaleString()} (4% fee: MWK {comm.toLocaleString()})
+                            Gross: MWK {gross.toLocaleString()} ({(activeRate * 100).toFixed(1)}% fee: MWK {comm.toLocaleString()})
                           </div>
                         </div>
 
@@ -706,7 +718,7 @@ export const FinanceDashboard: React.FC = () => {
                       <th className="p-3">Commodity</th>
                       <th className="p-3">Farmer</th>
                       <th className="p-3">Gross</th>
-                      <th className="p-3">4% Fee</th>
+                      <th className="p-3">{metrics ? (metrics.commissionRate * 100).toFixed(1) : '4.0'}% Fee</th>
                       <th className="p-3">Disbursed to Farmer</th>
                       <th className="p-3">Payout Ref</th>
                       <th className="p-3">Disbursed At</th>

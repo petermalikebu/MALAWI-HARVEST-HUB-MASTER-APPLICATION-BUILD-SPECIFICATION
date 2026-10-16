@@ -24,7 +24,9 @@ export const FeeSimulator: React.FC = () => {
           const list: any[] = await res.json();
           const cr = list.find((s) => s.key === 'commission_rate');
           if (cr && !isNaN(parseFloat(cr.value))) {
-            const ratePct = parseFloat(cr.value) * 100;
+            let val = parseFloat(cr.value);
+            if (val > 1) val = val / 100;
+            const ratePct = val * 100;
             setActiveDbRate(ratePct);
             setCommissionRatePercent(ratePct);
           }
@@ -38,14 +40,26 @@ export const FeeSimulator: React.FC = () => {
 
   // Listen to realtime settings changes
   useEffect(() => {
-    const unsub = subscribe('setting_updated', (data: any) => {
+    const unsub1 = subscribe('setting_updated', (data: any) => {
       if (data?.key === 'commission_rate' && !isNaN(parseFloat(data?.value))) {
-        const ratePct = parseFloat(data.value) * 100;
+        let val = parseFloat(data.value);
+        if (val > 1) val = val / 100;
+        const ratePct = val * 100;
         setActiveDbRate(ratePct);
         setCommissionRatePercent(ratePct);
       }
     });
-    return () => unsub();
+    const unsub2 = subscribe('commission_rate_updated', (data: any) => {
+      if (data?.rate !== undefined && !isNaN(data.rate)) {
+        const ratePct = Number(data.rate) * 100;
+        setActiveDbRate(ratePct);
+        setCommissionRatePercent(ratePct);
+      }
+    });
+    return () => {
+      unsub1();
+      unsub2();
+    };
   }, [subscribe]);
 
   // Calculations (Client-side planning simulation ONLY; does NOT touch production database)

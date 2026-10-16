@@ -40,6 +40,9 @@ export const AdminDashboard: React.FC = () => {
   const [categoriesList, setCategoriesList] = useState<Category[]>([]);
   const [passwordResetsList, setPasswordResetsList] = useState<PasswordResetRequest[]>([]);
   const [commissionRate, setCommissionRate] = useState<string>('0.04');
+  const [commissionReason, setCommissionReason] = useState<string>('Platform fee adjustment for seasonal market operations');
+  const [commissionSuccessMsg, setCommissionSuccessMsg] = useState<string>('');
+  const [isUpdatingCommission, setIsUpdatingCommission] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [processingResetId, setProcessingResetId] = useState<string | null>(null);
 
@@ -149,6 +152,17 @@ export const AdminDashboard: React.FC = () => {
     const unsubResetReq = subscribe('password_reset_requested', () => fetchAll());
     const unsubResetApp = subscribe('password_reset_approved', () => fetchAll());
     const unsubResetComp = subscribe('password_reset_completed', () => fetchAll());
+    const unsubSetting = subscribe('setting_updated', (data: any) => {
+      if (data?.key === 'commission_rate') {
+        fetchAll();
+      }
+    });
+    const unsubCommRate = subscribe('commission_rate_updated', (data: any) => {
+      if (data?.value) {
+        setCommissionRate(data.value);
+      }
+      fetchAll();
+    });
 
     // Polling fallback every 3.5s to ensure admin always has immediate visibility
     const pollInterval = setInterval(() => {
@@ -167,6 +181,8 @@ export const AdminDashboard: React.FC = () => {
       unsubResetReq();
       unsubResetApp();
       unsubResetComp();
+      unsubSetting();
+      unsubCommRate();
       clearInterval(pollInterval);
     };
   }, [subscribe]);
@@ -248,28 +264,47 @@ export const AdminDashboard: React.FC = () => {
 
   const handleUpdateCommissionRate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsUpdatingCommission(true);
+    setCommissionSuccessMsg('');
     try {
+      let numericVal = parseFloat(commissionRate);
+      if (isNaN(numericVal) || numericVal <= 0) {
+        alert('Please enter a valid positive percentage or decimal (e.g. 0.05 or 5.0)');
+        setIsUpdatingCommission(false);
+        return;
+      }
+      if (numericVal > 1) {
+        numericVal = numericVal / 100;
+      }
+
       const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           key: 'commission_rate',
-          value: commissionRate,
-          description: 'Default platform commodity trade commission rate',
+          value: numericVal.toString(),
+          description: commissionReason || 'Platform commodity trade commission rate adjustment',
           adminUid: currentUser?.uid,
           adminName: currentUser?.fullName,
         }),
       });
-      if (res.ok) {
-        alert(`Platform commission rate updated successfully to ${(Number(commissionRate) * 100).toFixed(1)}% across all platform trades & database.`);
+
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        const pct = (numericVal * 100).toFixed(1);
+        setCommissionRate(numericVal.toString());
+        setCommissionSuccessMsg(
+          `Platform commission successfully updated to ${pct}%! Broadcast notification sent to all platform users, and financial calculations have been synchronized across all portals.`
+        );
         fetchAll();
       } else {
-        const parsed = await safeParseResponse(res);
         alert(`Failed to update settings: ${parsed.error || 'Server error'}`);
       }
     } catch (err: any) {
       console.error('Failed to update settings:', err);
       alert(`Network error updating settings: ${err.message || err}`);
+    } finally {
+      setIsUpdatingCommission(false);
     }
   };
 
@@ -866,51 +901,208 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* SUB TAB 6: SETTINGS */}
+      {/* SUB TAB 6: SETTINGS & COMMISSION CONTROL */}
       {activeSubTab === 'settings' && (
-        <div className="max-w-2xl bg-white p-6 rounded-2xl border border-stone-200 shadow-xs space-y-4">
-          <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-purple-700" />
-            <h3 className="text-base font-bold text-stone-900">Platform Financial Parameters</h3>
-          </div>
-          <p className="text-xs text-stone-500">
-            Configure global business rules stored directly in PostgreSQL (`platform_settings`).
-          </p>
+        <div className="space-y-6 max-w-4xl">
+          {/* Header Card */}
+          <div className="bg-white p-6 sm:p-7 rounded-3xl border border-stone-200 shadow-xs space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-purple-100 text-purple-800">
+                  <Settings className="w-5 h-5 text-purple-700" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-stone-900">Platform Commission &amp; Financial Governance</h3>
+                  <p className="text-xs text-stone-500">
+                    Centrally control and adjust commodity trade commission rates across all Malawi Harvest Hub platforms.
+                  </p>
+                </div>
+              </div>
 
-          <form onSubmit={handleUpdateCommissionRate} className="space-y-4 pt-2">
-            <div>
-              <label className="block text-xs font-bold text-stone-700 mb-1">
-                Commodity Trade Commission Rate (Default: 0.04 = 4%)
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  step="0.005"
-                  min="0.01"
-                  max="0.20"
-                  required
-                  value={commissionRate}
-                  onChange={(e) => setCommissionRate(e.target.value)}
-                  className="w-36 px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-purple-600 font-bold"
-                />
-                <span className="text-xs font-bold text-purple-900">
-                  = {(Number(commissionRate) * 100).toFixed(1)}% Platform Commission
+              {/* Current Active Rate Badge */}
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-purple-50 border border-purple-200">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs text-stone-500 font-semibold">Active Live Rate:</span>
+                <span className="text-sm font-black text-purple-900">
+                  {(Number(commissionRate) * 100).toFixed(1)}%
                 </span>
               </div>
-              <p className="text-[11px] text-stone-400 mt-1">
-                Applied automatically to all incoming buyer commodity orders and settled in the permanent revenue ledger.
-              </p>
             </div>
 
-            <div className="pt-2">
-              <button
-                type="submit"
-                className="px-5 py-2 text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 rounded-xl shadow-xs"
-              >
-                Save Settings to PostgreSQL
-              </button>
-            </div>
-          </form>
+            {commissionSuccessMsg && (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="flex-1 font-medium">{commissionSuccessMsg}</div>
+                <button
+                  onClick={() => setCommissionSuccessMsg('')}
+                  className="text-emerald-700 hover:text-emerald-950 font-bold text-xs"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateCommissionRate} className="space-y-5 pt-3">
+              {/* Presets and Input */}
+              <div className="p-5 rounded-2xl bg-stone-50 border border-stone-200 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-stone-900">
+                    Quick Preset Commission Tiers
+                  </label>
+                  <span className="text-[11px] text-stone-500">
+                    Click any preset to preview calculations immediately
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {[0.025, 0.03, 0.04, 0.05, 0.06, 0.075, 0.10].map((rate) => {
+                    const isSelected = Math.abs(Number(commissionRate) - rate) < 0.001;
+                    return (
+                      <button
+                        key={rate}
+                        type="button"
+                        onClick={() => setCommissionRate(rate.toString())}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all ${
+                          isSelected
+                            ? 'bg-purple-700 text-white shadow-xs ring-2 ring-purple-600 ring-offset-1'
+                            : 'bg-white text-stone-700 border border-stone-200 hover:bg-purple-50 hover:text-purple-900'
+                        }`}
+                      >
+                        {(rate * 100).toFixed(1)}% {rate === 0.04 ? '(Initial Default)' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-stone-200/80">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">
+                      Custom Percentage / Decimal Rate *
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="0.005"
+                        min="0.005"
+                        max="0.30"
+                        required
+                        value={commissionRate}
+                        onChange={(e) => setCommissionRate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-xs font-bold rounded-xl border border-stone-300 focus:outline-purple-600 bg-white"
+                        placeholder="e.g. 0.05 or 5.0"
+                      />
+                      <span className="text-sm font-extrabold text-purple-950 shrink-0 px-2.5 py-2 rounded-xl bg-purple-100">
+                        = {(Number(commissionRate) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-400 mt-1">
+                      Enter as decimal (0.05) or percentage (5.0). Range: 0.5% - 30.0%.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">
+                      Administrative Reason / Public Note
+                    </label>
+                    <input
+                      type="text"
+                      value={commissionReason}
+                      onChange={(e) => setCommissionReason(e.target.value)}
+                      placeholder="e.g. Adjusted to 5.0% for nationwide harvest season operations"
+                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-300 focus:outline-purple-600 bg-white"
+                    />
+                    <p className="text-[11px] text-stone-400 mt-1">
+                      Recorded in system audit log and broadcast in user notification.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Calculation Preview Card */}
+              <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-indigo-700" />
+                    <span>Real-Time Calculation Preview (Example MWK 500,000 Maize Trade)</span>
+                  </span>
+                  <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100 px-2.5 py-0.5 rounded-full">
+                    At {(Number(commissionRate) * 100).toFixed(1)}% Rate
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="bg-white p-3 rounded-xl border border-indigo-100">
+                    <span className="text-stone-400 block text-[10px] uppercase font-bold">Commodity Gross Value</span>
+                    <span className="text-base font-black text-stone-900">MWK 500,000</span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-indigo-100">
+                    <span className="text-indigo-600 block text-[10px] uppercase font-bold">Platform Fee ({(Number(commissionRate) * 100).toFixed(1)}%)</span>
+                    <span className="text-base font-black text-purple-700">
+                      MWK {Math.round(500000 * Number(commissionRate)).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-indigo-100">
+                    <span className="text-emerald-700 block text-[10px] uppercase font-bold">Farmer Net Disbursement</span>
+                    <span className="text-base font-black text-emerald-800">
+                      MWK {Math.round(500000 * (1 - Number(commissionRate))).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scope & Transparency Guarantee List */}
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 text-xs text-emerald-950 space-y-2">
+                <div className="font-extrabold flex items-center gap-1.5 text-emerald-900">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                  <span>Platform-Wide Synchronization &amp; User Transparency Guarantee:</span>
+                </div>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-emerald-800">
+                  <li className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Buyer Marketplace updates order checkout commission instantly</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Finance Administrator ledger &amp; escrow calculations adjust live</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Farmer Dashboard sales and wallet projections synchronize</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Fee Simulator baseline updates across economic scenario models</span>
+                  </li>
+                  <li className="flex items-center gap-1.5 sm:col-span-2 text-purple-900 font-bold">
+                    <Bell className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                    <span>Instant notification broadcast sent to ALL platform users for complete transparency</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCommissionRate('0.04')}
+                  className="px-4 py-2.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl"
+                >
+                  Reset to 4.0%
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingCommission}
+                  className="px-6 py-2.5 text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>
+                    {isUpdatingCommission
+                      ? 'Broadcasting & Updating...'
+                      : `Apply ${(Number(commissionRate) * 100).toFixed(1)}% Commission Across All Platforms`}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

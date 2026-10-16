@@ -36,6 +36,7 @@ export const FarmerDashboard: React.FC = () => {
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [platformCommissionRate, setPlatformCommissionRate] = useState<number>(0.04);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'commodities' | 'orders' | 'earnings' | 'hire_transport' | 'queries'>('commodities');
 
@@ -76,15 +77,25 @@ export const FarmerDashboard: React.FC = () => {
     if (!currentUser) return;
     try {
       setLoading(true);
-      const [commRes, ordRes, catRes] = await Promise.all([
+      const [commRes, ordRes, catRes, setRes] = await Promise.all([
         fetch(`/api/commodities?farmerUid=${currentUser.uid}`),
         fetch(`/api/orders?farmerUid=${currentUser.uid}`),
         fetch('/api/categories'),
+        fetch('/api/settings'),
       ]);
 
       if (commRes.ok) setCommodities(await safeParseJson(commRes, []));
       if (ordRes.ok) setOrders(await safeParseJson(ordRes, []));
       if (catRes.ok) setCategories(await safeParseJson(catRes, []));
+      if (setRes.ok) {
+        const settingsList: any[] = await safeParseJson(setRes, []);
+        const cr = settingsList.find((s: any) => s.key === 'commission_rate');
+        if (cr && !isNaN(parseFloat(cr.value))) {
+          let val = parseFloat(cr.value);
+          if (val > 1) val = val / 100;
+          setPlatformCommissionRate(val);
+        }
+      }
     } catch (err) {
       console.error('Error fetching farmer dashboard data:', err);
     } finally {
@@ -96,16 +107,29 @@ export const FarmerDashboard: React.FC = () => {
     fetchData();
   }, [currentUser]);
 
-  // Real-time listener for orders and commodities
+  // Real-time listener for orders, commodities, and commission settings
   useEffect(() => {
     const unsubOrder = subscribe('order_created', () => fetchData());
     const unsubOrderUp = subscribe('order_updated', () => fetchData());
     const unsubComm = subscribe('commodity_updated', () => fetchData());
+    const unsubSetting = subscribe('setting_updated', (data: any) => {
+      if (data?.key === 'commission_rate') {
+        fetchData();
+      }
+    });
+    const unsubCommRate = subscribe('commission_rate_updated', (data: any) => {
+      if (data?.rate !== undefined && !isNaN(data.rate)) {
+        setPlatformCommissionRate(Number(data.rate));
+      }
+      fetchData();
+    });
 
     return () => {
       unsubOrder();
       unsubOrderUp();
       unsubComm();
+      unsubSetting();
+      unsubCommRate();
     };
   }, [subscribe]);
 

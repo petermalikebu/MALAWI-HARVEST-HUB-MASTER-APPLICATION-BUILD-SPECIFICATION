@@ -88,12 +88,18 @@ async function createNotification(params: {
   }
 }
 
-// Helper to get platform commission rate (default 0.04 = 4%)
+// Helper to get platform commission rate (dynamically loaded from platformSettings, default 0.04 = 4%)
 async function getCommissionRate(): Promise<number> {
   try {
     const res = await db.select().from(platformSettings).where(eq(platformSettings.key, 'commission_rate')).limit(1);
     if (res.length > 0 && res[0].value) {
-      return parseFloat(res[0].value) || 0.04;
+      let parsed = parseFloat(res[0].value);
+      if (parsed > 1) {
+        parsed = parsed / 100;
+      }
+      if (!isNaN(parsed) && parsed > 0 && parsed <= 0.5) {
+        return parsed;
+      }
     }
   } catch (e) {
     console.error('Error fetching commission rate, using default 0.04:', e);
@@ -2669,11 +2675,40 @@ router.put('/settings', async (req, res) => {
     }
 
     const prev = await db.select().from(platformSettings).where(eq(platformSettings.key, key)).limit(1);
+    let finalValue = String(value);
+
+    // If setting is commission_rate, normalize and validate
+    let isCommissionUpdate = key === 'commission_rate';
+    let prevRatePct = '4.0';
+    let newRatePct = '4.0';
+    let numericRate = 0.04;
+
+    if (isCommissionUpdate) {
+      let numVal = parseFloat(String(value));
+      if (isNaN(numVal) || numVal <= 0) {
+        return res.status(400).json({ error: 'Commission rate must be a valid positive number (e.g. 0.05 or 5%)' });
+      }
+      if (numVal > 1) {
+        numVal = numVal / 100;
+      }
+      if (numVal < 0.005 || numVal > 0.30) {
+        return res.status(400).json({ error: 'Commission rate must be between 0.5% (0.005) and 30% (0.30)' });
+      }
+      numericRate = numVal;
+      finalValue = numVal.toString();
+      newRatePct = (numVal * 100).toFixed(1);
+
+      if (prev.length > 0 && prev[0].value) {
+        let prevNum = parseFloat(prev[0].value);
+        if (prevNum > 1) prevNum = prevNum / 100;
+        prevRatePct = (prevNum * 100).toFixed(1);
+      }
+    }
 
     if (prev.length > 0) {
       await db.update(platformSettings)
         .set({
-          value: String(value),
+          value: finalValue,
           description: description || prev[0].description,
           updatedAt: new Date(),
         })
@@ -2681,8 +2716,8 @@ router.put('/settings', async (req, res) => {
     } else {
       await db.insert(platformSettings).values({
         key,
-        value: String(value),
-        description: description || '',
+        value: finalValue,
+        description: description || (isCommissionUpdate ? 'Default platform commodity trade commission rate' : ''),
       });
     }
 
@@ -2693,14 +2728,14 @@ router.put('/settings', async (req, res) => {
       if (idx >= 0) {
         store.platform_settings[idx] = {
           ...store.platform_settings[idx],
-          value: String(value),
+          value: finalValue,
           description: description || store.platform_settings[idx].description,
           updatedAt: new Date(),
         };
       } else {
         store.platform_settings.push({
           key,
-          value: String(value),
+          value: finalValue,
           description: description || '',
           updatedAt: new Date(),
         });
@@ -2708,20 +2743,59 @@ router.put('/settings', async (req, res) => {
       saveStoreToDisk(store);
     }
 
+    // Audit log
     await logAudit({
       userUid: adminUid || 'admin',
       userEmail: 'admin@harvesthub.mw',
       userName: adminName || 'Administrator',
       role: 'admin',
-      action: 'PLATFORM_SETTING_UPDATED',
-      recordAffected: `Setting ${key}`,
-      previousValue: prev[0]?.value,
-      newValue: String(value),
-      reason: 'Platform parameter adjustment',
+      action: isCommissionUpdate ? 'PLATFORM_COMMISSION_UPDATED' : 'PLATFORM_SETTING_UPDATED',
+      recordAffected: isCommissionUpdate ? `Platform Commission Rate (${newRatePct}%)` : `Setting ${key}`,
+      previousValue: isCommissionUpdate ? `${prevRatePct}%` : prev[0]?.value,
+      newValue: isCommissionUpdate ? `${newRatePct}%` : finalValue,
+      reason: description || (isCommissionUpdate ? `Administrative commission adjustment from ${prevRatePct}% to ${newRatePct}%` : 'Platform parameter adjustment'),
     });
 
-    broadcastEvent('setting_updated', { key, value });
-    return res.json({ success: true, key, value });
+    // When commission rate is adjusted, notify all platform users for full transparency
+    if (isCommissionUpdate) {
+      // 1. Transparent notification for all platform users (Farmers, Buyers, Transporters, Staff)
+      await createNotification({
+        userUid: 'all',
+        title: `📢 Platform Commission Rate Update: ${newRatePct}%`,
+        message: `Malawi Harvest Hub platform commission has been updated to ${newRatePct}% (previously ${prevRatePct}%) by platform administration. Effective immediately, all new trade orders, escrow fee calculations, and revenue settlements reflect this transparent fee structure.`,
+        type: 'system',
+      });
+
+      // 2. Dedicated notification for Financial Administrator
+      await createNotification({
+        userUid: 'finance-chisomo-05',
+        title: `Financial Notice: Commission Updated to ${newRatePct}%`,
+        message: `Administrator ${adminName || 'Admin'} has updated the central platform commission to ${newRatePct}%. New order disbursements and escrow calculations will reconcile against this rate.`,
+        type: 'finance',
+      });
+
+      // Broadcast specific realtime commission event
+      broadcastEvent('commission_rate_updated', {
+        key: 'commission_rate',
+        value: finalValue,
+        rate: numericRate,
+        percentage: newRatePct,
+        prevPercentage: prevRatePct,
+        updatedBy: adminName || 'Administrator',
+      });
+      broadcastEvent('revenue_updated', { trigger: 'commission_rate_changed', newRate: numericRate });
+    }
+
+    broadcastEvent('setting_updated', { key, value: finalValue });
+    return res.json({
+      success: true,
+      key,
+      value: finalValue,
+      percentage: isCommissionUpdate ? newRatePct : undefined,
+      message: isCommissionUpdate
+        ? `Platform commission rate successfully updated from ${prevRatePct}% to ${newRatePct}%. All platform calculations, dashboards, and user notifications have been synchronized.`
+        : `Setting '${key}' updated successfully.`,
+    });
   } catch (error: any) {
     console.error('Error updating platform setting:', error);
     return res.status(500).json({ error: error.message || 'Failed to update setting' });
