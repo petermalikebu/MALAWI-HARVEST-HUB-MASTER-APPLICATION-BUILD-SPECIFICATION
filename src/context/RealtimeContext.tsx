@@ -11,6 +11,7 @@ interface RealtimeContextType {
   notifications: NotificationItem[];
   unreadCount: number;
   markAsRead: (id: number) => Promise<void>;
+  deleteNotification: (id: number) => Promise<void>;
   fetchNotifications: () => Promise<void>;
   subscribe: (eventType: string, listener: EventListener) => () => void;
 }
@@ -23,6 +24,37 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [lastEvent, setLastEvent] = useState<{ type: string; data: any; timestamp: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [listeners, setListeners] = useState<Map<string, Set<EventListener>>>(new Map());
+  const deleteTimersRef = React.useRef<Map<number, any>>(new Map());
+
+  const deleteNotification = useCallback(async (id: number) => {
+    // Clear any timer
+    if (deleteTimersRef.current.has(id)) {
+      clearTimeout(deleteTimersRef.current.get(id));
+      deleteTimersRef.current.delete(id);
+    }
+    // Optimistically remove from state
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await fetch(`/api/notifications/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Failed to permanently delete notification:', err);
+    }
+  }, []);
+
+  // Schedule auto-deletion 30 seconds after notification was marked as read
+  const scheduleAutoDeletion = useCallback((id: number, readAtStr?: string) => {
+    if (deleteTimersRef.current.has(id)) return;
+
+    const readTime = readAtStr ? new Date(readAtStr).getTime() : Date.now();
+    const elapsed = Date.now() - readTime;
+    const remaining = Math.max(0, 30000 - elapsed);
+
+    const timer = setTimeout(() => {
+      deleteNotification(id);
+    }, remaining);
+
+    deleteTimersRef.current.set(id, timer);
+  }, [deleteNotification]);
 
   const fetchNotifications = useCallback(async () => {
     if (!currentUser) return;
@@ -31,22 +63,34 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (res.ok) {
         const list: NotificationItem[] = await safeParseJson(res, []);
         setNotifications(list);
+
+        // Schedule auto-delete for any already read notifications
+        list.forEach((n) => {
+          if (n.isRead && n.readAt) {
+            scheduleAutoDeletion(n.id, n.readAt);
+          }
+        });
       }
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
     }
-  }, [currentUser]);
+  }, [currentUser, scheduleAutoDeletion]);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
   const markAsRead = async (id: number) => {
+    const nowIso = new Date().toISOString();
+    // Optimistically update
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true, readAt: nowIso } : n))
+    );
+    // Schedule 30-second deletion countdown
+    scheduleAutoDeletion(id, nowIso);
+
     try {
       await fetch(`/api/notifications/${id}/read`, { method: 'POST' });
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
     } catch (err) {
       console.error('Failed to mark notification read:', err);
     }
@@ -116,9 +160,16 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               }
             }
 
-            // If notification arrived, refresh
+            // If notification arrived or modified, refresh or handle
             if (parsed.type === 'notification_created') {
               fetchNotifications();
+            } else if (parsed.type === 'notification_deleted' && parsed.data?.id) {
+              setNotifications((prev) => prev.filter((n) => n.id !== parsed.data.id));
+            } else if (parsed.type === 'notification_read' && parsed.data?.id) {
+              setNotifications((prev) =>
+                prev.map((n) => (n.id === parsed.data.id ? { ...n, isRead: true, readAt: parsed.data.readAt } : n))
+              );
+              scheduleAutoDeletion(parsed.data.id, parsed.data.readAt);
             }
           } catch (e) {
             // ignore
@@ -145,7 +196,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (ws) ws.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, [currentUser, listeners, fetchNotifications]);
+  }, [currentUser, listeners, fetchNotifications, scheduleAutoDeletion]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -157,6 +208,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         notifications,
         unreadCount,
         markAsRead,
+        deleteNotification,
         fetchNotifications,
         subscribe,
       }}

@@ -207,6 +207,7 @@ export const notifications = pgTable('notifications', {
   type: text('type').notNull().default('order'), // order | transport | finance | system
   relatedOrderId: integer('related_order_id'),
   isRead: boolean('is_read').notNull().default(false),
+  readAt: timestamp('read_at'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

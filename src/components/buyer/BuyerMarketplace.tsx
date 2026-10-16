@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
 import { Commodity, Category, MALAWI_DISTRICTS } from '../../types/index.ts';
 import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
+import { useLanguage } from '../../context/LanguageContext.tsx';
 import {
   Search,
   Filter,
@@ -24,6 +25,7 @@ interface BuyerMarketplaceProps {
 export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlaced }) => {
   const { currentUser } = useAuth();
   const { subscribe } = useRealtime();
+  const { t, language } = useLanguage();
 
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -219,13 +221,21 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
         <div className="max-w-3xl space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-700/60 text-amber-200 border border-amber-600/40">
             <ShoppingCart className="w-3.5 h-3.5" />
-            <span>Commercial Buyer Marketplace &bull; Malawi National Harvest</span>
+            <span>
+              {language === 'ch'
+                ? 'Msika wa Ogula Zokolola • Mbewu za ku Malawi'
+                : 'Commercial Buyer Marketplace • Malawi National Harvest'}
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            Direct Farmgate Produce Sourcing
+            {language === 'ch'
+              ? 'Kugula Zokolola Mwachindunji kwa Alimi'
+              : 'Direct Farmgate Produce Sourcing'}
           </h1>
           <p className="text-amber-100 text-sm leading-relaxed">
-            Purchase verified agricultural commodities directly from smallholder farmers across Mchinji, Kasungu, Dedza, Salima, and all 28 districts of Malawi. Guaranteed transparent pricing with integrated {commissionPercentageText}% escrow protection.
+            {language === 'ch'
+              ? `Gulani zokolola zovomerezeka mwachindunji kwa alimi ku Mchinji, Kasungu, Dedza, Salima, ndi m'maboma onse 28 a Malawi. Mitengo yodziwika bwino ndi chitetezo cha escrow cha ${commissionPercentageText}%.`
+              : `Purchase verified agricultural commodities directly from smallholder farmers across Mchinji, Kasungu, Dedza, Salima, and all 28 districts of Malawi. Guaranteed transparent pricing with integrated ${commissionPercentageText}% escrow protection.`}
           </p>
         </div>
 
@@ -233,15 +243,15 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-amber-700/60 text-xs">
           <div className="flex items-center gap-2 text-amber-200">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{commissionPercentageText}% Capped Escrow Commission</span>
+            <span>{commissionPercentageText}% {language === 'ch' ? 'Chitetezo cha Escrow' : 'Capped Escrow Commission'}</span>
           </div>
           <div className="flex items-center gap-2 text-amber-200">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Grade & Moisture Verified</span>
+            <span>{language === 'ch' ? 'Miyeso ndi Chinyezi Zotsimikizika' : 'Grade & Moisture Verified'}</span>
           </div>
           <div className="flex items-center gap-2 text-amber-200">
             <Truck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Integrated Transporter Logistics</span>
+            <span>{language === 'ch' ? 'Mayendedwe a Magalimoto Ophatikizidwa' : 'Integrated Transporter Logistics'}</span>
           </div>
         </div>
       </div>
@@ -254,7 +264,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
             <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search commodity (e.g. Rice, Maize, Beans) or district..."
+              placeholder={t('market_search_placeholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600"
@@ -268,10 +278,10 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white"
             >
-              <option value="All">All Categories</option>
+              <option value="All">{t('market_category_all')}</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.name}>
-                  {c.name}
+                  {t(c.name)}
                 </option>
               ))}
             </select>
@@ -284,7 +294,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
               onChange={(e) => setSelectedDistrict(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white"
             >
-              <option value="All">All Districts</option>
+              <option value="All">{t('market_district_all')}</option>
               {MALAWI_DISTRICTS.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -300,9 +310,9 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
               onChange={(e) => setSortBy(e.target.value as any)}
               className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white"
             >
-              <option value="qty_desc">Stock: High to Low</option>
-              <option value="price_asc">Price: Low to High</option>
-              <option value="price_desc">Price: High to Low</option>
+              <option value="qty_desc">{language === 'ch' ? 'Mbewu Zambiri Zoyamba' : 'Stock: High to Low'}</option>
+              <option value="price_asc">{language === 'ch' ? 'Mtengo Wotsika Kwambiri Poyamba' : 'Price: Low to High'}</option>
+              <option value="price_desc">{language === 'ch' ? 'Mtengo Wapamwamba Kwambiri Poyamba' : 'Price: High to Low'}</option>
             </select>
           </div>
         </div>
@@ -310,7 +320,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
         {/* Quality Quick Pills */}
         <div className="flex items-center gap-2 pt-2 border-t border-stone-100 flex-wrap text-xs">
           <span className="text-stone-400 font-semibold text-[11px] uppercase tracking-wider">
-            Quality Grade:
+            {language === 'ch' ? 'Mlingo wa Ubwino (Giredi):' : 'Quality Grade:'}
           </span>
           {['All', 'Grade A', 'Grade B', 'Grade C'].map((q) => (
             <button
@@ -322,7 +332,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                   : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
               }`}
             >
-              {q}
+              {q === 'All' ? (language === 'ch' ? 'Zonse' : 'All') : q}
             </button>
           ))}
           <span className="ml-auto text-xs text-stone-500 font-medium">
@@ -397,19 +407,19 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                 <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/80 flex items-end justify-between mb-3">
                   <div>
                     <div className="text-[10px] text-stone-400 font-semibold uppercase">
-                      Stock Remaining
+                      {language === 'ch' ? 'Zomwe Zilipo' : 'Stock Remaining'}
                     </div>
                     <div className="text-base font-extrabold text-stone-900">
-                      {c.quantity.toLocaleString()} {c.unit}
+                      {c.quantity.toLocaleString()} {t(c.unit)}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] text-stone-400 font-semibold uppercase">
-                      Unit Price
+                      {language === 'ch' ? 'Mtengo pa Muyeso' : 'Unit Price'}
                     </div>
                     <div className="text-lg font-extrabold text-amber-800">
                       MWK {Number(c.pricePerUnit).toLocaleString()}
-                      <span className="text-xs font-medium text-stone-500">/{c.unit}</span>
+                      <span className="text-xs font-medium text-stone-500">/{t(c.unit)}</span>
                     </div>
                   </div>
                 </div>
@@ -419,7 +429,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                   className="w-full py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs active:scale-98 transition-all"
                 >
                   <ShoppingCart className="w-4 h-4" />
-                  <span>Purchase & Reserve Stock</span>
+                  <span>{language === 'ch' ? 'Gulani & Sungani Mbewu' : 'Purchase & Reserve Stock'}</span>
                 </button>
               </div>
             </div>
@@ -434,10 +444,10 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
             <div className="flex items-center justify-between pb-4 border-b border-stone-100">
               <div>
                 <h3 className="text-base font-bold text-stone-900">
-                  Place Order & Reserve Escrow
+                  {language === 'ch' ? 'Ikani Oda & Sungani mu Escrow' : 'Place Order & Reserve Escrow'}
                 </h3>
                 <p className="text-xs text-stone-500">
-                  {orderingCommodity.commodityName} &bull; Farmer {orderingCommodity.farmerName}
+                  {t(orderingCommodity.commodityName)} &bull; {language === 'ch' ? 'Mlimi' : 'Farmer'} {orderingCommodity.farmerName}
                 </p>
               </div>
               <button

@@ -18,6 +18,7 @@ import { FarmerTransportHire } from './components/farmer/FarmerTransportHire.tsx
 import { SupportQueriesDesk } from './components/support/SupportQueriesDesk.tsx';
 import { AgriIntelligenceView } from './components/intelligence/AgriIntelligenceView.tsx';
 import { LanguageProvider, useLanguage } from './context/LanguageContext.tsx';
+import { LanguageSideWidget } from './components/common/LanguageSideWidget.tsx';
 import { ShieldAlert } from 'lucide-react';
 
 function MainContent() {
@@ -243,6 +244,9 @@ function MainContent() {
           }}
         />
       )}
+
+      {/* Dedicated Floating / Side-Docked Language Selector */}
+      <LanguageSideWidget />
 
       <NotificationDrawer
         isOpen={isNotificationOpen}

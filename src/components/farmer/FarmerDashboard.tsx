@@ -26,10 +26,12 @@ import {
 import { FarmerTransportHire } from './FarmerTransportHire.tsx';
 import { compressImageFile } from '../../lib/imageCompressor.ts';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
+import { useLanguage } from '../../context/LanguageContext.tsx';
 
 export const FarmerDashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const { subscribe } = useRealtime();
+  const { t, language } = useLanguage();
 
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -283,13 +285,19 @@ export const FarmerDashboard: React.FC = () => {
           <div className="space-y-2 max-w-xl">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-700/60 text-emerald-200 border border-emerald-600/40">
               <Sprout className="w-3.5 h-3.5" />
-              <span>Smallholder Farmer Portal &bull; Direct Farmgate Trade</span>
+              <span>
+                {language === 'ch'
+                  ? 'Bwalo la Alimi Aang\'ono • Malonda a Pafamu'
+                  : 'Smallholder Farmer Portal • Direct Farmgate Trade'}
+              </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Moni, {currentUser?.fullName}!
+              {language === 'ch' ? `Moni, ${currentUser?.fullName}!` : `Welcome, ${currentUser?.fullName}!`}
             </h1>
             <p className="text-emerald-100 text-sm leading-relaxed">
-              District: <span className="font-semibold text-white">{currentUser?.district}</span> &bull; Trading Center: <span className="font-semibold text-white">{currentUser?.tradingArea || 'Central Market'}</span>. Your commodities are broadcast live to commercial buyers across Malawi.
+              {language === 'ch'
+                ? `Boma Lanu: ${currentUser?.district} • Msika Wanu: ${currentUser?.tradingArea || 'Msika Waukulu'}. Zokolola zanu zikuwonedwa ndi ogula m'Malawi konse.`
+                : `District: ${currentUser?.district} • Trading Center: ${currentUser?.tradingArea || 'Central Market'}. Your commodities are broadcast live to commercial buyers across Malawi.`}
             </p>
           </div>
 
@@ -299,19 +307,19 @@ export const FarmerDashboard: React.FC = () => {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-emerald-900 font-bold text-sm shadow-md hover:bg-emerald-50 transition-all active:scale-95"
             >
               <Plus className="w-4 h-4 text-emerald-700" />
-              <span>List New Commodity</span>
+              <span>{language === 'ch' ? 'Ikani Zokolola Zatsopano' : 'List New Commodity'}</span>
             </button>
             <button
               onClick={() => setActiveTab('hire_transport')}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 text-white font-bold text-sm shadow-md hover:bg-blue-800 transition-all active:scale-95"
             >
               <Truck className="w-4 h-4 text-blue-200" />
-              <span>Hire Transporter</span>
+              <span>{t('nav_hire_transport')}</span>
             </button>
             <button
               onClick={fetchData}
               className="p-2.5 rounded-xl bg-emerald-700/50 hover:bg-emerald-700 text-emerald-100 transition-colors"
-              title="Refresh from PostgreSQL"
+              title={language === 'ch' ? 'Konzaninso' : 'Refresh'}
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -321,25 +329,33 @@ export const FarmerDashboard: React.FC = () => {
         {/* Quick Stat Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-emerald-700/60">
           <div>
-            <div className="text-xs text-emerald-200 font-medium">Active Listings</div>
+            <div className="text-xs text-emerald-200 font-medium">
+              {language === 'ch' ? 'Zomwe Zili Pamsika' : 'Active Listings'}
+            </div>
             <div className="text-xl sm:text-2xl font-extrabold text-white mt-0.5">
               {commodities.filter((c) => c.status === 'available').length}
             </div>
           </div>
           <div>
-            <div className="text-xs text-emerald-200 font-medium">Pending Orders</div>
+            <div className="text-xs text-emerald-200 font-medium">
+              {language === 'ch' ? 'Maoda Obwera' : 'Pending Orders'}
+            </div>
             <div className="text-xl sm:text-2xl font-extrabold text-amber-300 mt-0.5">
               {pendingOrdersCount}
             </div>
           </div>
           <div>
-            <div className="text-xs text-emerald-200 font-medium">Total Net Earnings</div>
+            <div className="text-xs text-emerald-200 font-medium">
+              {language === 'ch' ? 'Ndalama Zonse Zolandira' : 'Total Net Earnings'}
+            </div>
             <div className="text-xl sm:text-2xl font-extrabold text-white mt-0.5">
               MWK {totalNetEarnings.toLocaleString()}
             </div>
           </div>
           <div>
-            <div className="text-xs text-emerald-200 font-medium">Fixed Commission</div>
+            <div className="text-xs text-emerald-200 font-medium">
+              {language === 'ch' ? 'Commission Yokhazikika' : 'Fixed Commission'}
+            </div>
             <div className="text-xl sm:text-2xl font-extrabold text-emerald-300 mt-0.5">
               4.0%
             </div>
@@ -358,7 +374,7 @@ export const FarmerDashboard: React.FC = () => {
           }`}
         >
           <Package className="w-4 h-4" />
-          <span>My Commodity Listings ({commodities.length})</span>
+          <span>{language === 'ch' ? `Zokolola Zanga (${commodities.length})` : `My Commodity Listings (${commodities.length})`}</span>
         </button>
         <button
           onClick={() => setActiveTab('orders')}
@@ -369,7 +385,7 @@ export const FarmerDashboard: React.FC = () => {
           }`}
         >
           <TrendingUp className="w-4 h-4" />
-          <span>Incoming Buyer Orders ({orders.length})</span>
+          <span>{language === 'ch' ? `Maoda Obwera (${orders.length})` : `Incoming Buyer Orders (${orders.length})`}</span>
           {pendingOrdersCount > 0 && (
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
           )}
@@ -383,7 +399,7 @@ export const FarmerDashboard: React.FC = () => {
           }`}
         >
           <Truck className="w-4 h-4 text-blue-700" />
-          <span>Hire Transporter & Driver Escrow</span>
+          <span>{t('nav_hire_transport')}</span>
         </button>
         <button
           onClick={() => setActiveTab('earnings')}
@@ -393,7 +409,7 @@ export const FarmerDashboard: React.FC = () => {
               : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
           }`}
         >
-          <span>Sales & Wallet Settlement</span>
+          <span>{language === 'ch' ? 'Malipiro & Kaundula wa Ndalama' : 'Sales & Wallet Settlement'}</span>
         </button>
         <button
           onClick={() => setActiveTab('queries')}
@@ -404,7 +420,7 @@ export const FarmerDashboard: React.FC = () => {
           }`}
         >
           <MessageSquare className="w-4 h-4 text-emerald-700" />
-          <span>Queries &amp; Suggestions to Admin</span>
+          <span>{t('nav_queries_help')}</span>
         </button>
       </div>
 

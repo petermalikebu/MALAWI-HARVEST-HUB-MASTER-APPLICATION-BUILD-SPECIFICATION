@@ -2540,10 +2540,29 @@ router.get('/notifications', async (req, res) => {
     const userUid = req.query.userUid as string;
     if (!userUid) return res.json([]);
 
+    const now = Date.now();
+    const EXPIRY_MS = 30 * 1000; // 30 seconds after being read
+
+    // Auto-cleanup: Permanently purge any notification that has been marked read for > 30 seconds
+    const store = (global as any)._inMemoryStore;
+    if (store && Array.isArray(store.notifications)) {
+      const initialLen = store.notifications.length;
+      store.notifications = store.notifications.filter((n: any) => {
+        if (n.isRead && n.readAt) {
+          const elapsed = now - new Date(n.readAt).getTime();
+          return elapsed < EXPIRY_MS;
+        }
+        return true;
+      });
+      if (store.notifications.length !== initialLen) {
+        saveStoreToDisk(store);
+      }
+    }
+
     const userList = await db.select().from(users).where(eq(users.uid, userUid)).limit(1);
     const isAdmin = userList[0]?.role === 'admin' || userUid.includes('admin') || userUid === 'frF3xukObzdA8AhCBYIBPYV0UK13';
 
-    const list = await db.select().from(notifications).where(
+    let list = await db.select().from(notifications).where(
       isAdmin
         ? or(
             eq(notifications.userUid, userUid),
@@ -2556,6 +2575,25 @@ router.get('/notifications', async (req, res) => {
           )
     ).orderBy(desc(notifications.createdAt)).limit(50);
 
+    // Also filter out any from database that were read > 30s ago
+    const toDeleteIds: number[] = [];
+    list = list.filter((n: any) => {
+      if (n.isRead && n.readAt) {
+        const elapsed = now - new Date(n.readAt).getTime();
+        if (elapsed >= EXPIRY_MS) {
+          toDeleteIds.push(n.id);
+          return false;
+        }
+      }
+      return true;
+    });
+
+    // Delete expired ones in background
+    if (toDeleteIds.length > 0) {
+      Promise.all(toDeleteIds.map(id => db.delete(notifications).where(eq(notifications.id, id))))
+        .catch(err => console.warn('Background expired notifications deletion notice:', err));
+    }
+
     return res.json(list);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to fetch notifications' });
@@ -2565,10 +2603,48 @@ router.get('/notifications', async (req, res) => {
 router.post('/notifications/:id/read', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id));
-    return res.json({ success: true });
+    const readAtDate = new Date();
+
+    await db.update(notifications)
+      .set({ isRead: true, readAt: readAtDate })
+      .where(eq(notifications.id, id));
+
+    // Update in-memory store
+    const store = (global as any)._inMemoryStore;
+    if (store && Array.isArray(store.notifications)) {
+      const target = store.notifications.find((n: any) => n.id === id);
+      if (target) {
+        target.isRead = true;
+        target.readAt = readAtDate;
+        saveStoreToDisk(store);
+      }
+    }
+
+    broadcastEvent('notification_read', { id, isRead: true, readAt: readAtDate.toISOString() });
+    return res.json({ success: true, id, readAt: readAtDate.toISOString() });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to mark notification as read' });
+  }
+});
+
+router.delete('/notifications/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await db.delete(notifications).where(eq(notifications.id, id));
+
+    const store = (global as any)._inMemoryStore;
+    if (store && Array.isArray(store.notifications)) {
+      const idx = store.notifications.findIndex((n: any) => n.id === id);
+      if (idx >= 0) {
+        store.notifications.splice(idx, 1);
+        saveStoreToDisk(store);
+      }
+    }
+
+    broadcastEvent('notification_deleted', { id });
+    return res.json({ success: true, id });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to delete notification' });
   }
 });
 

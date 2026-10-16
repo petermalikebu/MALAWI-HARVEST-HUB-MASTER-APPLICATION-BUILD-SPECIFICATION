@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { PasswordResetModal } from './PasswordResetModal.tsx';
+import { useLanguage } from '../../context/LanguageContext.tsx';
 
 interface SignInViewProps {
   onLoginSuccess?: (user: UserType) => void;
@@ -44,6 +45,7 @@ export const SignInView: React.FC<SignInViewProps> = ({
 }) => {
   const { loginWithEmailPassword, registerWithCredentials, loginWithGoogle } = useAuth();
   const { subscribe } = useRealtime();
+  const { t, language } = useLanguage();
 
   const [mode, setMode] = useState<'signin' | 'register' | 'reset_password'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
@@ -413,7 +415,7 @@ export const SignInView: React.FC<SignInViewProps> = ({
             }`}
           >
             <LogIn className="w-4 h-4 text-emerald-700" />
-            <span>Sign In</span>
+            <span>{t('auth_signin', 'Sign In')}</span>
           </button>
 
           <button
@@ -430,7 +432,7 @@ export const SignInView: React.FC<SignInViewProps> = ({
             }`}
           >
             <UserPlus className="w-4 h-4 text-emerald-700" />
-            <span>Create Account</span>
+            <span>{t('auth_register', 'Create Account')}</span>
           </button>
 
           <button
@@ -448,7 +450,7 @@ export const SignInView: React.FC<SignInViewProps> = ({
             }`}
           >
             <KeyRound className="w-4 h-4 text-amber-600" />
-            <span>Reset Password</span>
+            <span>{language === 'ch' ? 'Sinthani Password' : 'Reset Password'}</span>
           </button>
         </div>
 

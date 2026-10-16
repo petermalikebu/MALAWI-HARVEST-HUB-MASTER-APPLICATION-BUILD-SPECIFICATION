@@ -214,6 +214,7 @@ export interface NotificationItem {
   type: 'order' | 'transport' | 'finance' | 'system';
   relatedOrderId?: number;
   isRead: boolean;
+  readAt?: string;
   createdAt?: string;
 }
 
