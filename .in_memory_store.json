@@ -137,40 +137,6 @@
       "isAvailable": true,
       "createdAt": "2026-10-23T15:01:08.492Z",
       "updatedAt": "2026-10-23T15:01:08.492Z"
-    },
-    {
-      "id": 12,
-      "createdAt": "2026-10-23T15:03:26.521Z",
-      "updatedAt": "2026-10-23T15:03:26.521Z",
-      "uid": "frF3xukObzdA8AhCBYIBPYV0UK13",
-      "email": "petermalikebujr@gmail.com",
-      "fullName": "Peter Malikebu",
-      "role": "admin",
-      "phoneNumber": "+265 999 036 912",
-      "password": "4ebf36aad9441be2224e0767c0d3bc4920b5e82330404ec137ae6196a6830ba9",
-      "district": "Lilongwe",
-      "region": "Central",
-      "tradingArea": "City Centre",
-      "bankName": "National Bank of Malawi",
-      "bankAccount": "1011619688",
-      "bankAccountName": "PETER ADRIAN MALIKEBU"
-    },
-    {
-      "id": 13,
-      "createdAt": "2026-10-23T15:22:31.345Z",
-      "updatedAt": "2026-10-23T15:22:31.345Z",
-      "uid": "frF3xukObzdA8AhCBYIBPYV0UK13",
-      "email": "petermalikebujr@gmail.com",
-      "fullName": "Peter Malikebu",
-      "role": "admin",
-      "phoneNumber": "+265 999 036 912",
-      "password": "4ebf36aad9441be2224e0767c0d3bc4920b5e82330404ec137ae6196a6830ba9",
-      "district": "Lilongwe",
-      "region": "Central",
-      "tradingArea": "City Centre",
-      "bankName": "National Bank of Malawi",
-      "bankAccount": "1011619688",
-      "bankAccountName": "PETER ADRIAN MALIKEBU"
     }
   ],
   "categories": [

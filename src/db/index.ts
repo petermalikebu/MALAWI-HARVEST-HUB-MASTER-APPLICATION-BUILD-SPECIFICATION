@@ -801,11 +801,25 @@ export function getInMemoryStore(): Record<string, any[]> {
   if (!global._inMemoryStore) {
     const fromDisk = loadStoreFromDisk();
     if (fromDisk && Array.isArray(fromDisk.users) && fromDisk.users.length > 0) {
+      // Deduplicate users loaded from disk by UID / email
+      const seenUids = new Set<string>();
+      const seenEmails = new Set<string>();
+      const dedupedUsers: any[] = [];
+      for (const u of fromDisk.users) {
+        const uid = u.uid;
+        const normEmail = (u.email || '').toLowerCase().trim();
+        if (uid && seenUids.has(uid)) continue;
+        if (normEmail && seenEmails.has(normEmail)) continue;
+        if (uid) seenUids.add(uid);
+        if (normEmail) seenEmails.add(normEmail);
+        dedupedUsers.push(u);
+      }
+      fromDisk.users = dedupedUsers;
       global._inMemoryStore = fromDisk;
 
       // 1. Ensure Super Admin 1: Peter Malikebu
       let peterAdmin = global._inMemoryStore.users.find(
-        (u: any) => u.email === 'petermalikebujr@gmail.com' || u.email === 'petermalikebu0@gmail.com'
+        (u: any) => u.uid === 'frF3xukObzdA8AhCBYIBPYV0UK13' || u.email === 'petermalikebujr@gmail.com' || u.email === 'petermalikebu0@gmail.com'
       );
       if (peterAdmin) {
         peterAdmin.fullName = 'Peter Malikebu';
@@ -842,7 +856,7 @@ export function getInMemoryStore(): Record<string, any[]> {
 
       // 2. Ensure Super Admin 2: Joshua Malikebu
       let joshuaAdmin = global._inMemoryStore.users.find(
-        (u: any) => u.email === 'joshuamalikebu927@gmail.com'
+        (u: any) => u.uid === 'admin-joshua-02' || u.email === 'joshuamalikebu927@gmail.com'
       );
       if (joshuaAdmin) {
         joshuaAdmin.fullName = 'Joshua Malikebu';
@@ -1112,8 +1126,22 @@ function createInMemoryDb() {
                   targetCol = t.name || t.columnName || t.key || null;
                 }
 
+                const currentTableName = (() => {
+                  try {
+                    return getTableName(tableDef);
+                  } catch {
+                    return String(tableDef);
+                  }
+                })();
+
                 let existingIdx = -1;
-                if (targetCol && item[targetCol] !== undefined) {
+                if (currentTableName === 'users') {
+                  existingIdx = table.findIndex(
+                    (r) =>
+                      (item.uid && r.uid === item.uid) ||
+                      (item.email && r.email && r.email.toLowerCase().trim() === String(item.email).toLowerCase().trim())
+                  );
+                } else if (targetCol && item[targetCol] !== undefined) {
                   existingIdx = table.findIndex((r) => r[targetCol!] === item[targetCol!]);
                 } else if (item.key !== undefined && table.length > 0 && table[0]?.key !== undefined) {
                   existingIdx = table.findIndex((r) => r.key === item.key);
@@ -1121,10 +1149,11 @@ function createInMemoryDb() {
                   existingIdx = table.findIndex((r) => r.id === item.id);
                 }
 
-                if (existingIdx >= 0 && conflictConfig && conflictConfig.set) {
+                if (existingIdx >= 0) {
                   table[existingIdx] = {
                     ...table[existingIdx],
-                    ...conflictConfig.set,
+                    ...item,
+                    ...(conflictConfig?.set || {}),
                     updatedAt: new Date(),
                   };
                   inserted.push(table[existingIdx]);

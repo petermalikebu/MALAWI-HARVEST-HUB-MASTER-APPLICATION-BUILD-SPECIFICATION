@@ -38,7 +38,31 @@ export const AdminDashboard: React.FC = () => {
   const { subscribe } = useRealtime();
 
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'commission' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
+  const [userRoleFilter, setUserRoleFilter] = useState<'admins' | 'all'>('admins');
   const [usersList, setUsersList] = useState<User[]>([]);
+  const uniqueUsersList = React.useMemo(() => {
+    const seen = new Set<string>();
+    return usersList.filter((u) => {
+      const key = u.uid || (u.email ? u.email.toLowerCase().trim() : '') || String(u.id);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [usersList]);
+
+  const adminUsersList = React.useMemo(() => {
+    const seen = new Set<string>();
+    return usersList
+      .filter((u) => u.role === 'admin' || u.fullName.toLowerCase().includes('malikebu') || u.email?.toLowerCase().includes('malikebu'))
+      .filter((u) => {
+        const key = u.uid || (u.email ? u.email.toLowerCase().trim() : '') || String(u.id);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [usersList]);
+
+  const displayedUsersList = userRoleFilter === 'admins' ? adminUsersList : uniqueUsersList;
   const [commoditiesList, setCommoditiesList] = useState<Commodity[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [auditLogsList, setAuditLogsList] = useState<AuditLogItem[]>([]);
@@ -682,9 +706,41 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs">
-            <div className="p-4 border-b border-stone-100 flex items-center justify-between">
-              <h3 className="font-bold text-stone-900 text-sm">Registered Ecosystem Users</h3>
-              <span className="text-xs text-stone-500">Live PostgreSQL `users` table</span>
+            <div className="p-4 border-b border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-stone-900 text-sm">
+                  {userRoleFilter === 'admins' ? 'Authorized Platform Administrators' : 'Registered Ecosystem Users'}
+                </h3>
+                <span className="text-xs text-stone-500">
+                  {userRoleFilter === 'admins'
+                    ? `Lead Administrators \u2022 ${adminUsersList.length} Authorized Accounts`
+                    : `Active Ecosystem Directory \u2022 ${uniqueUsersList.length} Total Accounts`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl text-xs font-semibold self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setUserRoleFilter('admins')}
+                  className={`px-3 py-1 rounded-lg transition-all ${
+                    userRoleFilter === 'admins'
+                      ? 'bg-white text-purple-900 shadow-2xs font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  Administrators Only ({adminUsersList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserRoleFilter('all')}
+                  className={`px-3 py-1 rounded-lg transition-all ${
+                    userRoleFilter === 'all'
+                      ? 'bg-white text-purple-900 shadow-2xs font-bold'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  All Accounts ({uniqueUsersList.length})
+                </button>
+              </div>
             </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -698,7 +754,7 @@ export const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {usersList.map((u) => {
+                {displayedUsersList.map((u) => {
                   const isCurrentSelf = u.id === currentUser?.id || u.uid === currentUser?.uid;
                   const isFellowAdmin = u.role === 'admin' && !isCurrentSelf;
                   const isLeadAdminUser =

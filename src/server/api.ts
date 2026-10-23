@@ -243,6 +243,22 @@ router.post('/users/login', async (req, res) => {
       const userEmail = (u.email || '').toLowerCase().trim();
       if (userEmail && userEmail === cleanIdentifier) return true;
 
+      // Match Peter Malikebu by either email or UID
+      if (
+        (cleanIdentifier === 'petermalikebu0@gmail.com' || cleanIdentifier === 'petermalikebujr@gmail.com') &&
+        (userEmail === 'petermalikebu0@gmail.com' || userEmail === 'petermalikebujr@gmail.com' || u.uid === 'frF3xukObzdA8AhCBYIBPYV0UK13')
+      ) {
+        return true;
+      }
+
+      // Match Joshua Malikebu by email or UID
+      if (
+        cleanIdentifier === 'joshuamalikebu927@gmail.com' &&
+        (userEmail === 'joshuamalikebu927@gmail.com' || u.uid === 'admin-joshua-02')
+      ) {
+        return true;
+      }
+
       // Allow matching by phone number
       if (u.phoneNumber && cleanPhoneDigits.length >= 7) {
         const uDigits = String(u.phoneNumber).replace(/[^0-9]/g, '');
@@ -273,6 +289,14 @@ router.post('/users/login', async (req, res) => {
       }
 
       const isJoshua = cleanIdentifier === 'joshuamalikebu927@gmail.com' || matchedUser?.email === 'joshuamalikebu927@gmail.com';
+
+      if (!matchedUser) {
+        matchedUser = allUsers.find(
+          (u: any) => isJoshua
+            ? (u.uid === 'admin-joshua-02' || u.email === 'joshuamalikebu927@gmail.com')
+            : (u.uid === 'frF3xukObzdA8AhCBYIBPYV0UK13' || u.email === 'petermalikebujr@gmail.com' || u.email === 'petermalikebu0@gmail.com')
+        );
+      }
 
       if (!matchedUser) {
         const initialHashedPass = hashPassword(cleanPassword);
