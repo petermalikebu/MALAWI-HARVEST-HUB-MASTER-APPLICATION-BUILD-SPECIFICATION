@@ -234,19 +234,33 @@ router.post('/users/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanIdentifier = String(email).toLowerCase().trim();
+    const cleanPhoneDigits = cleanIdentifier.replace(/[^0-9]/g, '');
     const cleanPassword = String(password).trim();
+
+    const allUsers = await db.select().from(users);
+    let matchedUser = allUsers.find((u: any) => {
+      const userEmail = (u.email || '').toLowerCase().trim();
+      if (userEmail && userEmail === cleanIdentifier) return true;
+
+      // Allow matching by phone number
+      if (u.phoneNumber && cleanPhoneDigits.length >= 7) {
+        const uDigits = String(u.phoneNumber).replace(/[^0-9]/g, '');
+        if (uDigits && (uDigits.endsWith(cleanPhoneDigits) || cleanPhoneDigits.endsWith(uDigits))) {
+          return true;
+        }
+      }
+      return false;
+    });
 
     // Super user admin check
     const isSuperAdminEmail =
-      cleanEmail === 'petermalikebujr@gmail.com' ||
-      cleanEmail === 'petermalikebu0@gmail.com' ||
-      cleanEmail === 'joshuamalikebu927@gmail.com';
-
-    const allUsers = await db.select().from(users);
-    let matchedUser = allUsers.find(
-      (u: any) => u.email && u.email.toLowerCase().trim() === cleanEmail
-    );
+      matchedUser?.email === 'petermalikebujr@gmail.com' ||
+      matchedUser?.email === 'petermalikebu0@gmail.com' ||
+      matchedUser?.email === 'joshuamalikebu927@gmail.com' ||
+      cleanIdentifier === 'petermalikebujr@gmail.com' ||
+      cleanIdentifier === 'petermalikebu0@gmail.com' ||
+      cleanIdentifier === 'joshuamalikebu927@gmail.com';
 
     if (isSuperAdminEmail) {
       const superAdminDefaultPass = 'P1qe2wt3ee4rr5t?';
@@ -258,7 +272,7 @@ router.post('/users/login', async (req, res) => {
         return res.status(401).json({ error: 'Incorrect password for administrator account.' });
       }
 
-      const isJoshua = cleanEmail === 'joshuamalikebu927@gmail.com';
+      const isJoshua = cleanIdentifier === 'joshuamalikebu927@gmail.com' || matchedUser?.email === 'joshuamalikebu927@gmail.com';
 
       if (!matchedUser) {
         const initialHashedPass = hashPassword(cleanPassword);

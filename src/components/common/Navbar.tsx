@@ -28,6 +28,7 @@ import {
   BarChart3,
   Calculator,
   User as UserIcon,
+  Phone,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -179,8 +180,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       return [
         { id: 'landing', label: t('nav_overview'), icon: Sprout },
         { id: 'marketplace', label: t('nav_browse'), icon: ShoppingCart },
-        { id: 'agri_intelligence', label: t('nav_agri_intel'), icon: Sparkles, badge: 'AI' },
+        { id: 'rules_regulations', label: language === 'ch' ? 'Malamulo' : 'Rules & Standards', icon: ShieldCheck },
+        { id: 'contact_details', label: language === 'ch' ? 'Malumikizidwe' : 'Contact Us & Hubs', icon: Phone },
         { id: 'support_queries', label: t('nav_queries_help'), icon: HelpCircle },
+        { id: 'agri_intelligence', label: t('nav_agri_intel'), icon: Sparkles, badge: 'AI' },
         { id: 'impact_dashboard', label: t('nav_impact'), icon: BarChart3 },
         { id: 'fee_simulator', label: t('nav_fee_simulator'), icon: Calculator },
       ];
@@ -192,6 +195,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'farmer_orders', label: t('nav_incoming_orders'), icon: ShoppingCart },
         { id: 'farmer_hire_transport', label: t('nav_hire_transport'), icon: Truck, color: 'text-blue-700' },
         { id: 'marketplace', label: t('nav_marketplace'), icon: ShoppingCart },
+        { id: 'rules_regulations', label: language === 'ch' ? 'Malamulo' : 'Rules & Standards', icon: ShieldCheck },
+        { id: 'contact_details', label: language === 'ch' ? 'Malumikizidwe' : 'Contact Administration', icon: Phone },
         { id: 'support_queries', label: t('nav_queries_help'), icon: HelpCircle },
         { id: 'agri_intelligence', label: t('nav_agri_intel'), icon: Sparkles, badge: 'AI' },
         { id: 'impact_dashboard', label: t('nav_impact'), icon: BarChart3 },
@@ -203,6 +208,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       return [
         { id: 'marketplace', label: t('nav_marketplace'), icon: ShoppingCart },
         { id: 'buyer_orders', label: t('nav_my_purchases'), icon: Package },
+        { id: 'rules_regulations', label: language === 'ch' ? 'Malamulo' : 'Rules & Escrow', icon: ShieldCheck },
+        { id: 'contact_details', label: language === 'ch' ? 'Malumikizidwe' : 'Contact Administration', icon: Phone },
         { id: 'support_queries', label: t('nav_queries_help'), icon: HelpCircle },
         { id: 'agri_intelligence', label: t('nav_agri_intel'), icon: Sparkles, badge: 'AI' },
         { id: 'impact_dashboard', label: t('nav_impact'), icon: BarChart3 },
@@ -214,6 +221,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       return [
         { id: 'transporter_jobs', label: t('nav_available_jobs'), icon: Truck },
         { id: 'transporter_my_jobs', label: t('nav_active_deliveries'), icon: Package },
+        { id: 'rules_regulations', label: language === 'ch' ? 'Malamulo' : 'Rules & Safety', icon: ShieldCheck },
+        { id: 'contact_details', label: language === 'ch' ? 'Malumikizidwe' : 'Contact Administration', icon: Phone },
         { id: 'support_queries', label: t('nav_queries_help'), icon: HelpCircle },
         { id: 'agri_intelligence', label: t('nav_agri_intel'), icon: Sparkles, badge: 'AI' },
         { id: 'impact_dashboard', label: t('nav_impact'), icon: BarChart3 },
@@ -225,6 +234,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'admin_overview', label: t('nav_control_center'), icon: ShieldCheck, color: 'text-purple-700' },
         { id: 'finance_revenue', label: t('nav_finance'), icon: Coins, color: 'text-rose-700' },
         { id: 'transactions_table', label: t('nav_transactions'), icon: Package },
+        { id: 'rules_regulations', label: language === 'ch' ? 'Malamulo' : 'Rules & Standards', icon: ShieldCheck },
+        { id: 'contact_details', label: language === 'ch' ? 'Malumikizidwe' : 'Contact Directory', icon: Phone },
         { id: 'support_queries', label: t('nav_queries_help'), icon: HelpCircle },
         { id: 'agri_intelligence', label: t('nav_agri_intel'), icon: Sparkles, badge: 'AI' },
         { id: 'impact_dashboard', label: t('nav_impact'), icon: BarChart3 },
@@ -236,6 +247,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       return [
         { id: 'finance_revenue', label: t('nav_finance'), icon: Coins, color: 'text-rose-700' },
         { id: 'transactions_table', label: t('nav_transactions'), icon: Package },
+        { id: 'rules_regulations', label: language === 'ch' ? 'Malamulo' : 'Rules & Escrow', icon: ShieldCheck },
+        { id: 'contact_details', label: language === 'ch' ? 'Malumikizidwe' : 'Contact Administration', icon: Phone },
         { id: 'support_queries', label: t('nav_queries_help'), icon: HelpCircle },
         { id: 'impact_dashboard', label: t('nav_impact'), icon: BarChart3 },
         { id: 'fee_simulator', label: t('nav_fee_simulator'), icon: Calculator },
@@ -272,15 +285,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <span className="font-bold text-stone-900 tracking-tight text-base sm:text-lg group-hover:text-emerald-800 transition-colors">
-                    Malawi Harvest Hub
+                  <span className="font-black text-stone-900 tracking-tight text-base sm:text-lg group-hover:text-emerald-800 transition-colors">
+                    Mberalink
                   </span>
                   <span className="inline-block px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold tracking-wider uppercase bg-emerald-100 text-emerald-800 rounded">
                     MW
                   </span>
                 </div>
                 <p className="text-[11px] text-stone-500 font-medium hidden md:block">
-                  {t('app_tagline')}
+                  {language === 'ch' ? 'Msika wa Ulimi & Mayendedwe ku Malawi' : 'Agricultural Marketplace & Logistics Network'}
                 </p>
               </div>
             </div>

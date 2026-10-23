@@ -391,7 +391,7 @@ export const SignInView: React.FC<SignInViewProps> = ({
           <Sprout className="w-7 h-7 text-emerald-300" />
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-          Malawi Harvest Hub
+          Mberalink
         </h1>
         <p className="text-emerald-100 text-xs sm:text-sm max-w-md mx-auto">
           Agricultural Trade &amp; Logistics Portal connecting Smallholder Farmers, Wholesale Buyers, and Freight Transporters across Malawi.
@@ -476,14 +476,14 @@ export const SignInView: React.FC<SignInViewProps> = ({
           <form onSubmit={handleSignIn} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1">
-                Email Address *
+                {language === 'ch' ? 'Imelo kapena Nambala ya Foni *' : 'Email Address or Phone Number *'}
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="e.g. name@example.com"
+                  placeholder={language === 'ch' ? 'Imelo kapena nambala ya foni (+265...)' : 'Email address or phone number (+265...)'}
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600 font-medium"

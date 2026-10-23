@@ -305,10 +305,10 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
               <div className="h-4 w-px bg-stone-200" />
               <div className="flex items-center gap-1.5">
                 <div className="w-6 h-6 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">
-                  MH
+                  MB
                 </div>
                 <span className="font-bold text-stone-900 text-xs truncate max-w-[130px]">
-                  Harvest Hub Mobile
+                  Mberalink Mobile
                 </span>
               </div>
             </div>
@@ -346,11 +346,11 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
                 <div className="p-3.5 border-b border-stone-200 flex items-center justify-between bg-stone-50">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">
-                      MH
+                      MB
                     </div>
                     <div>
                       <h4 className="font-bold text-stone-900 text-xs">{t('nav_menu')}</h4>
-                      <p className="text-[10px] text-stone-500">Malawi Harvest Hub</p>
+                      <p className="text-[10px] text-stone-500">Mberalink Platform</p>
                     </div>
                   </div>
                   <button

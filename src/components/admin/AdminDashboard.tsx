@@ -25,6 +25,11 @@ import {
   Sprout,
   Truck,
   ShoppingCart,
+  Coins,
+  Bell,
+  Minus,
+  Sliders,
+  ArrowUpRight,
 } from 'lucide-react';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 
@@ -32,7 +37,7 @@ export const AdminDashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const { subscribe } = useRealtime();
 
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'commission' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
   const [usersList, setUsersList] = useState<User[]>([]);
   const [commoditiesList, setCommoditiesList] = useState<Commodity[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>([]);
@@ -262,6 +267,41 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleQuickAdjust = async (delta: number) => {
+    let current = parseFloat(commissionRate) || 0.04;
+    if (current > 1) current = current / 100;
+    const nextRate = Math.max(0.005, Math.min(0.25, Math.round((current + delta) * 1000) / 1000));
+    setCommissionRate(nextRate.toString());
+    setIsUpdatingCommission(true);
+    setCommissionSuccessMsg('');
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'commission_rate',
+          value: nextRate.toString(),
+          description: commissionReason || `Platform fee adjusted to ${(nextRate * 100).toFixed(1)}% by administrator`,
+          adminUid: currentUser?.uid,
+          adminName: currentUser?.fullName,
+        }),
+      });
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        setCommissionSuccessMsg(
+          `Platform commission successfully updated to ${(nextRate * 100).toFixed(1)}%! Broadcast notification sent and financial calculations synchronized across all portals.`
+        );
+        fetchAll();
+      } else {
+        alert(`Failed to update settings: ${parsed.error || 'Server error'}`);
+      }
+    } catch (err: any) {
+      alert(`Network error adjusting commission: ${err.message || err}`);
+    } finally {
+      setIsUpdatingCommission(false);
+    }
+  };
+
   const handleUpdateCommissionRate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdatingCommission(true);
@@ -269,7 +309,7 @@ export const AdminDashboard: React.FC = () => {
     try {
       let numericVal = parseFloat(commissionRate);
       if (isNaN(numericVal) || numericVal <= 0) {
-        alert('Please enter a valid positive percentage or decimal (e.g. 0.05 or 5.0)');
+        alert('Please enter a valid positive percentage or decimal (e.g. 5.0% or 0.05)');
         setIsUpdatingCommission(false);
         return;
       }
@@ -462,6 +502,60 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Central Commission Overview & Quick Stepper Banner */}
+      <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-emerald-950 text-white rounded-3xl p-5 sm:p-6 border border-purple-700/50 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Coins className="w-5 h-5 text-amber-400" />
+            <span className="font-extrabold text-sm text-white">Central Platform Commission</span>
+            <span className="px-3 py-1 rounded-full bg-amber-400 text-stone-950 font-black text-xs shadow-xs">
+              Live Active Rate: {(Number(commissionRate) * 100).toFixed(1)}%
+            </span>
+            <span className="text-[11px] text-purple-200 bg-white/10 px-2 py-0.5 rounded-md font-semibold">
+              Live Synchronized Across All Portals
+            </span>
+          </div>
+          <p className="text-xs text-purple-200 max-w-xl">
+            Governs buyer checkout escrow deductions, farmer net disbursements, transporter facilitation, and finance settlements across all 28 districts.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <button
+            type="button"
+            onClick={() => handleQuickAdjust(-0.005)}
+            disabled={isUpdatingCommission}
+            className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition-all flex items-center gap-1 active:scale-95 disabled:opacity-50"
+            title="Decrease platform rate by 0.5%"
+          >
+            <Minus className="w-3.5 h-3.5 text-rose-300" />
+            <span>0.5% Decrease</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleQuickAdjust(0.005)}
+            disabled={isUpdatingCommission}
+            className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition-all flex items-center gap-1 active:scale-95 disabled:opacity-50"
+            title="Raise platform rate by 0.5%"
+          >
+            <Plus className="w-3.5 h-3.5 text-emerald-300" />
+            <span>0.5% Raise</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('commission')}
+            className={`px-4 py-2 rounded-xl font-extrabold text-xs shadow-sm transition-all flex items-center gap-1.5 active:scale-95 ${
+              activeSubTab === 'commission'
+                ? 'bg-white text-purple-950 ring-2 ring-amber-400'
+                : 'bg-amber-400 hover:bg-amber-300 text-stone-950'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Adjust &amp; Presets</span>
+          </button>
+        </div>
+      </div>
+
       {/* Sub Tabs */}
       <div className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto text-xs font-bold">
         <button
@@ -490,6 +584,17 @@ export const AdminDashboard: React.FC = () => {
         >
           <Layers className="w-3.5 h-3.5" />
           <span>Orders ({ordersList.length})</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('commission')}
+          className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
+            activeSubTab === 'commission'
+              ? 'bg-amber-100 text-stone-950 font-black ring-1 ring-amber-400 shadow-2xs'
+              : 'text-stone-700 bg-amber-50/60 hover:bg-amber-100/70 border border-amber-200/60'
+          }`}
+        >
+          <Coins className="w-3.5 h-3.5 text-amber-600" />
+          <span>Commission ({(Number(commissionRate) * 100).toFixed(1)}%)</span>
         </button>
         <button
           onClick={() => setActiveSubTab('categories')}
@@ -901,29 +1006,29 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* SUB TAB 6: SETTINGS & COMMISSION CONTROL */}
-      {activeSubTab === 'settings' && (
+      {/* SUB TAB 6: COMMISSION & PLATFORM FINANCIAL GOVERNANCE */}
+      {(activeSubTab === 'commission' || activeSubTab === 'settings') && (
         <div className="space-y-6 max-w-4xl">
           {/* Header Card */}
-          <div className="bg-white p-6 sm:p-7 rounded-3xl border border-stone-200 shadow-xs space-y-3">
+          <div className="bg-white p-6 sm:p-7 rounded-3xl border border-stone-200 shadow-xs space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2.5 rounded-2xl bg-purple-100 text-purple-800">
-                  <Settings className="w-5 h-5 text-purple-700" />
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-amber-100 text-amber-900 shadow-2xs">
+                  <Coins className="w-6 h-6 text-amber-700" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-stone-900">Platform Commission &amp; Financial Governance</h3>
+                  <h3 className="text-lg font-black text-stone-900">Platform Commission &amp; Fee Governance</h3>
                   <p className="text-xs text-stone-500">
-                    Centrally control and adjust commodity trade commission rates across all Malawi Harvest Hub platforms.
+                    Centrally control, raise, or decrease commodity trade commission percentage synchronized across all 28 districts.
                   </p>
                 </div>
               </div>
 
               {/* Current Active Rate Badge */}
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-purple-50 border border-purple-200">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-amber-50 border border-amber-300 shadow-2xs">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs text-stone-500 font-semibold">Active Live Rate:</span>
-                <span className="text-sm font-black text-purple-900">
+                <span className="text-xs text-stone-600 font-semibold">Active Live Rate:</span>
+                <span className="text-base font-black text-stone-950 font-mono">
                   {(Number(commissionRate) * 100).toFixed(1)}%
                 </span>
               </div>
@@ -934,6 +1039,7 @@ export const AdminDashboard: React.FC = () => {
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="flex-1 font-medium">{commissionSuccessMsg}</div>
                 <button
+                  type="button"
                   onClick={() => setCommissionSuccessMsg('')}
                   className="text-emerald-700 hover:text-emerald-950 font-bold text-xs"
                 >
@@ -942,124 +1048,229 @@ export const AdminDashboard: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleUpdateCommissionRate} className="space-y-5 pt-3">
-              {/* Presets and Input */}
-              <div className="p-5 rounded-2xl bg-stone-50 border border-stone-200 space-y-4">
+            <form onSubmit={handleUpdateCommissionRate} className="space-y-5 pt-2">
+              {/* Stepper Buttons for Raising & Decreasing */}
+              <div className="p-5 rounded-3xl bg-stone-50 border border-stone-200 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <label className="text-xs font-bold text-stone-900">
-                    Quick Preset Commission Tiers
+                  <label className="text-xs font-black uppercase tracking-wider text-stone-800 flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-amber-600" />
+                    <span>Quick Steppers — Raise or Decrease Percentage</span>
                   </label>
                   <span className="text-[11px] text-stone-500">
-                    Click any preset to preview calculations immediately
+                    Instant one-click adjustment with live calculations
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {[0.025, 0.03, 0.04, 0.05, 0.06, 0.075, 0.10].map((rate) => {
-                    const isSelected = Math.abs(Number(commissionRate) - rate) < 0.001;
-                    return (
-                      <button
-                        key={rate}
-                        type="button"
-                        onClick={() => setCommissionRate(rate.toString())}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all ${
-                          isSelected
-                            ? 'bg-purple-700 text-white shadow-xs ring-2 ring-purple-600 ring-offset-1'
-                            : 'bg-white text-stone-700 border border-stone-200 hover:bg-purple-50 hover:text-purple-900'
-                        }`}
-                      >
-                        {(rate * 100).toFixed(1)}% {rate === 0.04 ? '(Initial Default)' : ''}
-                      </button>
-                    );
-                  })}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickAdjust(-0.01)}
+                    disabled={isUpdatingCommission || Number(commissionRate) <= 0.01}
+                    className="p-3 rounded-2xl bg-white border border-stone-200 hover:border-rose-300 hover:bg-rose-50/50 text-stone-800 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-40"
+                  >
+                    <Minus className="w-4 h-4 text-rose-600" />
+                    <span>- 1.0% Decrease</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickAdjust(-0.005)}
+                    disabled={isUpdatingCommission || Number(commissionRate) <= 0.005}
+                    className="p-3 rounded-2xl bg-white border border-stone-200 hover:border-rose-300 hover:bg-rose-50/50 text-stone-800 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-40"
+                  >
+                    <Minus className="w-4 h-4 text-rose-600" />
+                    <span>- 0.5% Decrease</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickAdjust(0.005)}
+                    disabled={isUpdatingCommission || Number(commissionRate) >= 0.25}
+                    className="p-3 rounded-2xl bg-white border border-stone-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-stone-800 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-40"
+                  >
+                    <Plus className="w-4 h-4 text-emerald-600" />
+                    <span>+ 0.5% Raise</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickAdjust(0.01)}
+                    disabled={isUpdatingCommission || Number(commissionRate) >= 0.25}
+                    className="p-3 rounded-2xl bg-white border border-stone-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-stone-800 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-40"
+                  >
+                    <Plus className="w-4 h-4 text-emerald-600" />
+                    <span>+ 1.0% Raise</span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-stone-200/80">
+                {/* Preset Tiers */}
+                <div className="pt-2 border-t border-stone-200/80 space-y-2">
+                  <span className="text-[11px] font-bold text-stone-600 block">Preset Standard Tiers:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {[0.02, 0.03, 0.04, 0.05, 0.06, 0.075, 0.10, 0.125, 0.15].map((rate) => {
+                      const isSelected = Math.abs(Number(commissionRate) - rate) < 0.001;
+                      return (
+                        <button
+                          key={rate}
+                          type="button"
+                          onClick={() => setCommissionRate(rate.toString())}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
+                            isSelected
+                              ? 'bg-amber-500 text-stone-950 shadow-xs ring-2 ring-amber-400 font-black'
+                              : 'bg-white text-stone-700 border border-stone-200 hover:bg-amber-50 hover:text-amber-900'
+                          }`}
+                        >
+                          {(rate * 100).toFixed(1)}% {rate === 0.04 ? '(Default)' : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Range Slider and Direct Percent Input */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-stone-200/80">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-stone-800">
+                        Visual Range Slider (0.5% – 25.0%)
+                      </label>
+                      <span className="text-xs font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                        {(Number(commissionRate) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.005"
+                      max="0.25"
+                      step="0.005"
+                      value={Number(commissionRate) > 1 ? Number(commissionRate) / 100 : Number(commissionRate)}
+                      onChange={(e) => setCommissionRate(e.target.value)}
+                      className="w-full accent-amber-600 cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-stone-400 font-mono">
+                      <span>0.5%</span>
+                      <span>5.0%</span>
+                      <span>10.0%</span>
+                      <span>15.0%</span>
+                      <span>20.0%</span>
+                      <span>25.0%</span>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">
-                      Custom Percentage / Decimal Rate *
+                    <label className="block text-xs font-bold text-stone-800 mb-1">
+                      Direct Percentage Input (e.g. 4.5% or 5.0%) *
                     </label>
                     <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.005"
-                        min="0.005"
-                        max="0.30"
-                        required
-                        value={commissionRate}
-                        onChange={(e) => setCommissionRate(e.target.value)}
-                        className="w-full px-3.5 py-2.5 text-xs font-bold rounded-xl border border-stone-300 focus:outline-purple-600 bg-white"
-                        placeholder="e.g. 0.05 or 5.0"
-                      />
-                      <span className="text-sm font-extrabold text-purple-950 shrink-0 px-2.5 py-2 rounded-xl bg-purple-100">
-                        = {(Number(commissionRate) * 100).toFixed(1)}%
+                      <div className="relative flex-1">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.5"
+                          max="25.0"
+                          required
+                          value={(Number(commissionRate) * 100).toFixed(1)}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              setCommissionRate((val / 100).toString());
+                            }
+                          }}
+                          className="w-full pl-3.5 pr-8 py-2.5 text-xs font-black rounded-xl border border-stone-300 focus:outline-amber-600 bg-white"
+                          placeholder="e.g. 4.5"
+                        />
+                        <span className="absolute right-3 top-2.5 text-xs font-extrabold text-stone-400">
+                          %
+                        </span>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-stone-500 bg-stone-200/80 px-2.5 py-2.5 rounded-xl shrink-0">
+                        = {Number(commissionRate) > 1 ? (Number(commissionRate) / 100).toFixed(4) : Number(commissionRate).toFixed(4)} dec
                       </span>
                     </div>
                     <p className="text-[11px] text-stone-400 mt-1">
-                      Enter as decimal (0.05) or percentage (5.0). Range: 0.5% - 30.0%.
+                      Range: 0.5% to 25.0%. Instant preview applies below.
                     </p>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">
-                      Administrative Reason / Public Note
-                    </label>
-                    <input
-                      type="text"
-                      value={commissionReason}
-                      onChange={(e) => setCommissionReason(e.target.value)}
-                      placeholder="e.g. Adjusted to 5.0% for nationwide harvest season operations"
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-300 focus:outline-purple-600 bg-white"
-                    />
-                    <p className="text-[11px] text-stone-400 mt-1">
-                      Recorded in system audit log and broadcast in user notification.
-                    </p>
-                  </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">
+                    Administrative Reason / Public Note
+                  </label>
+                  <input
+                    type="text"
+                    value={commissionReason}
+                    onChange={(e) => setCommissionReason(e.target.value)}
+                    placeholder="e.g. Adjusted to 4.5% for nationwide harvest season operations"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white"
+                  />
+                  <p className="text-[11px] text-stone-400 mt-1">
+                    Logged in system audit trail and transparently broadcast to all platform users.
+                  </p>
                 </div>
               </div>
 
               {/* Dynamic Calculation Preview Card */}
-              <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="p-5 rounded-3xl bg-indigo-50/70 border border-indigo-200 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
                     <Coins className="w-4 h-4 text-indigo-700" />
-                    <span>Real-Time Calculation Preview (Example MWK 500,000 Maize Trade)</span>
+                    <span>Real-Time Calculation Preview at {(Number(commissionRate) * 100).toFixed(1)}% Rate</span>
                   </span>
-                  <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100 px-2.5 py-0.5 rounded-full">
-                    At {(Number(commissionRate) * 100).toFixed(1)}% Rate
+                  <span className="text-[11px] font-bold text-indigo-800 bg-indigo-100 px-2.5 py-0.5 rounded-full">
+                    Live Formula: Gross × Rate = Platform Fee
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <div className="bg-white p-3 rounded-xl border border-indigo-100">
-                    <span className="text-stone-400 block text-[10px] uppercase font-bold">Commodity Gross Value</span>
-                    <span className="text-base font-black text-stone-900">MWK 500,000</span>
+                  <div className="bg-white p-3.5 rounded-2xl border border-indigo-100 space-y-0.5">
+                    <span className="text-stone-400 block text-[10px] uppercase font-bold">Commodity Gross Trade</span>
+                    <span className="text-base font-black text-stone-900 block">MWK 500,000</span>
+                    <span className="text-[11px] text-stone-500">(e.g. 770kg White Maize)</span>
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-indigo-100">
-                    <span className="text-indigo-600 block text-[10px] uppercase font-bold">Platform Fee ({(Number(commissionRate) * 100).toFixed(1)}%)</span>
-                    <span className="text-base font-black text-purple-700">
+                  <div className="bg-white p-3.5 rounded-2xl border border-indigo-100 space-y-0.5">
+                    <span className="text-indigo-600 block text-[10px] uppercase font-bold">
+                      Platform Fee ({(Number(commissionRate) * 100).toFixed(1)}%)
+                    </span>
+                    <span className="text-base font-black text-purple-700 block">
                       MWK {Math.round(500000 * Number(commissionRate)).toLocaleString()}
                     </span>
+                    <span className="text-[11px] text-purple-600 font-semibold">Deducted via Escrow</span>
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-indigo-100">
-                    <span className="text-emerald-700 block text-[10px] uppercase font-bold">Farmer Net Disbursement</span>
-                    <span className="text-base font-black text-emerald-800">
+                  <div className="bg-white p-3.5 rounded-2xl border border-indigo-100 space-y-0.5">
+                    <span className="text-emerald-700 block text-[10px] uppercase font-bold">Farmer Net Payout</span>
+                    <span className="text-base font-black text-emerald-800 block">
                       MWK {Math.round(500000 * (1 - Number(commissionRate))).toLocaleString()}
+                    </span>
+                    <span className="text-[11px] text-emerald-600 font-semibold">Disbursed to Farmer Bank/Phone</span>
+                  </div>
+                </div>
+
+                {/* Second row for large trade (MWK 2,500,000) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1 border-t border-indigo-100">
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-indigo-100">
+                    <span className="text-stone-400 text-[10px] uppercase font-bold">Commercial Lot MWK 2,500,000</span>
+                  </div>
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-indigo-100">
+                    <span className="text-purple-700 font-extrabold text-xs">
+                      Fee: MWK {Math.round(2500000 * Number(commissionRate)).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-indigo-100">
+                    <span className="text-emerald-800 font-extrabold text-xs">
+                      Farmer Net: MWK {Math.round(2500000 * (1 - Number(commissionRate))).toLocaleString()}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Scope & Transparency Guarantee List */}
+              {/* Platform-Wide Synchronization Guarantee */}
               <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 text-xs text-emerald-950 space-y-2">
                 <div className="font-extrabold flex items-center gap-1.5 text-emerald-900">
                   <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                  <span>Platform-Wide Synchronization &amp; User Transparency Guarantee:</span>
+                  <span>Platform-Wide Automatic Synchronization Guarantee:</span>
                 </div>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-emerald-800">
                   <li className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Buyer Marketplace updates order checkout commission instantly</span>
+                    <span>Buyer Marketplace order checkout reflects new fee instantly</span>
                   </li>
                   <li className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -1091,9 +1302,9 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isUpdatingCommission}
-                  className="px-6 py-2.5 text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                  className="px-6 py-2.5 text-xs font-black text-stone-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
                 >
-                  <Settings className="w-4 h-4" />
+                  <Coins className="w-4 h-4 text-stone-950" />
                   <span>
                     {isUpdatingCommission
                       ? 'Broadcasting & Updating...'

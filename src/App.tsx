@@ -17,8 +17,9 @@ import { LandingView } from './components/landing/LandingView.tsx';
 import { FarmerTransportHire } from './components/farmer/FarmerTransportHire.tsx';
 import { SupportQueriesDesk } from './components/support/SupportQueriesDesk.tsx';
 import { AgriIntelligenceView } from './components/intelligence/AgriIntelligenceView.tsx';
+import { RulesAndRegulationsView } from './components/common/RulesAndRegulationsView.tsx';
+import { ContactDetailsView } from './components/common/ContactDetailsView.tsx';
 import { LanguageProvider, useLanguage } from './context/LanguageContext.tsx';
-import { LanguageSideWidget } from './components/common/LanguageSideWidget.tsx';
 import { ShieldAlert } from 'lucide-react';
 
 function MainContent() {
@@ -99,6 +100,12 @@ function MainContent() {
       if (activeTab === 'agri_intelligence') {
         return <AgriIntelligenceView />;
       }
+      if (activeTab === 'rules_regulations') {
+        return <RulesAndRegulationsView onContactClick={() => setActiveTab('contact_details')} />;
+      }
+      if (activeTab === 'contact_details') {
+        return <ContactDetailsView onNavigateToRules={() => setActiveTab('rules_regulations')} />;
+      }
       return (
         <LandingView
           onOpenSignIn={() => {
@@ -106,6 +113,8 @@ function MainContent() {
             setIsAuthModalOpen(true);
           }}
           onExploreMarketplace={() => setActiveTab('marketplace')}
+          onOpenRules={() => setActiveTab('rules_regulations')}
+          onOpenContact={() => setActiveTab('contact_details')}
         />
       );
     }
@@ -115,6 +124,8 @@ function MainContent() {
         <LandingView
           onOpenSignIn={() => navigateByRole(currentUser.role)}
           onExploreMarketplace={() => setActiveTab('marketplace')}
+          onOpenRules={() => setActiveTab('rules_regulations')}
+          onOpenContact={() => setActiveTab('contact_details')}
         />
       );
     }
@@ -202,6 +213,10 @@ function MainContent() {
         return <SupportQueriesDesk />;
       case 'agri_intelligence':
         return <AgriIntelligenceView />;
+      case 'rules_regulations':
+        return <RulesAndRegulationsView onContactClick={() => setActiveTab('contact_details')} />;
+      case 'contact_details':
+        return <ContactDetailsView onNavigateToRules={() => setActiveTab('rules_regulations')} />;
       default:
         return <FarmerDashboard />;
     }
@@ -245,9 +260,6 @@ function MainContent() {
         />
       )}
 
-      {/* Dedicated Floating / Side-Docked Language Selector */}
-      <LanguageSideWidget />
-
       <NotificationDrawer
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
@@ -261,13 +273,13 @@ function MainContent() {
         <div className="max-w-7xl mx-auto px-4 space-y-1">
           <p className="font-semibold text-stone-700">
             {language === 'ch'
-              ? 'Malawi Harvest Hub • Kupatsa Mphamvu Malonda a Ulimi M\'maboma Onse 28 a Malawi'
-              : 'Malawi Harvest Hub • Empowering Agricultural Commerce Across 28 Districts'}
+              ? 'Mberalink (Malawi Harvest Hub) • Kupatsa Mphamvu Malonda a Ulimi M\'maboma Onse 28 a Malawi'
+              : 'Mberalink • Empowering Agricultural Commerce & Logistics Across 28 Districts of Malawi'}
           </p>
-          <p>
+          <p className="text-[11px] text-stone-400">
             {language === 'ch'
-              ? 'Yolumikizidwa ku PostgreSQL Database • Realtime WebSockets • Chitetezo cha Escrow'
-              : 'Connected to Cloud SQL PostgreSQL Central Database • Realtime WebSockets • Capped Escrow'}
+              ? 'Malamulo & Ndondomeko za Malonda • Chitetezo cha Escrow • Oyang\'anira Akulu Peter & Joshua Malikebu'
+              : 'Official Trading Code & Escrow Protection • Central Cloud Database • Realtime WebSockets'}
           </p>
         </div>
       </footer>

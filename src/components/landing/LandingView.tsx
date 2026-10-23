@@ -19,9 +19,16 @@ import {
 interface LandingViewProps {
   onOpenSignIn: () => void;
   onExploreMarketplace?: () => void;
+  onOpenRules?: () => void;
+  onOpenContact?: () => void;
 }
 
-export const LandingView: React.FC<LandingViewProps> = ({ onOpenSignIn, onExploreMarketplace }) => {
+export const LandingView: React.FC<LandingViewProps> = ({
+  onOpenSignIn,
+  onExploreMarketplace,
+  onOpenRules,
+  onOpenContact,
+}) => {
   const { t, language } = useLanguage();
   const [featuredCommodities, setFeaturedCommodities] = useState<Commodity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,15 +58,19 @@ export const LandingView: React.FC<LandingViewProps> = ({ onOpenSignIn, onExplor
         <div className="relative z-10 max-w-3xl space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold tracking-wide">
             <Sprout className="w-4 h-4 text-emerald-400" />
-            <span>{t('landing_badge', "Malawi's Premier Agricultural Digital Exchange")}</span>
+            <span>Mberalink • Malawi's Premier Agricultural Digital Exchange</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-tight">
-            {t('landing_hero_title', 'Connecting Malawian Farmers, Commercial Buyers & Freight Transporters')}
+            {language === 'ch'
+              ? 'Mberalink: Kulunzanitsa Alimi, Ogula Katundu Wambiri & Onyamula pa Galimoto ku Malawi'
+              : 'Mberalink: Connecting Malawian Farmers, Commercial Buyers & Freight Transporters'}
           </h1>
 
           <p className="text-stone-200 text-sm sm:text-base leading-relaxed">
-            {t('landing_hero_desc', 'Secure escrow payments, transparent farmgate prices, direct transport logistics, and guaranteed settlement across all 28 districts of Malawi.')}
+            {language === 'ch'
+              ? 'Malipiro otetezedwa a escrow, mitengo yowonekera bwino ya m\'minda, mayendedwe achindunji a katundu, ndi chitetezo m\'maboma onse 28 a Malawi.'
+              : 'Secure escrow payments, transparent farmgate prices, direct transport logistics, and guaranteed settlement across all 28 districts of Malawi.'}
           </p>
 
           <div className="flex flex-wrap gap-3.5 pt-2">
@@ -78,6 +89,23 @@ export const LandingView: React.FC<LandingViewProps> = ({ onOpenSignIn, onExplor
               >
                 <ShoppingCart className="w-4 h-4" />
                 <span>{t('landing_btn_explore', 'Explore Marketplace')}</span>
+              </button>
+            )}
+            {onOpenRules && (
+              <button
+                onClick={onOpenRules}
+                className="px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 transition-all flex items-center gap-2"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                <span>{language === 'ch' ? 'Malamulo a Nsanja' : 'Rules & Standards'}</span>
+              </button>
+            )}
+            {onOpenContact && (
+              <button
+                onClick={onOpenContact}
+                className="px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 transition-all flex items-center gap-2"
+              >
+                <span>{language === 'ch' ? 'Malumikizidwe & Maofesi' : 'Contact Directory'}</span>
               </button>
             )}
           </div>
