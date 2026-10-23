@@ -97,6 +97,98 @@ function initializeSeedStore(): Record<string, any[]> {
       createdAt: now,
       updatedAt: now,
     },
+    {
+      id: 3,
+      uid: 'farmer-chimwemwe-01',
+      email: 'chimwemwe.phiri@mhh.mw',
+      fullName: 'Chimwemwe Phiri',
+      role: 'farmer',
+      phoneNumber: '+265 888 123 456',
+      password: 'P1qe2wt3ee4rr5t?',
+      photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+      district: 'Mchinji',
+      region: 'Central',
+      tradingArea: 'Kamwendo Depot',
+      village: 'Tembwe',
+      bankName: 'National Bank of Malawi',
+      bankAccount: '1014499881',
+      bankAccountName: 'CHIMWEMWE PHIRI',
+      vehicleType: '',
+      vehicleRegistration: '',
+      vehicleCapacityKg: 0,
+      isAvailable: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 4,
+      uid: 'buyer-alinafe-02',
+      email: 'alinafe.banda@mhh.mw',
+      fullName: 'Alinafe Banda',
+      role: 'buyer',
+      phoneNumber: '+265 999 234 567',
+      password: 'P1qe2wt3ee4rr5t?',
+      photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop&q=80',
+      district: 'Lilongwe',
+      region: 'Central',
+      tradingArea: 'Area 25',
+      village: 'Kanengo Industrial Area',
+      bankName: 'Standard Bank Malawi',
+      bankAccount: '9100034521',
+      bankAccountName: 'ALINAFE BANDA',
+      vehicleType: '',
+      vehicleRegistration: '',
+      vehicleCapacityKg: 0,
+      isAvailable: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 5,
+      uid: 'transporter-kondwani-03',
+      email: 'kondwani.chirwa@mhh.mw',
+      fullName: 'Kondwani Chirwa',
+      role: 'transporter',
+      phoneNumber: '+265 881 345 678',
+      password: 'P1qe2wt3ee4rr5t?',
+      photoUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&auto=format&fit=crop&q=80',
+      district: 'Dedza',
+      region: 'Central',
+      tradingArea: 'Bembeke',
+      village: 'Linthipe',
+      vehicleType: 'Light Truck (3-5 Ton)',
+      vehicleRegistration: 'LL 4829 BW',
+      vehicleCapacityKg: 5000,
+      bankName: 'FDH Bank',
+      bankAccount: '1100049281',
+      bankAccountName: 'KONDWANI CHIRWA',
+      isAvailable: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 6,
+      uid: 'finance-chisomo-04',
+      email: 'chisomo.mwale@mhh.mw',
+      fullName: 'Chisomo Mwale',
+      role: 'finance_admin',
+      phoneNumber: '+265 994 567 890',
+      password: 'P1qe2wt3ee4rr5t?',
+      photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80',
+      district: 'Lilongwe',
+      region: 'Central',
+      tradingArea: 'City Centre',
+      village: 'Area 4',
+      bankName: 'National Bank of Malawi',
+      bankAccount: '1018899223',
+      bankAccountName: 'CHISOMO MWALE',
+      vehicleType: '',
+      vehicleRegistration: '',
+      vehicleCapacityKg: 0,
+      isAvailable: true,
+      createdAt: now,
+      updatedAt: now,
+    },
   ];
 
   const categories = [
@@ -775,13 +867,47 @@ export function getInMemoryStore(): Record<string, any[]> {
         });
       }
 
-      // 3. Ensure support_tickets table exists in store
-      if (!Array.isArray(global._inMemoryStore.support_tickets)) {
-        const seed = initializeSeedStore();
-        global._inMemoryStore.support_tickets = seed.support_tickets || [];
+      // 3. Ensure demo users exist in store
+      const seed = initializeSeedStore();
+      for (const su of seed.users) {
+        const found = global._inMemoryStore.users.find((u: any) => u.uid === su.uid || u.email === su.email);
+        if (!found) {
+          const nextId = Math.max(...global._inMemoryStore.users.map((u: any) => Number(u.id) || 0)) + 1;
+          global._inMemoryStore.users.push({ ...su, id: nextId });
+        }
       }
 
-      // 4. Ensure password_reset_requests table exists in store
+      // 4. Ensure commodities, orders, and tables exist and are populated if empty
+      if (!Array.isArray(global._inMemoryStore.commodities) || global._inMemoryStore.commodities.length === 0) {
+        global._inMemoryStore.commodities = seed.commodities || [];
+      }
+      if (!Array.isArray(global._inMemoryStore.categories) || global._inMemoryStore.categories.length === 0) {
+        global._inMemoryStore.categories = seed.categories || [];
+      }
+      if (!Array.isArray(global._inMemoryStore.orders) || global._inMemoryStore.orders.length === 0) {
+        global._inMemoryStore.orders = seed.orders || [];
+      }
+      if (!Array.isArray(global._inMemoryStore.transport_jobs) || global._inMemoryStore.transport_jobs.length === 0) {
+        global._inMemoryStore.transport_jobs = seed.transport_jobs || [];
+      }
+      if (!Array.isArray(global._inMemoryStore.transactions) || global._inMemoryStore.transactions.length === 0) {
+        global._inMemoryStore.transactions = seed.transactions || [];
+      }
+      if (!Array.isArray(global._inMemoryStore.revenue_ledger) || global._inMemoryStore.revenue_ledger.length === 0) {
+        global._inMemoryStore.revenue_ledger = seed.revenue_ledger || [];
+      }
+      if (!Array.isArray(global._inMemoryStore.platform_settings) || global._inMemoryStore.platform_settings.length === 0) {
+        global._inMemoryStore.platform_settings = seed.platform_settings || [];
+      }
+      if (!Array.isArray(global._inMemoryStore.notifications) || global._inMemoryStore.notifications.length === 0) {
+        global._inMemoryStore.notifications = seed.notifications || [];
+      }
+      if (!Array.isArray(global._inMemoryStore.audit_logs) || global._inMemoryStore.audit_logs.length === 0) {
+        global._inMemoryStore.audit_logs = seed.audit_logs || [];
+      }
+      if (!Array.isArray(global._inMemoryStore.support_tickets)) {
+        global._inMemoryStore.support_tickets = seed.support_tickets || [];
+      }
       if (!Array.isArray(global._inMemoryStore.password_reset_requests)) {
         global._inMemoryStore.password_reset_requests = [];
       }
@@ -1090,6 +1216,7 @@ function createInMemoryDb() {
 
 // Export database client
 let dbInstance: any;
+const inMemoryDb = createInMemoryDb();
 
 const hasPgConfig = Boolean(
   process.env.DATABASE_URL ||
@@ -1100,7 +1227,7 @@ const hasPgConfig = Boolean(
 if (hasPgConfig) {
   try {
     const pool = createPool();
-    dbInstance = drizzle(pool, { schema });
+    const liveDb = drizzle(pool, { schema });
     console.log('[AI Studio] Connected to Live PostgreSQL database pool.');
 
     // Asynchronously ensure base tables and permanent production admins in Live PostgreSQL
@@ -1142,13 +1269,44 @@ if (hasPgConfig) {
       console.warn('[AI Studio] PostgreSQL schema verification notice:', tableErr.message);
     });
 
+    dbInstance = new Proxy(liveDb, {
+      get(target, prop, receiver) {
+        const orig = Reflect.get(target, prop, receiver);
+        if (typeof orig === 'function') {
+          return function (...args: any[]) {
+            try {
+              const res = orig.apply(target, args);
+              if (res && typeof res.then === 'function') {
+                return res.catch((err: any) => {
+                  console.warn('[AI Studio] Live PG query failed, using in-memory store:', err?.message || err);
+                  const fallbackFn = (inMemoryDb as any)[prop];
+                  if (typeof fallbackFn === 'function') {
+                    return fallbackFn.apply(inMemoryDb, args);
+                  }
+                  throw err;
+                });
+              }
+              return res;
+            } catch (err: any) {
+              console.warn('[AI Studio] Live PG call failed, using in-memory store:', err?.message || err);
+              const fallbackFn = (inMemoryDb as any)[prop];
+              if (typeof fallbackFn === 'function') {
+                return fallbackFn.apply(inMemoryDb, args);
+              }
+              throw err;
+            }
+          };
+        }
+        return orig;
+      },
+    });
   } catch (err) {
     console.warn('[AI Studio] PostgreSQL connection failed, activating in-memory fallback store:', err);
-    dbInstance = createInMemoryDb();
+    dbInstance = inMemoryDb;
   }
 } else {
   console.log('[AI Studio] No PostgreSQL connection string specified. Using responsive in-memory database store with disk persistence.');
-  dbInstance = createInMemoryDb();
+  dbInstance = inMemoryDb;
 }
 
 export const db: ReturnType<typeof drizzle<typeof schema>> = dbInstance as any;
