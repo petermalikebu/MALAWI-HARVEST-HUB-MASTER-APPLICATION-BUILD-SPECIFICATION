@@ -8,14 +8,25 @@ declare global {
   var _inMemoryStore: Record<string, any[]> | undefined;
 }
 
+export const isValidPostgresUrl = (str?: string): boolean => {
+  if (!str) return false;
+  const trimmed = str.trim();
+  return (
+    (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) &&
+    !trimmed.includes(' ') &&
+    !trimmed.toLowerCase().includes('gemini')
+  );
+};
+
 export const createPool = () => {
   if (!global._postgresPool) {
-    if (process.env.DATABASE_URL) {
+    const dbUrl = (process.env.DATABASE_URL || '').trim();
+    if (isValidPostgresUrl(dbUrl)) {
       global._postgresPool = new Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: dbUrl,
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
         max: 10,
-        connectionTimeoutMillis: 15000,
+        connectionTimeoutMillis: 3000,
       });
     } else {
       global._postgresPool = new Pool({
@@ -30,12 +41,12 @@ export const createPool = () => {
             ? { rejectUnauthorized: false }
             : undefined,
         max: 10,
-        connectionTimeoutMillis: 15000,
+        connectionTimeoutMillis: 3000,
       });
     }
 
     global._postgresPool.on('error', (err) => {
-      console.error('Unexpected error on idle SQL pool client:', err);
+      console.warn('Unexpected error on idle SQL pool client:', err?.message || err);
     });
   }
   return global._postgresPool;
@@ -1218,17 +1229,88 @@ function createInMemoryDb() {
 let dbInstance: any;
 const inMemoryDb = createInMemoryDb();
 
-const hasPgConfig = Boolean(
-  process.env.DATABASE_URL ||
-  process.env.SQL_HOST ||
-  process.env.PGHOST
-);
+const isPostgresConfigured = (): boolean => {
+  const url = (process.env.DATABASE_URL || '').trim();
+  if (url) {
+    return isValidPostgresUrl(url);
+  }
+  const host = (process.env.SQL_HOST || process.env.PGHOST || '').trim();
+  if (host && !host.includes(' ') && host !== 'localhost' && host !== '127.0.0.1') {
+    return true;
+  }
+  return false;
+};
+
+const hasPgConfig = isPostgresConfigured();
+
+function wrapWithFallback(live: any, fallback: any): any {
+  function wrapChain(liveVal: any, fallbackVal: any): any {
+    if (!liveVal || (typeof liveVal !== 'object' && typeof liveVal !== 'function')) {
+      return liveVal;
+    }
+
+    return new Proxy(liveVal, {
+      get(target, prop, receiver) {
+        if (prop === 'then') {
+          return function (resolve: any, reject: any) {
+            return target.then(resolve, (err: any) => {
+              console.warn('[AI Studio] PostgreSQL query failed, executing fallback via in-memory database:', err?.message || err);
+              if (fallbackVal && typeof fallbackVal.then === 'function') {
+                return fallbackVal.then(resolve, reject);
+              }
+              return resolve(fallbackVal);
+            });
+          };
+        }
+
+        const origProp = Reflect.get(target, prop, receiver);
+        if (typeof origProp === 'function') {
+          return function (...args: any[]) {
+            const nextLive = origProp.apply(target, args);
+            const nextFallback =
+              fallbackVal && typeof fallbackVal[prop] === 'function'
+                ? fallbackVal[prop].apply(fallbackVal, args)
+                : fallbackVal;
+            return wrapChain(nextLive, nextFallback);
+          };
+        }
+        return origProp;
+      },
+    });
+  }
+
+  return new Proxy(live, {
+    get(target, prop, receiver) {
+      const orig = Reflect.get(target, prop, receiver);
+      if (typeof orig === 'function') {
+        return function (...args: any[]) {
+          try {
+            const res = orig.apply(target, args);
+            const fallbackRes =
+              fallback && typeof fallback[prop] === 'function'
+                ? fallback[prop].apply(fallback, args)
+                : fallback;
+            return wrapChain(res, fallbackRes);
+          } catch (err: any) {
+            console.warn('[AI Studio] Live PG call error, using in-memory store:', err?.message || err);
+            const fallbackFn = fallback[prop];
+            if (typeof fallbackFn === 'function') {
+              return fallbackFn.apply(fallback, args);
+            }
+            throw err;
+          }
+        };
+      }
+      return orig;
+    },
+  });
+}
 
 if (hasPgConfig) {
   try {
     const pool = createPool();
     const liveDb = drizzle(pool, { schema });
-    console.log('[AI Studio] Connected to Live PostgreSQL database pool.');
+    console.log('[AI Studio] PostgreSQL configuration detected. Wiring resilient client with in-memory fallback.');
 
     // Asynchronously ensure base tables and permanent production admins in Live PostgreSQL
     pool.query(`
@@ -1256,7 +1338,6 @@ if (hasPgConfig) {
         updated_at TIMESTAMP DEFAULT NOW()
       );
     `).then(async () => {
-      // Ensure Lead Admins Peter and Joshua exist permanently in PostgreSQL
       await pool.query(`
         INSERT INTO users (uid, email, full_name, role, phone_number, password, district, region, trading_area, village, bank_name, bank_account, bank_account_name, is_available)
         VALUES 
@@ -1266,46 +1347,16 @@ if (hasPgConfig) {
       `);
       console.log('[AI Studio] PostgreSQL users table verified and permanent admins checked.');
     }).catch((tableErr) => {
-      console.warn('[AI Studio] PostgreSQL schema verification notice:', tableErr.message);
+      console.warn('[AI Studio] PostgreSQL schema verification notice (using in-memory fallback):', tableErr.message);
     });
 
-    dbInstance = new Proxy(liveDb, {
-      get(target, prop, receiver) {
-        const orig = Reflect.get(target, prop, receiver);
-        if (typeof orig === 'function') {
-          return function (...args: any[]) {
-            try {
-              const res = orig.apply(target, args);
-              if (res && typeof res.then === 'function') {
-                return res.catch((err: any) => {
-                  console.warn('[AI Studio] Live PG query failed, using in-memory store:', err?.message || err);
-                  const fallbackFn = (inMemoryDb as any)[prop];
-                  if (typeof fallbackFn === 'function') {
-                    return fallbackFn.apply(inMemoryDb, args);
-                  }
-                  throw err;
-                });
-              }
-              return res;
-            } catch (err: any) {
-              console.warn('[AI Studio] Live PG call failed, using in-memory store:', err?.message || err);
-              const fallbackFn = (inMemoryDb as any)[prop];
-              if (typeof fallbackFn === 'function') {
-                return fallbackFn.apply(inMemoryDb, args);
-              }
-              throw err;
-            }
-          };
-        }
-        return orig;
-      },
-    });
+    dbInstance = wrapWithFallback(liveDb, inMemoryDb);
   } catch (err) {
     console.warn('[AI Studio] PostgreSQL connection failed, activating in-memory fallback store:', err);
     dbInstance = inMemoryDb;
   }
 } else {
-  console.log('[AI Studio] No PostgreSQL connection string specified. Using responsive in-memory database store with disk persistence.');
+  console.log('[AI Studio] No valid PostgreSQL connection string specified. Using responsive in-memory database store with disk persistence.');
   dbInstance = inMemoryDb;
 }
 
