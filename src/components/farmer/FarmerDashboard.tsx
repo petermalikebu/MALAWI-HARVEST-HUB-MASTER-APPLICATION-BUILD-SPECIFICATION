@@ -378,10 +378,10 @@ export const FarmerDashboard: React.FC = () => {
           </div>
           <div>
             <div className="text-xs text-emerald-200 font-medium">
-              {language === 'ch' ? 'Commission Yokhazikika' : 'Fixed Commission'}
+              {language === 'ch' ? 'Commission ya pa Nsanja' : 'Platform Commission'}
             </div>
             <div className="text-xl sm:text-2xl font-extrabold text-emerald-300 mt-0.5">
-              4.0%
+              {(platformCommissionRate * 100).toFixed(1)}%
             </div>
           </div>
         </div>
@@ -669,7 +669,7 @@ export const FarmerDashboard: React.FC = () => {
                         MWK {Number(o.commoditySubtotal).toLocaleString()}
                       </div>
                       <div className="text-[11px] text-stone-500">
-                        Platform Fee (4%):{' '}
+                        Platform Fee ({((Number(o.platformCommissionRate) || platformCommissionRate) * 100).toFixed(1)}%):{' '}
                         <span className="text-rose-600 font-medium">
                           -MWK {Number(o.platformCommissionFee).toLocaleString()}
                         </span>
@@ -797,13 +797,13 @@ export const FarmerDashboard: React.FC = () => {
 
             <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs">
               <div className="text-xs text-rose-600 font-bold uppercase tracking-wider">
-                Platform Commission (4%)
+                Platform Commission ({(platformCommissionRate * 100).toFixed(1)}%)
               </div>
               <div className="text-2xl font-extrabold text-rose-600 mt-2">
                 MWK {totalCommissionPaid.toLocaleString()}
               </div>
               <p className="text-xs text-stone-500 mt-1">
-                4% facilitation fee supporting quality verification & escrow
+                {(platformCommissionRate * 100).toFixed(1)}% facilitation fee supporting quality verification & escrow
               </p>
             </div>
 
@@ -824,7 +824,7 @@ export const FarmerDashboard: React.FC = () => {
               <span>Smallholder Farmer Economic Advantage</span>
             </h3>
             <p className="text-xs text-emerald-900 mt-1 leading-relaxed">
-              Traditional vendors and informal middlemen in rural districts routinely deduct 25% to 35% from farmgate prices. By trading on Malawi Harvest Hub with transparent grade standards and a capped 4% platform commission, you retain an estimated <strong>+22% extra net surplus</strong> on every bag of produce sold.
+              Traditional vendors and informal middlemen in rural districts routinely deduct 25% to 35% from farmgate prices. By trading on Mberalink with transparent grade standards and a capped {(platformCommissionRate * 100).toFixed(1)}% platform commission, you retain an estimated <strong>+22% extra net surplus</strong> on every bag of produce sold.
             </p>
           </div>
         </div>

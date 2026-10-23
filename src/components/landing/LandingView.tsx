@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Commodity } from '../../types/index.ts';
 import { safeParseJson } from '../../lib/api.ts';
 import { useLanguage } from '../../context/LanguageContext.tsx';
+import { useRealtime } from '../../context/RealtimeContext.tsx';
 import {
   Sprout,
   ShoppingCart,
@@ -30,25 +31,62 @@ export const LandingView: React.FC<LandingViewProps> = ({
   onOpenContact,
 }) => {
   const { t, language } = useLanguage();
+  const { subscribe } = useRealtime();
   const [featuredCommodities, setFeaturedCommodities] = useState<Commodity[]>([]);
+  const [commissionRate, setCommissionRate] = useState<number>(0.04);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchPreview = async () => {
       try {
-        const res = await fetch('/api/commodities?status=available');
-        if (res.ok) {
-          const list: Commodity[] = await safeParseJson(res, []);
+        const [commRes, setRes] = await Promise.all([
+          fetch('/api/commodities?status=available'),
+          fetch('/api/settings'),
+        ]);
+
+        if (commRes.ok) {
+          const list: Commodity[] = await safeParseJson(commRes, []);
           setFeaturedCommodities(list.slice(0, 6));
         }
+
+        if (setRes.ok) {
+          const settingsList: any[] = await safeParseJson(setRes, []);
+          const cr = settingsList.find((s: any) => s.key === 'commission_rate');
+          if (cr && !isNaN(parseFloat(cr.value))) {
+            let val = parseFloat(cr.value);
+            if (val > 1) val = val / 100;
+            setCommissionRate(val);
+          }
+        }
       } catch (err) {
-        console.error('Failed to load featured commodities:', err);
+        console.error('Failed to load landing preview data:', err);
       } finally {
         setLoading(false);
       }
     };
     fetchPreview();
   }, []);
+
+  useEffect(() => {
+    const unsub1 = subscribe('commission_rate_updated', (data: any) => {
+      if (data?.rate !== undefined && !isNaN(data.rate)) {
+        setCommissionRate(Number(data.rate));
+      }
+    });
+    const unsub2 = subscribe('setting_updated', (data: any) => {
+      if (data?.key === 'commission_rate' && !isNaN(parseFloat(data?.value))) {
+        let val = parseFloat(data.value);
+        if (val > 1) val = val / 100;
+        setCommissionRate(val);
+      }
+    });
+    return () => {
+      unsub1();
+      unsub2();
+    };
+  }, [subscribe]);
+
+  const commissionPercentText = (commissionRate * 100).toFixed(1);
 
   return (
     <div className="space-y-12 pb-12">
@@ -117,7 +155,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <p className="text-stone-300 text-[11px]">{language === 'ch' ? 'Malawi konse' : 'Nationwide coverage'}</p>
             </div>
             <div className="space-y-0.5">
-              <span className="text-emerald-400 font-extrabold text-lg">4% Escrow</span>
+              <span className="text-emerald-400 font-extrabold text-lg">{commissionPercentText}% Escrow</span>
               <p className="text-stone-300 text-[11px]">{language === 'ch' ? 'Malipiro otetezeka' : 'Capped transaction fee'}</p>
             </div>
             <div className="space-y-0.5">
@@ -168,7 +206,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>{language === 'ch' ? 'Ndalama za wogula zimasungidwa mu escrow musanatumize' : 'Buyer funds held in 4% escrow before dispatch'}</span>
+                <span>{language === 'ch' ? `Ndalama za wogula zimasungidwa mu escrow ya ${commissionPercentText}% musanatumize` : `Buyer funds held in ${commissionPercentText}% escrow before dispatch`}</span>
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -343,7 +381,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
           <div className="space-y-3 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>{language === 'ch' ? 'Dongosolo Lovomerezeka la Escrow 4% • Oyang\'anira Akulu' : 'Official 4% Escrow System • Lead Administrators'}</span>
+              <span>{language === 'ch' ? `Dongosolo Lovomerezeka la Escrow ${commissionPercentText}% • Oyang'anira Akulu` : `Official ${commissionPercentText}% Escrow System • Lead Administrators`}</span>
             </div>
             <h3 className="text-2xl font-bold tracking-tight">
               {language === 'ch'

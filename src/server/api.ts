@@ -1607,7 +1607,7 @@ router.post('/orders/:id/finance-disburse-funds', async (req, res) => {
     await createNotification({
       userUid: ord[0].farmerUid,
       title: `Escrow Payout Disbursed #${ord[0].orderNumber}`,
-      message: `Funds have been disbursed! Financial Administrator sent MK ${farmerEarnings.toLocaleString()} (net of 4% platform fee) via ${payoutMethod || 'Mobile Money'} (Ref: ${ref}). Thank you for selling on Malawi Harvest Hub!`,
+      message: `Funds have been disbursed! Financial Administrator sent MK ${farmerEarnings.toLocaleString()} (net of ${(commissionRate * 100).toFixed(1)}% platform fee) via ${payoutMethod || 'Mobile Money'} (Ref: ${ref}). Thank you for selling on Mberalink!`,
       type: 'finance',
       relatedOrderId: ord[0].id,
     });
@@ -1999,7 +1999,7 @@ router.post('/orders/:id/confirm-delivery', async (req, res) => {
     await createNotification({
       userUid: ord[0].farmerUid,
       title: `Funds Disbursed #${ord[0].orderNumber}`,
-      message: `Delivery confirmed for order #${ord[0].orderNumber}! MWK ${farmerEarnings.toLocaleString()} (net of 4% platform commission) has been credited to your farmer wallet.`,
+      message: `Delivery confirmed for order #${ord[0].orderNumber}! MWK ${farmerEarnings.toLocaleString()} (net of ${(commissionRate * 100).toFixed(1)}% platform commission) has been credited to your farmer wallet.`,
       type: 'finance',
       relatedOrderId: ord[0].id,
     });

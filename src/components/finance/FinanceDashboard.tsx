@@ -965,7 +965,7 @@ export const FinanceDashboard: React.FC = () => {
                     <th className="p-3">Farmer & Buyer</th>
                     <th className="p-3">Commodity</th>
                     <th className="p-3">Gross Amount</th>
-                    <th className="p-3">4% Commission</th>
+                    <th className="p-3">Commission ({((metrics?.commissionRate ?? 0.04) * 100).toFixed(1)}%)</th>
                     <th className="p-3">Farmer Net</th>
                     <th className="p-3">Status</th>
                     <th className="p-3">Payment Method</th>
@@ -1468,7 +1468,7 @@ export const FinanceDashboard: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between text-stone-600">
-                <span>Platform Commission Fee (4%):</span>
+                <span>Platform Commission Fee ({((Number(disbursingOrder.platformCommissionRate) || (metrics?.commissionRate ?? 0.04)) * 100).toFixed(1)}%):</span>
                 <span className="font-medium text-rose-600">
                   -MWK {Number(disbursingOrder.platformCommissionFee).toLocaleString()}
                 </span>
