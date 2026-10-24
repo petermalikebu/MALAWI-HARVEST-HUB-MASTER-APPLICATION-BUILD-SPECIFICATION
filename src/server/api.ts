@@ -1572,6 +1572,12 @@ router.post('/orders/:id/finance-approve-payment', async (req, res) => {
     const ord = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
     if (ord.length === 0) return res.status(404).json({ error: 'Order not found' });
 
+    if (ord[0].status === 'cancelled') {
+      return res.status(400).json({
+        error: 'Cannot approve payment into active escrow: This order was CANCELLED by the buyer. If funds were received on official accounts, proceed to refund the buyer.'
+      });
+    }
+
     const updatedOrder = await db.update(orders)
       .set({
         paymentStatus: 'escrow_held',
@@ -1638,6 +1644,10 @@ router.post('/orders/:id/farmer-confirm', async (req, res) => {
     const ord = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
     if (ord.length === 0) return res.status(404).json({ error: 'Order not found' });
 
+    if (ord[0].status === 'cancelled') {
+      return res.status(400).json({ error: 'Cannot confirm order: This order has been cancelled by the buyer.' });
+    }
+
     const updatedOrder = await db.update(orders)
       .set({
         status: 'accepted',
@@ -1693,6 +1703,18 @@ router.post('/orders/:id/finance-disburse-funds', async (req, res) => {
 
     const ord = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
     if (ord.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+    if (ord[0].status === 'cancelled') {
+      return res.status(400).json({
+        error: 'DISBURSEMENT BLOCKED: Order has been CANCELLED by the buyer. Escrow funds must NOT be paid to the farmer. Please execute a buyer refund instead.'
+      });
+    }
+
+    if (ord[0].paymentStatus === 'refund_required' || ord[0].paymentStatus === 'refunded') {
+      return res.status(400).json({
+        error: 'DISBURSEMENT BLOCKED: This order is queued for refund or has already been refunded to the buyer.'
+      });
+    }
 
     const grossAmount = Number(ord[0].commoditySubtotal);
     const commissionRate = Number(ord[0].platformCommissionRate) || 0.04;
@@ -1890,7 +1912,7 @@ router.post('/orders/:id/decline', async (req, res) => {
   }
 });
 
-// Controlled Cancel / Archive Order
+// Controlled Cancel / Archive Order (Buyer or Admin)
 router.post('/orders/:id/cancel', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -1905,7 +1927,11 @@ router.post('/orders/:id/cancel', async (req, res) => {
       return res.status(400).json({ error: 'Order is already cancelled' });
     }
 
-    // Restore stock if it was not already declined/cancelled
+    // Check if buyer had submitted or locked payment into escrow
+    const isPaidOrDeposited = ['escrow_held', 'escrow_pending_finance_approval', 'paid', 'escrowed'].includes(ord[0].paymentStatus);
+    const newPaymentStatus = isPaidOrDeposited ? 'refund_required' : 'cancelled';
+
+    // 1. Restore commodity inventory stock to farmer's listing
     const comm = await db.select().from(commodities).where(eq(commodities.id, ord[0].commodityId)).limit(1);
     if (comm.length > 0) {
       await db.update(commodities)
@@ -1918,15 +1944,17 @@ router.post('/orders/:id/cancel', async (req, res) => {
       broadcastEvent('commodity_updated', { id: comm[0].id, quantity: comm[0].quantity + ord[0].quantity, status: 'available' });
     }
 
-    // Cancel related transport if any
+    // 2. Cancel related transport job if present
     await db.update(transportJobs)
       .set({ status: 'cancelled', updatedAt: new Date() })
       .where(eq(transportJobs.orderId, id));
 
+    // 3. Mark order as cancelled and set paymentStatus (refund_required if funds were deposited)
     const updated = await db.update(orders)
       .set({
         status: 'cancelled',
-        cancellationReason: reason || 'Cancelled by user',
+        paymentStatus: newPaymentStatus,
+        cancellationReason: reason || 'Cancelled by buyer',
         cancelledByUid: userUid || 'system',
         cancelledAt: new Date(),
         updatedAt: new Date(),
@@ -1934,50 +1962,210 @@ router.post('/orders/:id/cancel', async (req, res) => {
       .where(eq(orders.id, id))
       .returning();
 
-    // Update transaction
+    // 4. Update transaction ledger record
     await db.update(transactions)
       .set({
-        status: 'cancelled',
-        cancellationReason: reason || 'Order cancelled',
-        cancelledBy: userName || 'User',
+        status: isPaidOrDeposited ? 'refunded' : 'cancelled',
+        cancellationReason: isPaidOrDeposited
+          ? `Order cancelled by buyer - Refund of MWK ${Number(ord[0].totalAmount).toLocaleString()} required: ${reason || 'Buyer requested cancellation'}`
+          : (reason || 'Order cancelled'),
+        cancelledBy: userName || 'Buyer',
         cancelledAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(transactions.orderId, id));
 
+    // 5. Reverse revenue ledger entry if previously created
+    await db.update(revenueLedger)
+      .set({ status: 'reversed' })
+      .where(eq(revenueLedger.sourceOrderId, id));
+
+    // 6. Immutable audit log record
+    const totalAmountFormatted = `MWK ${Number(ord[0].totalAmount).toLocaleString()}`;
     await logAudit({
-      userUid: userUid || 'system',
+      userUid: userUid || ord[0].buyerUid,
       userEmail: 'user@harvesthub.mw',
-      userName: userName || 'User',
-      role: userRole || 'user',
-      action: 'ORDER_CANCELLED',
+      userName: userName || ord[0].buyerName,
+      role: userRole || 'buyer',
+      action: isPaidOrDeposited ? 'ORDER_CANCELLED_REFUND_REQUIRED' : 'ORDER_CANCELLED',
       recordAffected: `Order #${ord[0].orderNumber}`,
-      previousValue: ord[0].status,
-      newValue: 'cancelled',
-      reason: reason || 'Order cancelled via controlled archive',
+      previousValue: `Status: ${ord[0].status}, Payment: ${ord[0].paymentStatus}`,
+      newValue: `Status: cancelled, Payment: ${newPaymentStatus}`,
+      reason: isPaidOrDeposited
+        ? `Order cancelled after buyer payment submission. Farmer escrow payout HALTED. Financial Administrator must refund ${totalAmountFormatted} to buyer. Reason: ${reason || 'Buyer cancelled'}`
+        : (reason || 'Order cancelled before payment deposit'),
     });
 
+    // 7. Notify Financial Administrators & Lead Admins (Peter Malikebu & Joshua Malikebu)
+    const allUsers = await db.select().from(users);
+    const financeAdminRecipients = allUsers.filter(
+      (u: any) =>
+        u.role === 'admin' ||
+        u.role === 'finance_admin' ||
+        u.uid === 'frF3xukObzdA8AhCBYIBPYV0UK13' ||
+        u.uid === 'admin-joshua-02'
+    );
+
+    for (const fa of financeAdminRecipients) {
+      if (isPaidOrDeposited) {
+        await createNotification({
+          userUid: fa.uid,
+          title: `⚠️ ORDER CANCELLED: REFUND REQUIRED #${ord[0].orderNumber}`,
+          message: `Buyer ${ord[0].buyerName} cancelled Order #${ord[0].orderNumber}. Farmer payout has been FROZEN and will NOT proceed. Action Required: Please process refund of ${totalAmountFormatted} to buyer via ${ord[0].paymentMethod || 'Escrow'} (Buyer Contact: ${ord[0].buyerPhone || 'on file'}, Payment Ref: ${ord[0].paymentRef || 'N/A'}).`,
+          type: 'finance',
+          relatedOrderId: ord[0].id,
+        });
+      } else {
+        await createNotification({
+          userUid: fa.uid,
+          title: `Order Cancelled #${ord[0].orderNumber}`,
+          message: `Buyer ${ord[0].buyerName} cancelled unpaid Order #${ord[0].orderNumber} (${ord[0].quantity} ${ord[0].unit} of ${ord[0].commodityName}). No payout or refund needed.`,
+          type: 'finance',
+          relatedOrderId: ord[0].id,
+        });
+      }
+    }
+
+    // 8. Notify farmer that order was cancelled and inventory restored
     await createNotification({
       userUid: ord[0].farmerUid,
       title: `Order Cancelled #${ord[0].orderNumber}`,
-      message: `Order #${ord[0].orderNumber} has been cancelled. Reason: ${reason || 'Not specified'}. Stock returned to your available inventory.`,
+      message: `Buyer ${ord[0].buyerName} cancelled Order #${ord[0].orderNumber}. Escrow payout has been stopped. Stock (${ord[0].quantity} ${ord[0].unit} of ${ord[0].commodityName}) has been restored to your live inventory.`,
       type: 'order',
       relatedOrderId: ord[0].id,
     });
 
+    // 9. Notify buyer confirming cancellation and refund queue status
     await createNotification({
       userUid: ord[0].buyerUid,
-      title: `Order Cancelled #${ord[0].orderNumber}`,
-      message: `Order #${ord[0].orderNumber} has been cancelled and archived.`,
+      title: isPaidOrDeposited
+        ? `Order Cancelled • Refund Queued #${ord[0].orderNumber}`
+        : `Order Cancelled #${ord[0].orderNumber}`,
+      message: isPaidOrDeposited
+        ? `Your Order #${ord[0].orderNumber} has been cancelled. Farmer payout has been halted. Financial Administrator has been alerted to process your refund of ${totalAmountFormatted} via ${ord[0].paymentMethod || 'your account'}.`
+        : `Your Order #${ord[0].orderNumber} has been successfully cancelled and archived.`,
+      type: 'finance',
+      relatedOrderId: ord[0].id,
+    });
+
+    // Broadcast real-time events to all open screens
+    broadcastEvent('order_updated', updated[0]);
+    broadcastEvent('order_cancelled', { id: ord[0].id, orderNumber: ord[0].orderNumber, requiresRefund: isPaidOrDeposited });
+    broadcastEvent('revenue_updated', { trigger: 'order_cancelled', orderId: id });
+    broadcastEvent('finance_pending_updated', { order: updated[0] });
+    broadcastEvent('notification_created', { relatedOrderId: ord[0].id });
+
+    return res.json(updated[0]);
+  } catch (error: any) {
+    console.error('Error cancelling order:', error);
+    return res.status(500).json({ error: error.message || 'Failed to cancel order' });
+  }
+});
+
+// Financial Administrator executes refund to buyer for a cancelled order
+router.post('/orders/:id/finance-process-refund', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { financeAdminUid, financeAdminName, refundMethod, refundRef, refundAmount, notes } = req.body;
+
+    const ord = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    if (ord.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+    if (ord[0].paymentStatus === 'refunded') {
+      return res.status(400).json({ error: 'Refund has already been processed for this order.' });
+    }
+
+    const refAmount = Number(refundAmount) || Number(ord[0].totalAmount);
+    const finalRefundRef = refundRef || `RFND-${Date.now().toString().slice(-6)}`;
+    const finalMethod = refundMethod || ord[0].paymentMethod || 'Airtel Money (+265 999 036 912)';
+    const adminName = financeAdminName || 'Financial Administrator';
+
+    const updatedOrder = await db.update(orders)
+      .set({
+        paymentStatus: 'refunded',
+        refundedAt: new Date(),
+        refundedBy: adminName,
+        refundRef: finalRefundRef,
+        refundNotes: notes || `Refund issued by ${adminName} for cancelled order`,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, id))
+      .returning();
+
+    // Also update in-memory store if active
+    const store = (global as any)._inMemoryStore;
+    if (store && Array.isArray(store.orders)) {
+      const idx = store.orders.findIndex((o: any) => o.id === id);
+      if (idx >= 0) {
+        store.orders[idx] = {
+          ...store.orders[idx],
+          paymentStatus: 'refunded',
+          refundedAt: new Date(),
+          refundedBy: adminName,
+          refundRef: finalRefundRef,
+          refundNotes: notes || `Refund issued by ${adminName} for cancelled order`,
+          updatedAt: new Date(),
+        };
+        saveStoreToDisk(store);
+      }
+    }
+
+    // Mark transaction as refunded
+    await db.update(transactions)
+      .set({
+        status: 'refunded',
+        updatedAt: new Date(),
+      })
+      .where(eq(transactions.orderId, id));
+
+    // Reverse revenue ledger if present
+    await db.update(revenueLedger)
+      .set({ status: 'reversed' })
+      .where(eq(revenueLedger.sourceOrderId, id));
+
+    // Audit log
+    await logAudit({
+      userUid: financeAdminUid || 'admin',
+      userEmail: 'finance@harvesthub.mw',
+      userName: adminName,
+      role: 'finance_admin',
+      action: 'BUYER_REFUND_PROCESSED',
+      recordAffected: `Order #${ord[0].orderNumber}`,
+      newValue: `MWK ${refAmount.toLocaleString()} refunded to Buyer ${ord[0].buyerName} (${ord[0].buyerPhone || 'contact'}) via ${finalMethod}. Ref: ${finalRefundRef}. Notes: ${notes || 'Refund completed'}`,
+    });
+
+    // Notify Buyer that refund was completed
+    await createNotification({
+      userUid: ord[0].buyerUid,
+      title: `✅ Refund Completed #${ord[0].orderNumber}`,
+      message: `Your refund of MWK ${refAmount.toLocaleString()} has been processed by Financial Administrator (${adminName}) via ${finalMethod}. Transaction Ref: ${finalRefundRef}. Funds returned to your account.`,
+      type: 'finance',
+      relatedOrderId: ord[0].id,
+    });
+
+    // Notify Farmer that order cancellation and refund is finalized
+    await createNotification({
+      userUid: ord[0].farmerUid,
+      title: `Order Cancelled & Refunded #${ord[0].orderNumber}`,
+      message: `Cancelled Order #${ord[0].orderNumber} has been refunded to the buyer by Financial Administrator. Escrow file is now settled and closed.`,
       type: 'order',
       relatedOrderId: ord[0].id,
     });
 
-    broadcastEvent('order_updated', updated[0]);
-    broadcastEvent('revenue_updated', { trigger: 'order_cancelled' });
-    return res.json(updated[0]);
+    broadcastEvent('order_updated', updatedOrder[0]);
+    broadcastEvent('transaction_updated', { orderId: id, status: 'refunded' });
+    broadcastEvent('revenue_updated', { trigger: 'refund_processed', orderId: id });
+    broadcastEvent('notification_created', { relatedOrderId: id });
+
+    return res.json({
+      success: true,
+      message: `Refund of MWK ${refAmount.toLocaleString()} successfully processed for Buyer ${ord[0].buyerName}!`,
+      order: updatedOrder[0],
+      refundRef: finalRefundRef,
+    });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message || 'Failed to cancel order' });
+    console.error('Error processing refund:', error);
+    return res.status(500).json({ error: error.message || 'Failed to process refund' });
   }
 });
 
@@ -2068,6 +2256,7 @@ router.post('/orders/:id/confirm-delivery', async (req, res) => {
     const ord = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
     if (ord.length === 0) return res.status(404).json({ error: 'Order not found' });
     if (ord[0].status === 'completed') return res.status(400).json({ error: 'Order is already completed' });
+    if (ord[0].status === 'cancelled') return res.status(400).json({ error: 'Cannot confirm delivery on a cancelled order.' });
 
     // Update order to completed
     const updatedOrder = await db.update(orders)

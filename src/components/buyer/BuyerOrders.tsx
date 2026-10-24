@@ -298,6 +298,18 @@ export const BuyerOrders: React.FC = () => {
                           🎉 Completed • Funds Disbursed to Farmer
                         </span>
                       )}
+                      {o.paymentStatus === 'refund_required' && (
+                        <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 font-bold flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                          <span>Order Cancelled &bull; Financial Administrator alerted to refund MWK {Number(o.totalAmount).toLocaleString()}</span>
+                        </span>
+                      )}
+                      {o.paymentStatus === 'refunded' && (
+                        <span className="text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-bold flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>Refund Completed &bull; MWK {Number(o.totalAmount).toLocaleString()} returned ({o.refundRef || 'Ref on file'})</span>
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -353,8 +365,8 @@ export const BuyerOrders: React.FC = () => {
                 Cancel Order (Controlled Archive)
               </h3>
             </div>
-            <p className="text-xs text-stone-500">
-              In accordance with financial compliance rules, this order will be formally cancelled and archived. Stock will be restored to the farmer, escrow reservations cleared, and an immutable audit log record created.
+            <p className="text-xs text-stone-600 leading-relaxed">
+              When you cancel this order, the stock is automatically restored to the farmer, and the farmer payout process is immediately <strong>HALTED</strong>. If payment was deposited, the Financial Administrator is notified to process a full refund to your account.
             </p>
 
             <div className="mt-4">

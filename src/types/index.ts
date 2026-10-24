@@ -108,10 +108,16 @@ export interface Order {
     | 'escrowed'
     | 'released'
     | 'disbursed_to_farmer'
+    | 'refund_required'
     | 'refunded';
   cancellationReason?: string;
   cancelledByUid?: string;
   cancelledAt?: string;
+  refundedAt?: string;
+  refundedBy?: string;
+  refundRef?: string;
+  refundAmount?: string | number;
+  refundNotes?: string;
   createdAt?: string;
   updatedAt?: string;
 }

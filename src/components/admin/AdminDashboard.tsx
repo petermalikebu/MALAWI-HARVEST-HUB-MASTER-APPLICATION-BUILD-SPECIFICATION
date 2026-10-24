@@ -30,6 +30,7 @@ import {
   Minus,
   Sliders,
   ArrowUpRight,
+  RotateCcw,
 } from 'lucide-react';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 
@@ -116,6 +117,14 @@ export const AdminDashboard: React.FC = () => {
   // Order cancellation modal
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState('Administrative intervention / dispute resolution');
+
+  // Order refund modal
+  const [refundingOrder, setRefundingOrder] = useState<Order | null>(null);
+  const [refundMethod, setRefundMethod] = useState<'airtel_money' | 'tnm_mpamba' | 'nbs_bank'>('airtel_money');
+  const [buyerRefundChannelDetail, setBuyerRefundChannelDetail] = useState<string>('');
+  const [refundRef, setRefundRef] = useState<string>('');
+  const [refundNotes, setRefundNotes] = useState<string>('');
+  const [isRefunding, setIsRefunding] = useState<boolean>(false);
 
   // Commodity deletion modal
   const [deletingCommodity, setDeletingCommodity] = useState<Commodity | null>(null);
@@ -450,6 +459,52 @@ export const AdminDashboard: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to cancel order:', err);
+    }
+  };
+
+  const handleOpenRefundModal = (ord: Order) => {
+    setRefundingOrder(ord);
+    setBuyerRefundChannelDetail(ord.buyerPhone || '+265 999 036 912');
+    setRefundRef(`RFND-${Date.now().toString().slice(-6)}`);
+    setRefundNotes(`Refund of MWK ${Number(ord.totalAmount).toLocaleString()} issued for cancelled Order #${ord.orderNumber}.`);
+  };
+
+  const handleAdminProcessRefund = async () => {
+    if (!refundingOrder) return;
+    setIsRefunding(true);
+    try {
+      const formattedChannel =
+        refundMethod === 'airtel_money'
+          ? `Airtel Money (${buyerRefundChannelDetail || refundingOrder.buyerPhone})`
+          : refundMethod === 'tnm_mpamba'
+          ? `TNM Mpamba (${buyerRefundChannelDetail || refundingOrder.buyerPhone})`
+          : `NBS Bank (${buyerRefundChannelDetail || refundingOrder.buyerPhone})`;
+
+      const res = await fetch(`/api/orders/${refundingOrder.id}/finance-process-refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          financeAdminUid: currentUser?.uid || 'frF3xukObzdA8AhCBYIBPYV0UK13',
+          financeAdminName: currentUser?.fullName || 'Peter Malikebu (Lead Admin)',
+          refundMethod: formattedChannel,
+          refundRef,
+          refundAmount: refundingOrder.totalAmount,
+          notes: refundNotes,
+        }),
+      });
+
+      const parsed = await safeParseResponse(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Failed to process refund');
+      }
+
+      alert(`Refund of MWK ${Number(refundingOrder.totalAmount).toLocaleString()} successfully processed for Buyer ${refundingOrder.buyerName}!`);
+      setRefundingOrder(null);
+      fetchAll();
+    } catch (err: any) {
+      alert(err.message || 'Error processing refund');
+    } finally {
+      setIsRefunding(false);
     }
   };
 
@@ -997,19 +1052,54 @@ export const AdminDashboard: React.FC = () => {
                       MWK {Number(o.totalAmount).toLocaleString()}
                     </td>
                     <td className="p-3">
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold capitalize bg-stone-100 text-stone-800">
-                        {o.status.replace('_', ' ')}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold capitalize w-fit ${
+                          o.status === 'cancelled'
+                            ? 'bg-stone-200 text-stone-800'
+                            : o.status === 'completed'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-stone-100 text-stone-800'
+                        }`}>
+                          {o.status.replace('_', ' ')}
+                        </span>
+                        {o.paymentStatus === 'refund_required' && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-600 text-white w-fit animate-pulse flex items-center gap-1">
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            <span>Refund Required</span>
+                          </span>
+                        )}
+                        {o.paymentStatus === 'refunded' && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-700 text-white w-fit">
+                            Refund Completed
+                          </span>
+                        )}
+                        {o.paymentStatus === 'escrow_held' && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-100 text-blue-800 w-fit">
+                            Secured in Escrow
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3 text-right">
-                      {o.status !== 'completed' && o.status !== 'cancelled' && (
-                        <button
-                          onClick={() => setCancellingOrderId(o.id)}
-                          className="px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 font-bold text-[11px]"
-                        >
-                          Cancel Order
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        {o.paymentStatus === 'refund_required' && (
+                          <button
+                            onClick={() => handleOpenRefundModal(o)}
+                            className="px-2.5 py-1 rounded-lg text-white bg-rose-600 hover:bg-rose-700 font-bold text-[11px] shadow-xs flex items-center gap-1"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Process Refund</span>
+                          </button>
+                        )}
+                        {o.status !== 'completed' && o.status !== 'cancelled' && (
+                          <button
+                            onClick={() => setCancellingOrderId(o.id)}
+                            className="px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 font-bold text-[11px]"
+                          >
+                            Cancel Order
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1810,6 +1900,163 @@ export const AdminDashboard: React.FC = () => {
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>{isDeletingComm ? 'Removing Product...' : 'Confirm Remove Product'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Process Buyer Refund Modal */}
+      {refundingOrder !== null && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2.5 text-rose-600">
+                <div className="p-2 rounded-xl bg-rose-100 text-rose-700">
+                  <RotateCcw className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-stone-900 text-base">
+                    Process Buyer Escrow Refund
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Order #{refundingOrder.orderNumber} &bull; Buyer {refundingOrder.buyerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRefundingOrder(null)}
+                className="text-stone-400 hover:text-stone-700 text-lg p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Refund Financial Summary */}
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-2 text-xs">
+              <div className="flex justify-between text-stone-700">
+                <span>Commodity Subtotal:</span>
+                <span className="font-semibold text-stone-900">
+                  MWK {Number(refundingOrder.commoditySubtotal).toLocaleString()}
+                </span>
+              </div>
+              {Number(refundingOrder.transportFee) > 0 && (
+                <div className="flex justify-between text-stone-700">
+                  <span>Logistics Transport Fee:</span>
+                  <span className="font-semibold text-stone-900">
+                    MWK {Number(refundingOrder.transportFee).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              <div className="pt-2 border-t border-rose-200/80 flex justify-between font-extrabold text-base text-rose-950">
+                <span>Total Refund Due to Buyer:</span>
+                <span className="text-rose-700 text-lg">
+                  MWK {Number(refundingOrder.totalAmount).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Refund Channel / Payout Account *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRefundMethod('airtel_money')}
+                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs ${
+                      refundMethod === 'airtel_money'
+                        ? 'border-red-600 bg-red-50 text-red-700 ring-2 ring-red-500/20'
+                        : 'border-stone-200 bg-white text-stone-600'
+                    }`}
+                  >
+                    Airtel Money
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRefundMethod('tnm_mpamba')}
+                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs ${
+                      refundMethod === 'tnm_mpamba'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500/20'
+                        : 'border-stone-200 bg-white text-stone-600'
+                    }`}
+                  >
+                    TNM Mpamba
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRefundMethod('nbs_bank')}
+                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs ${
+                      refundMethod === 'nbs_bank'
+                        ? 'border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-500/20'
+                        : 'border-stone-200 bg-white text-stone-600'
+                    }`}
+                  >
+                    NBS Bank
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Buyer Phone Number or Bank Account for Refund *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={buyerRefundChannelDetail}
+                  onChange={(e) => setBuyerRefundChannelDetail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 font-medium text-xs focus:outline-rose-600"
+                  placeholder="+265 999 234 567 or Bank Account Number"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Refund Transaction Reference (SMS Code / Bank Ref) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={refundRef}
+                  onChange={(e) => setRefundRef(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 font-bold text-xs focus:outline-rose-600"
+                  placeholder="e.g. RFND-491024 or AT78291"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Refund Audit Notes
+                </label>
+                <textarea
+                  rows={2}
+                  value={refundNotes}
+                  onChange={(e) => setRefundNotes(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs focus:outline-rose-600"
+                />
+              </div>
+
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-[11px] text-rose-950 leading-relaxed">
+                Confirming this refund marks the order as <strong>Refunded</strong>, creates an immutable regulatory audit log, notifies Buyer <strong>{refundingOrder.buyerName}</strong>, and permanently settles the escrow file.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setRefundingOrder(null)}
+                className="px-4 py-2 rounded-xl text-stone-600 text-xs font-semibold hover:bg-stone-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdminProcessRefund}
+                disabled={isRefunding}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>{isRefunding ? 'Recording Refund...' : 'Confirm Refund Sent to Buyer'}</span>
               </button>
             </div>
           </div>

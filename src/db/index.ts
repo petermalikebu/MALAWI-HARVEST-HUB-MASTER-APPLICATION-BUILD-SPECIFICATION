@@ -48,6 +48,14 @@ export const createPool = () => {
     global._postgresPool.on('error', (err) => {
       console.warn('Unexpected error on idle SQL pool client:', err?.message || err);
     });
+
+    // Ensure refund columns exist in PostgreSQL orders table
+    global._postgresPool.query(`
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMP;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_by TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_ref TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_notes TEXT;
+    `).catch(() => {});
   }
   return global._postgresPool;
 };

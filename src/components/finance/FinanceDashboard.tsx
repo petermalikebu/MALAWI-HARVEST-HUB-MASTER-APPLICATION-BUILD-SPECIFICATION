@@ -23,6 +23,8 @@ import {
   ArrowRight,
   Send,
   UserCheck,
+  AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 
 export const FinanceDashboard: React.FC = () => {
@@ -62,6 +64,14 @@ export const FinanceDashboard: React.FC = () => {
   const [farmerPayoutPhone, setFarmerPayoutPhone] = useState<string>('');
   const [disbursementRef, setDisbursementRef] = useState<string>('');
   const [disbursementSubmitting, setDisbursementSubmitting] = useState<boolean>(false);
+
+  // Refund modal state for cancelled orders
+  const [refundingOrder, setRefundingOrder] = useState<Order | null>(null);
+  const [refundMethod, setRefundMethod] = useState<'airtel_money' | 'tnm_mpamba' | 'nbs_bank'>('airtel_money');
+  const [buyerRefundChannelDetail, setBuyerRefundChannelDetail] = useState<string>('');
+  const [refundRef, setRefundRef] = useState<string>('');
+  const [refundNotes, setRefundNotes] = useState<string>('');
+  const [refundSubmitting, setRefundSubmitting] = useState<boolean>(false);
 
   const fetchFinanceData = async () => {
     try {
@@ -201,6 +211,56 @@ export const FinanceDashboard: React.FC = () => {
       setApprovalErrorMsg(err.message || 'Network error');
     } finally {
       setDisbursementSubmitting(false);
+    }
+  };
+
+  // Buyer Refund Handlers
+  const handleOpenRefundModal = (ord: Order) => {
+    setRefundingOrder(ord);
+    setBuyerRefundChannelDetail(ord.buyerPhone || '+265 999 036 912');
+    setRefundRef(`RFND-${Date.now().toString().slice(-6)}`);
+    setRefundNotes(`Refund of full deposit MWK ${Number(ord.totalAmount).toLocaleString()} issued to buyer due to cancelled order.`);
+    setApprovalSuccessMsg('');
+    setApprovalErrorMsg('');
+  };
+
+  const handleConfirmRefund = async () => {
+    if (!refundingOrder) return;
+    setRefundSubmitting(true);
+    setApprovalErrorMsg('');
+    try {
+      const formattedChannel =
+        refundMethod === 'airtel_money'
+          ? `Airtel Money (${buyerRefundChannelDetail || refundingOrder.buyerPhone || '+265 '})`
+          : refundMethod === 'tnm_mpamba'
+          ? `TNM Mpamba (${buyerRefundChannelDetail || refundingOrder.buyerPhone || '+265 '})`
+          : `NBS Bank (${buyerRefundChannelDetail || refundingOrder.buyerPhone || 'Account'})`;
+
+      const res = await fetch(`/api/orders/${refundingOrder.id}/finance-process-refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          financeAdminUid: currentUser?.uid || 'frF3xukObzdA8AhCBYIBPYV0UK13',
+          financeAdminName: currentUser?.fullName || 'Financial Administrator',
+          refundMethod: formattedChannel,
+          refundRef,
+          refundAmount: refundingOrder.totalAmount,
+          notes: refundNotes,
+        }),
+      });
+
+      if (res.ok) {
+        setApprovalSuccessMsg(`Success! Refund of MWK ${Number(refundingOrder.totalAmount).toLocaleString()} processed for Buyer ${refundingOrder.buyerName} via ${formattedChannel} (Ref: ${refundRef})! Funds returned to buyer and escrow file settled.`);
+        setRefundingOrder(null);
+        fetchFinanceData();
+      } else {
+        const err = await res.json();
+        setApprovalErrorMsg(err.error || 'Failed to process refund');
+      }
+    } catch (err: any) {
+      setApprovalErrorMsg(err.message || 'Network error');
+    } finally {
+      setRefundSubmitting(false);
     }
   };
 
@@ -369,8 +429,14 @@ export const FinanceDashboard: React.FC = () => {
         >
           <ShieldCheck className="w-3.5 h-3.5 text-rose-700" />
           <span>Buyer Escrow Approvals &amp; Farmer Payouts</span>
+          {ordersList.filter((o) => o.paymentStatus === 'refund_required').length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-600 text-white font-black animate-pulse flex items-center gap-1 shadow-xs">
+              <AlertTriangle className="w-2.5 h-2.5" />
+              <span>{ordersList.filter((o) => o.paymentStatus === 'refund_required').length} Refund Due</span>
+            </span>
+          )}
           {ordersList.filter((o) => o.paymentStatus === 'escrow_pending_finance_approval').length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-600 text-white font-bold animate-pulse">
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-stone-950 font-bold">
               {ordersList.filter((o) => o.paymentStatus === 'escrow_pending_finance_approval').length} pending
             </span>
           )}
@@ -469,13 +535,24 @@ export const FinanceDashboard: React.FC = () => {
           </div>
 
           {/* Quick Metrics for Escrow Pipeline */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+            <div className={`p-4 rounded-2xl border shadow-2xs ${ordersList.filter((o) => o.paymentStatus === 'refund_required').length > 0 ? 'bg-rose-50/70 border-rose-300 ring-2 ring-rose-500/20' : 'bg-white border-stone-200'}`}>
+              <div className="text-[11px] font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                <span>Refunds Due</span>
+              </div>
+              <div className="text-xl font-black text-rose-700 mt-1">
+                {ordersList.filter((o) => o.paymentStatus === 'refund_required').length} Orders
+              </div>
+              <div className="text-[10px] text-stone-500 mt-0.5">Cancelled orders needing refund</div>
+            </div>
+
             <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-2xs">
               <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Pending Deposits</div>
               <div className="text-xl font-extrabold text-amber-700 mt-1">
                 {ordersList.filter((o) => o.paymentStatus === 'escrow_pending_finance_approval').length} Orders
               </div>
-              <div className="text-[10px] text-stone-500 mt-0.5">Awaiting Financial Admin verification</div>
+              <div className="text-[10px] text-stone-500 mt-0.5">Awaiting verification</div>
             </div>
 
             <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-2xs">
@@ -491,17 +568,130 @@ export const FinanceDashboard: React.FC = () => {
               <div className="text-xl font-extrabold text-emerald-700 mt-1">
                 {ordersList.filter((o) => o.paymentStatus === 'escrow_held' && o.farmerConfirmedAt).length} Orders
               </div>
-              <div className="text-[10px] text-stone-500 mt-0.5">Ready for transit &amp; final payout</div>
+              <div className="text-[10px] text-stone-500 mt-0.5">Ready for transit &amp; payout</div>
             </div>
 
             <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-2xs">
-              <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Disbursed to Farmers</div>
+              <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Settled &amp; Refunded</div>
               <div className="text-xl font-extrabold text-purple-700 mt-1">
-                {ordersList.filter((o) => o.paymentStatus === 'disbursed_to_farmer').length} Settled
+                {ordersList.filter((o) => o.paymentStatus === 'disbursed_to_farmer').length} / {ordersList.filter((o) => o.paymentStatus === 'refunded').length}
               </div>
-              <div className="text-[10px] text-stone-500 mt-0.5">Funds fully released to farmers</div>
+              <div className="text-[10px] text-stone-500 mt-0.5">Payouts / Refunds Settled</div>
             </div>
           </div>
+
+          {/* SECTION 0: CANCELLED ORDERS REQUIRING BUYER REFUND */}
+          {ordersList.filter((o) => o.paymentStatus === 'refund_required').length > 0 && (
+            <div className="space-y-3.5 p-5 rounded-2xl bg-rose-50 border-2 border-rose-300 shadow-sm animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-200/80 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-rose-600 text-white shadow-xs">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-stone-900">
+                      Cancelled Orders Requiring Buyer Refund
+                    </h3>
+                    <p className="text-xs text-rose-900 font-medium">
+                      Escrow payouts to farmers have been automatically <strong>BLOCKED</strong>. You must refund the buyer's deposited funds.
+                    </p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-600 text-white animate-pulse shadow-2xs self-start sm:self-auto">
+                  {ordersList.filter((o) => o.paymentStatus === 'refund_required').length} Action Required
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {ordersList
+                  .filter((o) => o.paymentStatus === 'refund_required')
+                  .map((ord) => {
+                    const gross = Number(ord.totalAmount);
+
+                    return (
+                      <div
+                        key={ord.id}
+                        className="bg-white rounded-2xl border-2 border-rose-400 p-5 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5"
+                      >
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-stone-700 bg-stone-100 px-2.5 py-0.5 rounded-md">
+                              {ord.orderNumber}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 flex items-center gap-1 border border-rose-200">
+                              <AlertTriangle className="w-3 h-3 text-rose-600" />
+                              <span>Order Cancelled &bull; Refund Required</span>
+                            </span>
+                            <span className="text-xs text-stone-400">
+                              Cancelled: {ord.cancelledAt ? new Date(ord.cancelledAt).toLocaleString() : 'Recently'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <h4 className="font-bold text-stone-900 text-base">
+                              {ord.quantity.toLocaleString()} {ord.unit} &bull; {ord.commodityName}
+                            </h4>
+                            <div className="text-xs text-stone-600 mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <strong>Buyer to Refund:</strong> {ord.buyerName} ({ord.buyerPhone || 'Contact on file'})
+                                <div className="text-[11px] text-stone-500">Destination was: {ord.deliveryLocation}, {ord.deliveryDistrict}</div>
+                              </div>
+                              <div>
+                                <strong>Original Farmer:</strong> {ord.farmerName} (Stock restored to inventory)
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Payment Reference & Cancellation Reason */}
+                          <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs flex flex-wrap items-center gap-4">
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">Original Payment Method:</span>
+                              <span className="font-bold text-stone-800">{ord.paymentMethod || 'Airtel Money / TNM Mpamba'}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">Deposit Ref / SMS Code:</span>
+                              <span className="font-mono font-extrabold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                {ord.paymentRef || 'N/A'}
+                              </span>
+                            </div>
+                            {ord.cancellationReason && (
+                              <div className="w-full text-stone-600 pt-1 border-t border-stone-200/60">
+                                <span className="font-bold text-stone-700">Cancellation Reason:</span> {ord.cancellationReason}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Refund Amount */}
+                        <div className="bg-rose-50/70 p-4 rounded-xl border border-rose-200 text-right space-y-1 min-w-[220px] w-full lg:w-auto">
+                          <div className="text-[11px] text-rose-700 uppercase font-bold">Amount to Refund Buyer</div>
+                          <div className="text-2xl font-black text-rose-900">
+                            MWK {gross.toLocaleString()}
+                          </div>
+                          <div className="text-[11px] text-stone-500">
+                            100% of buyer escrow deposit
+                          </div>
+                          <div className="text-[10px] font-bold text-rose-700 bg-white/80 py-1 px-2 rounded mt-1 border border-rose-200">
+                            🔒 Farmer Payout Blocked
+                          </div>
+                        </div>
+
+                        {/* Action: Execute Refund */}
+                        <div className="w-full lg:w-auto shrink-0 flex flex-col gap-2">
+                          <button
+                            onClick={() => handleOpenRefundModal(ord)}
+                            className="w-full lg:w-auto px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            <span>Process &amp; Record Buyer Refund</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
 
           {/* SECTION 1: PENDING BUYER DEPOSIT VERIFICATIONS */}
           <div className="space-y-3">
@@ -743,6 +933,64 @@ export const FinanceDashboard: React.FC = () => {
                             <td className="p-3 text-stone-600">{ord.disbursedRef || 'N/A'}</td>
                             <td className="p-3 text-stone-400 whitespace-nowrap">
                               {ord.disbursedAt ? new Date(ord.disbursedAt).toLocaleDateString() : 'Settled'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 4: SETTLED BUYER REFUNDS ARCHIVE */}
+          <div className="space-y-3 pt-4 border-t border-stone-200">
+            <h3 className="font-extrabold text-sm text-stone-900 flex items-center gap-2">
+              <span>4. Processed Buyer Refunds Archive (Settled)</span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-stone-100 text-stone-700">
+                {ordersList.filter((o) => o.paymentStatus === 'refunded').length} Settled
+              </span>
+            </h3>
+
+            {ordersList.filter((o) => o.paymentStatus === 'refunded').length === 0 ? (
+              <div className="bg-white rounded-2xl border border-stone-200 p-6 text-center text-stone-400 text-xs">
+                No cancelled orders with processed refunds recorded yet.
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="p-3">Order #</th>
+                      <th className="p-3">Buyer</th>
+                      <th className="p-3">Commodity</th>
+                      <th className="p-3">Refunded Amount</th>
+                      <th className="p-3">Refund Channel</th>
+                      <th className="p-3">Refund Ref</th>
+                      <th className="p-3">Processed By</th>
+                      <th className="p-3">Refund Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100 font-mono text-[11px]">
+                    {ordersList
+                      .filter((o) => o.paymentStatus === 'refunded')
+                      .map((ord) => {
+                        const refundAmt = Number(ord.totalAmount);
+
+                        return (
+                          <tr key={ord.id} className="hover:bg-stone-50/50">
+                            <td className="p-3 font-bold text-stone-900">{ord.orderNumber}</td>
+                            <td className="p-3 text-stone-900 font-bold font-sans">
+                              {ord.buyerName}
+                              <span className="text-[10px] text-stone-400 block font-normal">{ord.buyerPhone || 'No phone'}</span>
+                            </td>
+                            <td className="p-3 text-stone-700 font-sans">{ord.commodityName} ({ord.quantity} {ord.unit})</td>
+                            <td className="p-3 text-rose-700 font-extrabold font-sans">MWK {refundAmt.toLocaleString()}</td>
+                            <td className="p-3 text-stone-700 font-sans">{ord.paymentMethod || 'Escrow'}</td>
+                            <td className="p-3 text-purple-700 font-bold">{ord.refundRef || ord.disbursedRef || 'RFND-DONE'}</td>
+                            <td className="p-3 text-stone-600 font-sans">{ord.refundedBy || 'Financial Administrator'}</td>
+                            <td className="p-3 text-stone-400 whitespace-nowrap">
+                              {ord.refundedAt ? new Date(ord.refundedAt).toLocaleDateString() : 'Settled'}
                             </td>
                           </tr>
                         );
@@ -1570,6 +1818,163 @@ export const FinanceDashboard: React.FC = () => {
               >
                 <Send className="w-4 h-4" />
                 <span>{disbursementSubmitting ? 'Sending Funds...' : 'Send Payout to Farmer'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PROCESS BUYER REFUND FOR CANCELLED ORDER */}
+      {refundingOrder !== null && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2.5 text-rose-600">
+                <div className="p-2 rounded-xl bg-rose-100 text-rose-700">
+                  <RotateCcw className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-stone-900 text-base">
+                    Process Buyer Escrow Refund
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Order #{refundingOrder.orderNumber} &bull; Buyer {refundingOrder.buyerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRefundingOrder(null)}
+                className="text-stone-400 hover:text-stone-700 text-lg p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Refund Financial Summary */}
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-2 text-xs">
+              <div className="flex justify-between text-stone-700">
+                <span>Commodity Subtotal:</span>
+                <span className="font-semibold text-stone-900">
+                  MWK {Number(refundingOrder.commoditySubtotal).toLocaleString()}
+                </span>
+              </div>
+              {Number(refundingOrder.transportFee) > 0 && (
+                <div className="flex justify-between text-stone-700">
+                  <span>Logistics Transport Fee:</span>
+                  <span className="font-semibold text-stone-900">
+                    MWK {Number(refundingOrder.transportFee).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              <div className="pt-2 border-t border-rose-200/80 flex justify-between font-extrabold text-base text-rose-950">
+                <span>Total Refund Due to Buyer:</span>
+                <span className="text-rose-700 text-lg">
+                  MWK {Number(refundingOrder.totalAmount).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Refund Channel / Payout Account *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRefundMethod('airtel_money')}
+                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs ${
+                      refundMethod === 'airtel_money'
+                        ? 'border-red-600 bg-red-50 text-red-700 ring-2 ring-red-500/20'
+                        : 'border-stone-200 bg-white text-stone-600'
+                    }`}
+                  >
+                    Airtel Money
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRefundMethod('tnm_mpamba')}
+                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs ${
+                      refundMethod === 'tnm_mpamba'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500/20'
+                        : 'border-stone-200 bg-white text-stone-600'
+                    }`}
+                  >
+                    TNM Mpamba
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRefundMethod('nbs_bank')}
+                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs ${
+                      refundMethod === 'nbs_bank'
+                        ? 'border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-500/20'
+                        : 'border-stone-200 bg-white text-stone-600'
+                    }`}
+                  >
+                    NBS Bank
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Buyer Phone Number or Bank Account for Refund *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={buyerRefundChannelDetail}
+                  onChange={(e) => setBuyerRefundChannelDetail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 font-medium text-xs focus:outline-rose-600"
+                  placeholder="+265 999 234 567 or Bank Account Number"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Refund Transaction Reference (SMS Code / Bank Ref) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={refundRef}
+                  onChange={(e) => setRefundRef(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 font-bold text-xs focus:outline-rose-600"
+                  placeholder="e.g. RFND-491024 or AT78291"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">
+                  Refund Audit Notes
+                </label>
+                <textarea
+                  rows={2}
+                  value={refundNotes}
+                  onChange={(e) => setRefundNotes(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs focus:outline-rose-600"
+                />
+              </div>
+
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-[11px] text-rose-950 leading-relaxed">
+                Confirming this refund marks the order as <strong>Refunded</strong>, creates an immutable regulatory audit log, notifies Buyer <strong>{refundingOrder.buyerName}</strong>, and permanently settles the escrow file.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setRefundingOrder(null)}
+                className="px-4 py-2 rounded-xl text-stone-600 text-xs font-semibold hover:bg-stone-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmRefund}
+                disabled={refundSubmitting}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>{refundSubmitting ? 'Recording Refund...' : 'Confirm Refund Sent to Buyer'}</span>
               </button>
             </div>
           </div>

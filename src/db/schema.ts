@@ -97,10 +97,14 @@ export const orders = pgTable('orders', {
   disbursedRef: text('disbursed_ref'),
   status: text('status').notNull().default('pending'), 
   // pending | pending_payment_verification | accepted | declined | transport_requested | transport_assigned | picked_up | in_transit | delivered | completed | cancelled
-  paymentStatus: text('payment_status').notNull().default('pending'), // pending | escrow_pending_finance_approval | escrow_held | paid | escrowed | released | disbursed_to_farmer | refunded
+  paymentStatus: text('payment_status').notNull().default('pending'), // pending | escrow_pending_finance_approval | escrow_held | paid | escrowed | released | disbursed_to_farmer | refund_required | refunded
   cancellationReason: text('cancellation_reason'),
   cancelledByUid: text('cancelled_by_uid'),
   cancelledAt: timestamp('cancelled_at'),
+  refundedAt: timestamp('refunded_at'),
+  refundedBy: text('refunded_by'),
+  refundRef: text('refund_ref'),
+  refundNotes: text('refund_notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
