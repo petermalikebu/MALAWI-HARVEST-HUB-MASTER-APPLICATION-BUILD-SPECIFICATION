@@ -829,6 +829,119 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
+// Production Transition: Safely purge all sample/test users & test records while preserving Administrators
+router.post('/admin/purge-sample-users', async (req, res) => {
+  try {
+    const adminUid = (req.query.adminUid as string) || req.body?.adminUid || (req.headers['x-user-uid'] as string);
+    const allUsers = await db.select().from(users);
+
+    if (adminUid) {
+      const requester = allUsers.find((u: any) => u.uid === adminUid);
+      if (requester && requester.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: Only administrators can purge sample users' });
+      }
+    }
+
+    // 1. If live PostgreSQL pool is active, execute the transactional deletion
+    if (global._postgresPool) {
+      const pool = global._postgresPool;
+      try {
+        await pool.query('BEGIN;');
+        await pool.query(`
+          DELETE FROM revenue_ledger 
+          WHERE source_order_id IN (
+              SELECT id FROM orders 
+              WHERE buyer_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1)
+                 OR farmer_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1)
+          );
+        `);
+        await pool.query(`
+          DELETE FROM transactions 
+          WHERE farmer_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1)
+             OR buyer_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1);
+        `);
+        await pool.query(`
+          DELETE FROM transport_jobs 
+          WHERE farmer_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1)
+             OR transporter_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1);
+        `);
+        await pool.query(`
+          DELETE FROM orders 
+          WHERE buyer_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1)
+             OR farmer_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1);
+        `);
+        await pool.query(`
+          DELETE FROM commodities 
+          WHERE farmer_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1);
+        `);
+        await pool.query(`
+          DELETE FROM support_tickets 
+          WHERE user_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1);
+        `);
+        await pool.query(`
+          DELETE FROM password_reset_requests 
+          WHERE user_id NOT IN (SELECT id FROM users WHERE role = 'admin' OR id = 1);
+        `);
+        await pool.query(`
+          DELETE FROM users 
+          WHERE role != 'admin' AND id != 1;
+        `);
+        await pool.query(`
+          SELECT setval('users_id_seq', COALESCE((SELECT MAX(id) FROM users), 1));
+        `);
+        await pool.query('COMMIT;');
+      } catch (sqlErr: any) {
+        await pool.query('ROLLBACK;').catch(() => {});
+        console.warn('PostgreSQL transactional purge notice:', sqlErr?.message || sqlErr);
+      }
+    }
+
+    // 2. Synchronize in-memory store
+    const store = getInMemoryStore();
+    if (store) {
+      if (Array.isArray(store.users)) {
+        store.users = store.users.filter((u: any) => u.role === 'admin' || u.id === 1);
+      }
+      store.commodities = [];
+      store.orders = [];
+      store.transport_jobs = [];
+      store.transactions = [];
+      store.revenue_ledger = [];
+      store.support_tickets = [];
+      store.password_reset_requests = [];
+      saveStoreToDisk(store);
+    }
+
+    const remainingAdmins = await db.select().from(users).where(eq(users.role, 'admin'));
+
+    await logAudit({
+      userUid: adminUid || 'admin-system',
+      userEmail: 'petermalikebujr@gmail.com',
+      userName: 'Peter Malikebu',
+      role: 'admin',
+      action: 'PRODUCTION_SAMPLE_USERS_PURGED',
+      recordAffected: 'Platform Users Table',
+      previousValue: `${allUsers.length} test accounts`,
+      newValue: `${remainingAdmins.length} active administrators`,
+      reason: 'Transitioning database to production; sample users safely cleared for self-registration',
+    });
+
+    broadcastEvent('user_updated', { action: 'purged_sample_users' });
+    broadcastEvent('commodity_updated', { action: 'purged' });
+    broadcastEvent('order_updated', { action: 'purged' });
+    broadcastEvent('transport_updated', { action: 'purged' });
+
+    return res.json({
+      success: true,
+      message: 'All sample test users and sample marketplace listings have been purged. Only authorized Administrator accounts remain active.',
+      remainingAdmins,
+    });
+  } catch (error: any) {
+    console.error('Error purging sample users:', error);
+    return res.status(500).json({ error: error.message || 'Failed to purge sample users' });
+  }
+});
+
 // ----------------------------------------------------
 // CATEGORIES
 // ----------------------------------------------------

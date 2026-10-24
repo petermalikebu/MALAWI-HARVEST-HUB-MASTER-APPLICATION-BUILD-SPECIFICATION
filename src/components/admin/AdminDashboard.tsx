@@ -74,10 +74,39 @@ export const AdminDashboard: React.FC = () => {
   const [isUpdatingCommission, setIsUpdatingCommission] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [processingResetId, setProcessingResetId] = useState<string | null>(null);
+  const [isPurgingSampleUsers, setIsPurgingSampleUsers] = useState<boolean>(false);
+  const [purgeSuccessMsg, setPurgeSuccessMsg] = useState<string>('');
 
   // User deletion state
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  const handlePurgeSampleUsers = async () => {
+    if (!confirm('Are you sure you want to transition to production? This will delete all sample test users and sample marketplace orders/listings, leaving only the Administrator accounts. Future users will register themselves.')) {
+      return;
+    }
+    setIsPurgingSampleUsers(true);
+    setPurgeSuccessMsg('');
+    try {
+      const res = await fetch('/api/admin/purge-sample-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUid: currentUser?.uid }),
+      });
+      const data = await safeParseResponse(res);
+      if (data.ok) {
+        setPurgeSuccessMsg(data.data?.message || 'All sample users successfully removed. Only Administrators remain.');
+        await fetchAll();
+        setTimeout(() => setPurgeSuccessMsg(''), 7000);
+      } else {
+        alert(data.error || 'Failed to purge sample users');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error purging sample users');
+    } finally {
+      setIsPurgingSampleUsers(false);
+    }
+  };
 
   // New category modal
   const [newCatName, setNewCatName] = useState('');
@@ -717,31 +746,49 @@ export const AdminDashboard: React.FC = () => {
                     : `Active Ecosystem Directory \u2022 ${uniqueUsersList.length} Total Accounts`}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl text-xs font-semibold self-start sm:self-auto">
+              <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
                 <button
                   type="button"
-                  onClick={() => setUserRoleFilter('admins')}
-                  className={`px-3 py-1 rounded-lg transition-all ${
-                    userRoleFilter === 'admins'
-                      ? 'bg-white text-purple-900 shadow-2xs font-bold'
-                      : 'text-stone-600 hover:text-stone-900'
-                  }`}
+                  onClick={handlePurgeSampleUsers}
+                  disabled={isPurgingSampleUsers}
+                  className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-98 disabled:opacity-50"
+                  title="Delete all sample test users, leaving only administrators for production"
                 >
-                  Administrators Only ({adminUsersList.length})
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>{isPurgingSampleUsers ? 'Purging...' : 'Production Clean: Purge Test Users'}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setUserRoleFilter('all')}
-                  className={`px-3 py-1 rounded-lg transition-all ${
-                    userRoleFilter === 'all'
-                      ? 'bg-white text-purple-900 shadow-2xs font-bold'
-                      : 'text-stone-600 hover:text-stone-900'
-                  }`}
-                >
-                  All Accounts ({uniqueUsersList.length})
-                </button>
+                <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setUserRoleFilter('admins')}
+                    className={`px-3 py-1 rounded-lg transition-all ${
+                      userRoleFilter === 'admins'
+                        ? 'bg-white text-purple-900 shadow-2xs font-bold'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    Administrators Only ({adminUsersList.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserRoleFilter('all')}
+                    className={`px-3 py-1 rounded-lg transition-all ${
+                      userRoleFilter === 'all'
+                        ? 'bg-white text-purple-900 shadow-2xs font-bold'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    All Accounts ({uniqueUsersList.length})
+                  </button>
+                </div>
               </div>
             </div>
+            {purgeSuccessMsg && (
+              <div className="mx-4 my-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2 font-medium animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{purgeSuccessMsg}</span>
+              </div>
+            )}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider text-[10px]">

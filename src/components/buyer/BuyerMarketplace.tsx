@@ -439,388 +439,407 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
 
       {/* MODAL: PLACE ORDER */}
       {orderingCommodity && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setOrderingCommodity(null);
+            }
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-stone-200 animate-in zoom-in-95 duration-150">
+            {/* Header: Sticky Top */}
+            <div className="px-5 sm:px-6 py-3.5 border-b border-stone-200 flex items-center justify-between shrink-0 bg-stone-50/90 backdrop-blur-xs">
               <div>
-                <h3 className="text-base font-bold text-stone-900">
-                  {language === 'ch' ? 'Ikani Oda & Sungani mu Escrow' : 'Place Order & Reserve Escrow'}
+                <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                  <ShoppingCart className="w-4 h-4 text-amber-700" />
+                  <span>{language === 'ch' ? 'Ikani Oda & Sungani mu Escrow' : 'Place Order & Reserve Escrow'}</span>
                 </h3>
                 <p className="text-xs text-stone-500">
                   {t(orderingCommodity.commodityName)} &bull; {language === 'ch' ? 'Mlimi' : 'Farmer'} {orderingCommodity.farmerName}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setOrderingCommodity(null)}
-                className="text-stone-400 hover:text-stone-700 text-lg p-1"
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center text-lg transition-colors"
+                title="Close modal"
               >
                 &times;
               </button>
             </div>
 
             {orderSuccess ? (
-              <div className="py-6 space-y-4 text-center">
-                <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-7 h-7" />
+              <div className="p-6 sm:p-8 space-y-4 text-center overflow-y-auto">
+                <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-xs">
+                  <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <h4 className="text-base font-bold text-stone-900">Order Confirmed!</h4>
-                <p className="text-xs text-stone-600 max-w-sm mx-auto">{orderSuccess}</p>
-                <div className="pt-2 flex justify-center">
+                <h4 className="text-lg font-bold text-stone-900">Order Confirmed!</h4>
+                <p className="text-xs text-stone-600 max-w-md mx-auto leading-relaxed">{orderSuccess}</p>
+                <div className="pt-3 flex justify-center">
                   <button
                     onClick={() => setOrderingCommodity(null)}
-                    className="px-6 py-2 rounded-xl bg-emerald-700 text-white font-bold text-xs"
+                    className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs"
                   >
-                    Done & Return to Market
+                    Done &amp; Return to Market
                   </button>
                 </div>
               </div>
             ) : (
-              <form onSubmit={handlePlaceOrder} className="space-y-4 mt-4">
-                {orderError && (
-                  <div className="p-3 rounded-xl bg-rose-50 text-rose-700 text-xs border border-rose-200">
-                    {orderError}
-                  </div>
-                )}
-
-                {/* Quantity */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs font-bold text-stone-700">
-                      Purchase Quantity ({orderingCommodity.unit}) *
-                    </label>
-                    <span className="text-[11px] text-stone-500">
-                      Max available: {orderingCommodity.quantity.toLocaleString()} {orderingCommodity.unit}
-                    </span>
-                  </div>
-                  <input
-                    type="number"
-                    min="1"
-                    max={orderingCommodity.quantity}
-                    required
-                    value={orderQuantity}
-                    onChange={(e) => setOrderQuantity(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-bold"
-                  />
-                </div>
-
-                {/* Delivery Location & District */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">
-                      Delivery District *
-                    </label>
-                    <select
-                      value={deliveryDistrict}
-                      onChange={(e) => setDeliveryDistrict(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white"
-                    >
-                      {MALAWI_DISTRICTS.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">
-                      Delivery Date *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={deliveryDate}
-                      onChange={(e) => setDeliveryDate(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    Specific Delivery Address / Warehouse *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Area 25 Industrial Site, Central Grain Silo 4"
-                    value={deliveryLocation}
-                    onChange={(e) => setDeliveryLocation(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600"
-                  />
-                </div>
-
-                {/* Transport facilitation toggle */}
-                <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-blue-950 flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={includeTransport}
-                        onChange={(e) => setIncludeTransport(e.target.checked)}
-                        className="rounded text-blue-600"
-                      />
-                      <span>Include Transport Matching Facilitation</span>
-                    </label>
-                    {includeTransport && (
-                      <span className="font-bold text-blue-800">
-                        +MWK {transportEstimate.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-blue-800">
-                    Automatically matches verified trucks between {orderingCommodity.district} and {deliveryDistrict}.
-                  </p>
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    Special Packaging or Handling Notes
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Moisture test certificate required on arrival"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-medium"
-                  />
-                </div>
-
-                {/* Financial Ledger Calculation Summary */}
-                <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-1.5 text-xs">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-1">
-                    Order Financial Calculation
-                  </div>
-                  <div className="flex justify-between text-stone-600">
-                    <span>
-                      Produce Value ({orderQuantity.toLocaleString()} {orderingCommodity.unit} &times; MWK {unitPrice}):
-                    </span>
-                    <span className="font-semibold text-stone-900">
-                      MWK {commoditySubtotal.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-stone-600">
-                    <span>Platform Commission ({commissionPercentageText}% included):</span>
-                    <span className="font-medium text-emerald-700">
-                      MWK {platformFee.toLocaleString()}
-                    </span>
-                  </div>
-                  {includeTransport && (
-                    <div className="flex justify-between text-stone-600">
-                      <span>Logistics & Transport Estimate:</span>
-                      <span className="font-semibold text-stone-900">
-                        MWK {transportFee.toLocaleString()}
-                      </span>
+              <form onSubmit={handlePlaceOrder} className="flex flex-col flex-1 min-h-0">
+                {/* Scrollable Form Body */}
+                <div className="overflow-y-auto px-5 sm:px-6 py-4 space-y-4 flex-1 overscroll-contain">
+                  {orderError && (
+                    <div className="p-3 rounded-xl bg-rose-50 text-rose-700 text-xs border border-rose-200 font-medium">
+                      {orderError}
                     </div>
                   )}
-                  <div className="pt-2 border-t border-stone-200 flex justify-between font-extrabold text-stone-900 text-sm">
-                    <span>Grand Total (Deposit to Escrow):</span>
-                    <span className="text-amber-800 text-base">MWK {grandTotal.toLocaleString()}</span>
-                  </div>
-                </div>
 
-                {/* ESCROW PAYMENT CHANNELS: Airtel Money, TNM Mpamba, NBS Bank */}
-                <div className="space-y-3 pt-2 border-t border-stone-200">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-extrabold text-stone-900 flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      <span>Select Escrow Payment Channel *</span>
-                    </label>
-                    {copiedBadge && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full animate-pulse">
-                        {copiedBadge} copied!
+                  {/* Quantity */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-bold text-stone-700">
+                        Purchase Quantity ({orderingCommodity.unit}) *
+                      </label>
+                      <span className="text-[11px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full">
+                        Max available: {orderingCommodity.quantity.toLocaleString()} {orderingCommodity.unit}
                       </span>
-                    )}
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max={orderingCommodity.quantity}
+                      required
+                      value={orderQuantity}
+                      onChange={(e) => setOrderQuantity(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-bold"
+                    />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    {/* Airtel Money Option */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('airtel_money')}
-                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                        paymentMethod === 'airtel_money'
-                          ? 'border-red-600 bg-red-50/60 ring-2 ring-red-500/20'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full mb-1">
-                        <span className="font-extrabold text-xs text-red-700">Airtel Money</span>
-                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'airtel_money' ? 'bg-red-600' : 'border border-stone-300'}`} />
-                      </div>
-                      <div className="font-mono text-[11px] font-bold text-stone-800">
-                        +265 999 036 912
-                      </div>
-                      <div className="text-[10px] text-stone-500 mt-0.5">
-                        Peter Malikebu / Escrow
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard('+265999036912', 'Airtel Number');
-                        }}
-                        className="mt-2 text-[10px] font-bold text-red-700 hover:underline text-left"
-                      >
-                        📋 Copy Number
-                      </button>
-                    </button>
-
-                    {/* TNM Mpamba Option */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('tnm_mpamba')}
-                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                        paymentMethod === 'tnm_mpamba'
-                          ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full mb-1">
-                        <span className="font-extrabold text-xs text-emerald-700">TNM Mpamba</span>
-                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'tnm_mpamba' ? 'bg-emerald-600' : 'border border-stone-300'}`} />
-                      </div>
-                      <div className="font-mono text-[11px] font-bold text-stone-800">
-                        +265 895 357 535
-                      </div>
-                      <div className="text-[10px] text-stone-500 mt-0.5">
-                        Malawi Harvest Hub Escrow
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard('+265895357535', 'Mpamba Number');
-                        }}
-                        className="mt-2 text-[10px] font-bold text-emerald-700 hover:underline text-left"
-                      >
-                        📋 Copy Number
-                      </button>
-                    </button>
-
-                    {/* National Bank Option 1 - Peter Malikebu */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('nb_peter')}
-                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                        paymentMethod === 'nb_peter'
-                          ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full mb-1">
-                        <span className="font-extrabold text-xs text-blue-800">National Bank (Peter)</span>
-                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'nb_peter' ? 'bg-blue-600' : 'border border-stone-300'}`} />
-                      </div>
-                      <div className="font-mono text-[11px] font-bold text-stone-800">
-                        1011619688
-                      </div>
-                      <div className="text-[10px] text-stone-500 mt-0.5">
-                        PETER ADRIAN MALIKEBU
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard('1011619688', 'National Bank Acc');
-                        }}
-                        className="mt-2 text-[10px] font-bold text-blue-800 hover:underline text-left"
-                      >
-                        📋 Copy Account
-                      </button>
-                    </button>
-
-                    {/* National Bank Option 2 - Joshua Malikebu */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('nb_joshua')}
-                      className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                        paymentMethod === 'nb_joshua'
-                          ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full mb-1">
-                        <span className="font-extrabold text-xs text-blue-800">National Bank (Joshua)</span>
-                        <span className={`w-2.5 h-2.5 rounded-full ${paymentMethod === 'nb_joshua' ? 'bg-blue-600' : 'border border-stone-300'}`} />
-                      </div>
-                      <div className="font-mono text-[11px] font-bold text-stone-800">
-                        1013388772
-                      </div>
-                      <div className="text-[10px] text-stone-500 mt-0.5">
-                        JOSHUA MALIKEBU
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard('1013388772', 'National Bank Acc');
-                        }}
-                        className="mt-2 text-[10px] font-bold text-blue-800 hover:underline text-left"
-                      >
-                        📋 Copy Account
-                      </button>
-                    </button>
-                  </div>
-
-                  {/* Payment Verification Inputs */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Delivery Location & District */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-stone-700 mb-1">
-                        Sender Phone or Bank Account *
+                        Delivery District *
+                      </label>
+                      <select
+                        value={deliveryDistrict}
+                        onChange={(e) => setDeliveryDistrict(e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white font-medium"
+                      >
+                        {MALAWI_DISTRICTS.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">
+                        Delivery Date *
                       </label>
                       <input
-                        type="text"
+                        type="date"
                         required
-                        placeholder="e.g. +265 999 123 456"
-                        value={buyerPaymentPhone}
-                        onChange={(e) => setBuyerPaymentPhone(e.target.value)}
+                        value={deliveryDate}
+                        onChange={(e) => setDeliveryDate(e.target.value)}
                         className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-medium"
                       />
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-stone-700 mb-1">
-                        Transaction Ref / SMS Confirmation Code *
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">
+                      Specific Delivery Address / Warehouse *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Area 25 Industrial Site, Central Grain Silo 4"
+                      value={deliveryLocation}
+                      onChange={(e) => setDeliveryLocation(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-medium"
+                    />
+                  </div>
+
+                  {/* Transport facilitation toggle */}
+                  <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-blue-950 flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={includeTransport}
+                          onChange={(e) => setIncludeTransport(e.target.checked)}
+                          className="w-4 h-4 rounded text-blue-600 accent-blue-600"
+                        />
+                        <span>Include Transport Matching Facilitation</span>
                       </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. MP892182 / AT77239"
-                        value={paymentRef}
-                        onChange={(e) => setPaymentRef(e.target.value)}
-                        className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-bold"
-                      />
+                      {includeTransport && (
+                        <span className="font-bold text-blue-800 text-xs bg-blue-100/80 px-2 py-0.5 rounded-full">
+                          +MWK {transportEstimate.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-blue-800/90 leading-relaxed pl-6">
+                      Automatically matches verified trucks between {orderingCommodity.district} and {deliveryDistrict}.
+                    </p>
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">
+                      Special Packaging or Handling Notes
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Moisture test certificate required on arrival"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-medium"
+                    />
+                  </div>
+
+                  {/* Financial Ledger Calculation Summary */}
+                  <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-1.5 text-xs">
+                    <div className="text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                      Order Financial Calculation
+                    </div>
+                    <div className="flex justify-between text-stone-600">
+                      <span>
+                        Produce Value ({orderQuantity.toLocaleString()} {orderingCommodity.unit} &times; MWK {unitPrice}):
+                      </span>
+                      <span className="font-semibold text-stone-900">
+                        MWK {commoditySubtotal.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-stone-600">
+                      <span>Platform Commission ({commissionPercentageText}% included):</span>
+                      <span className="font-medium text-emerald-700">
+                        MWK {platformFee.toLocaleString()}
+                      </span>
+                    </div>
+                    {includeTransport && (
+                      <div className="flex justify-between text-stone-600">
+                        <span>Logistics &amp; Transport Estimate:</span>
+                        <span className="font-semibold text-stone-900">
+                          MWK {transportFee.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="pt-2 border-t border-stone-200 flex justify-between font-extrabold text-stone-900 text-sm">
+                      <span>Grand Total (Deposit to Escrow):</span>
+                      <span className="text-amber-800 text-base">MWK {grandTotal.toLocaleString()}</span>
                     </div>
                   </div>
 
-                  {/* Escrow Workflow Notice */}
-                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 space-y-1">
-                    <div className="font-bold flex items-center gap-1.5 text-amber-950">
-                      <span>🔒 Financial Administrator Escrow Process</span>
+                  {/* ESCROW PAYMENT CHANNELS: Airtel Money, TNM Mpamba, NBS Bank */}
+                  <div className="space-y-3 pt-2 border-t border-stone-200">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-extrabold text-stone-900 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span>Select Escrow Payment Channel *</span>
+                      </label>
+                      {copiedBadge && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full animate-pulse">
+                          {copiedBadge} copied!
+                        </span>
+                      )}
                     </div>
-                    <p className="leading-relaxed">
-                      1. You submit payment of <strong>MWK {grandTotal.toLocaleString()}</strong> via {paymentMethod === 'airtel_money' ? 'Airtel Money (+265 999 036 912)' : paymentMethod === 'tnm_mpamba' ? 'TNM Mpamba (+265 895 357 535)' : paymentMethod === 'nb_joshua' ? 'National Bank of Malawi (Acc: 1013388772 - Joshua Malikebu)' : 'National Bank of Malawi (Acc: 1011619688 - Peter Adrian Malikebu)'}.<br />
-                      2. Financial Administrator verifies the payment and locks funds in Escrow.<br />
-                      3. Farmer {orderingCommodity.farmerName} confirms the purchase to authorize dispatch.<br />
-                      4. Financial Administrator sends the payout to the farmer at the end upon delivery completion!
-                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {/* Airtel Money Option */}
+                      <div
+                        onClick={() => setPaymentMethod('airtel_money')}
+                        className={`p-3 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition-all ${
+                          paymentMethod === 'airtel_money'
+                            ? 'border-red-600 bg-red-50/70 ring-2 ring-red-500/20'
+                            : 'border-stone-200 bg-white hover:bg-stone-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <span className="font-extrabold text-xs text-red-700">Airtel Money</span>
+                          <span className={`w-3 h-3 rounded-full flex items-center justify-center border ${paymentMethod === 'airtel_money' ? 'border-red-600 bg-red-600' : 'border-stone-300'}`}>
+                            {paymentMethod === 'airtel_money' && <span className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </span>
+                        </div>
+                        <div className="font-mono text-[11px] font-bold text-stone-800">
+                          +265 999 036 912
+                        </div>
+                        <div className="text-[10px] text-stone-500 mt-0.5">
+                          Peter Malikebu / Escrow
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard('+265999036912', 'Airtel Number');
+                          }}
+                          className="mt-2 text-[10px] font-bold text-red-700 hover:underline text-left inline-flex items-center gap-1"
+                        >
+                          📋 Copy Number
+                        </button>
+                      </div>
+
+                      {/* TNM Mpamba Option */}
+                      <div
+                        onClick={() => setPaymentMethod('tnm_mpamba')}
+                        className={`p-3 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition-all ${
+                          paymentMethod === 'tnm_mpamba'
+                            ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                            : 'border-stone-200 bg-white hover:bg-stone-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <span className="font-extrabold text-xs text-emerald-700">TNM Mpamba</span>
+                          <span className={`w-3 h-3 rounded-full flex items-center justify-center border ${paymentMethod === 'tnm_mpamba' ? 'border-emerald-600 bg-emerald-600' : 'border-stone-300'}`}>
+                            {paymentMethod === 'tnm_mpamba' && <span className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </span>
+                        </div>
+                        <div className="font-mono text-[11px] font-bold text-stone-800">
+                          +265 895 357 535
+                        </div>
+                        <div className="text-[10px] text-stone-500 mt-0.5">
+                          Malawi Harvest Hub Escrow
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard('+265895357535', 'Mpamba Number');
+                          }}
+                          className="mt-2 text-[10px] font-bold text-emerald-700 hover:underline text-left inline-flex items-center gap-1"
+                        >
+                          📋 Copy Number
+                        </button>
+                      </div>
+
+                      {/* National Bank Option 1 - Peter Malikebu */}
+                      <div
+                        onClick={() => setPaymentMethod('nb_peter')}
+                        className={`p-3 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition-all ${
+                          paymentMethod === 'nb_peter'
+                            ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/20'
+                            : 'border-stone-200 bg-white hover:bg-stone-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <span className="font-extrabold text-xs text-blue-800">National Bank (Peter)</span>
+                          <span className={`w-3 h-3 rounded-full flex items-center justify-center border ${paymentMethod === 'nb_peter' ? 'border-blue-600 bg-blue-600' : 'border-stone-300'}`}>
+                            {paymentMethod === 'nb_peter' && <span className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </span>
+                        </div>
+                        <div className="font-mono text-[11px] font-bold text-stone-800">
+                          1011619688
+                        </div>
+                        <div className="text-[10px] text-stone-500 mt-0.5">
+                          PETER ADRIAN MALIKEBU
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard('1011619688', 'National Bank Acc');
+                          }}
+                          className="mt-2 text-[10px] font-bold text-blue-800 hover:underline text-left inline-flex items-center gap-1"
+                        >
+                          📋 Copy Account
+                        </button>
+                      </div>
+
+                      {/* National Bank Option 2 - Joshua Malikebu */}
+                      <div
+                        onClick={() => setPaymentMethod('nb_joshua')}
+                        className={`p-3 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition-all ${
+                          paymentMethod === 'nb_joshua'
+                            ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/20'
+                            : 'border-stone-200 bg-white hover:bg-stone-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <span className="font-extrabold text-xs text-blue-800">National Bank (Joshua)</span>
+                          <span className={`w-3 h-3 rounded-full flex items-center justify-center border ${paymentMethod === 'nb_joshua' ? 'border-blue-600 bg-blue-600' : 'border-stone-300'}`}>
+                            {paymentMethod === 'nb_joshua' && <span className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </span>
+                        </div>
+                        <div className="font-mono text-[11px] font-bold text-stone-800">
+                          1013388772
+                        </div>
+                        <div className="text-[10px] text-stone-500 mt-0.5">
+                          JOSHUA MALIKEBU
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard('1013388772', 'National Bank Acc');
+                          }}
+                          className="mt-2 text-[10px] font-bold text-blue-800 hover:underline text-left inline-flex items-center gap-1"
+                        >
+                          📋 Copy Account
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Payment Verification Inputs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 mb-1">
+                          Sender Phone or Bank Account *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. +265 999 123 456"
+                          value={buyerPaymentPhone}
+                          onChange={(e) => setBuyerPaymentPhone(e.target.value)}
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 mb-1">
+                          Transaction Ref / SMS Confirmation Code *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. MP892182 / AT77239"
+                          value={paymentRef}
+                          onChange={(e) => setPaymentRef(e.target.value)}
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Escrow Workflow Notice */}
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 space-y-1">
+                      <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                        <span>🔒 Financial Administrator Escrow Process</span>
+                      </div>
+                      <p className="leading-relaxed">
+                        1. You submit payment of <strong>MWK {grandTotal.toLocaleString()}</strong> via {paymentMethod === 'airtel_money' ? 'Airtel Money (+265 999 036 912)' : paymentMethod === 'tnm_mpamba' ? 'TNM Mpamba (+265 895 357 535)' : paymentMethod === 'nb_joshua' ? 'National Bank of Malawi (Acc: 1013388772 - Joshua Malikebu)' : 'National Bank of Malawi (Acc: 1011619688 - Peter Adrian Malikebu)'}.<br />
+                        2. Financial Administrator verifies the payment and locks funds in Escrow.<br />
+                        3. Farmer {orderingCommodity.farmerName} confirms the purchase to authorize dispatch.<br />
+                        4. Financial Administrator sends the payout to the farmer at the end upon delivery completion!
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-stone-100 flex items-center justify-end gap-3">
+                {/* Sticky Modal Footer: Always Visible */}
+                <div className="px-5 sm:px-6 py-3.5 bg-stone-50 border-t border-stone-200 flex items-center justify-between sm:justify-end gap-3 shrink-0">
                   <button
                     type="button"
                     onClick={() => setOrderingCommodity(null)}
-                    className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl"
+                    className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-200/70 rounded-xl transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submittingOrder}
-                    className="px-5 py-2.5 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-xl shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                    className="px-5 py-2.5 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-xl shadow-xs disabled:opacity-50 flex items-center gap-1.5 transition-all active:scale-[0.99]"
                   >
                     <ShoppingCart className="w-4 h-4" />
                     <span>{submittingOrder ? 'Submitting to Escrow...' : 'Confirm & Reserve Stock'}</span>
