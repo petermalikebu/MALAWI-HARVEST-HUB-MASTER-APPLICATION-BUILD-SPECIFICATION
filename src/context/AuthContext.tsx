@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { signInWithPopup, signOut as fbSignOut, User as FbUser } from 'firebase/auth';
+import {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as fbSignOut,
+  onAuthStateChanged,
+  User as FbUser,
+} from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase.ts';
 import { User, UserRole } from '../types/index.ts';
 import { safeParseJson, safeParseResponse } from '../lib/api.ts';
@@ -43,69 +50,132 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [idToken, setIdToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Load saved active UID from storage so session and profile persist across tab close & refresh
+  // Subscribe to Firebase Authentication state changes to persist session across reloads & sessions
   useEffect(() => {
-    const initAuth = async () => {
+    let isMounted = true;
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
-        const isLoggedOut =
+        const isExplicitlyLoggedOut =
           localStorage.getItem('mhh_logged_out') === 'true' ||
           sessionStorage.getItem('mhh_logged_out') === 'true';
-        const savedUid =
-          localStorage.getItem('mhh_active_uid') ||
-          sessionStorage.getItem('mhh_active_uid');
 
-        if (!isLoggedOut && savedUid) {
-          // Check cached user first for instantaneous UI render
-          const cachedRaw = localStorage.getItem('mhh_cached_user') || sessionStorage.getItem('mhh_cached_user');
-          if (cachedRaw) {
-            try {
-              const parsed = JSON.parse(cachedRaw);
-              if (parsed && (parsed.uid === savedUid || String(parsed.id) === savedUid)) {
-                const localPhoto =
-                  (parsed.uid ? localStorage.getItem(`mhh_user_photo_${parsed.uid}`) : null) ||
-                  (parsed.email ? localStorage.getItem(`mhh_user_photo_${parsed.email.toLowerCase().trim()}`) : null);
-                if (localPhoto && (!parsed.photoUrl || parsed.photoUrl.trim() === '')) {
-                  parsed.photoUrl = localPhoto;
-                }
-                setCurrentUser(parsed);
-              }
-            } catch (e) {
-              // ignore cache parse error
-            }
-          }
+        if (user && !isExplicitlyLoggedOut) {
+          if (!isMounted) return;
+          setFbUser(user);
 
-          const res = await fetch(`/api/users/${savedUid}`);
+          const token = await user.getIdToken();
+          if (isMounted) setIdToken(token);
+
+          // Determine super admin status by email
+          const userEmail = (user.email || '').toLowerCase().trim();
+          const isSuperAdmin =
+            userEmail === 'petermalikebujr@gmail.com' ||
+            userEmail === 'petermalikebu0@gmail.com' ||
+            userEmail === 'joshuamalikebu927@gmail.com';
+
+          // First try to fetch existing synced user
+          const targetUid = isSuperAdmin ? 'frF3xukObzdA8AhCBYIBPYV0UK13' : user.uid;
+          const res = await fetch(`/api/users/${targetUid}`);
           if (res.ok) {
-            const u = await safeParseJson<User | null>(res, null);
-            if (u) {
+            const profile = await safeParseJson<User | null>(res, null);
+            if (profile && isMounted) {
               const localPhoto =
-                (u.uid ? localStorage.getItem(`mhh_user_photo_${u.uid}`) : null) ||
-                (u.email ? localStorage.getItem(`mhh_user_photo_${u.email.toLowerCase().trim()}`) : null);
-              if (localPhoto && (!u.photoUrl || u.photoUrl.trim() === '')) {
-                u.photoUrl = localPhoto;
-              } else if (u.photoUrl) {
-                if (u.uid) localStorage.setItem(`mhh_user_photo_${u.uid}`, u.photoUrl);
-                if (u.email) localStorage.setItem(`mhh_user_photo_${u.email.toLowerCase().trim()}`, u.photoUrl);
+                (profile.uid ? localStorage.getItem(`mhh_user_photo_${profile.uid}`) : null) ||
+                (profile.email ? localStorage.getItem(`mhh_user_photo_${profile.email.toLowerCase().trim()}`) : null);
+              if (localPhoto && (!profile.photoUrl || profile.photoUrl.trim() === '')) {
+                profile.photoUrl = localPhoto;
               }
-              setCurrentUser(u);
-              localStorage.setItem('mhh_cached_user', JSON.stringify(u));
-              sessionStorage.setItem('mhh_cached_user', JSON.stringify(u));
+              setCurrentUser(profile);
+              localStorage.setItem('mhh_active_uid', profile.uid);
+              sessionStorage.setItem('mhh_active_uid', profile.uid);
+              localStorage.setItem('mhh_cached_user', JSON.stringify(profile));
+              sessionStorage.setItem('mhh_cached_user', JSON.stringify(profile));
+              setLoading(false);
               return;
             }
           }
+
+          // If not yet present in database, sync or create user record
+          const syncRes = await fetch('/api/users/sync', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              uid: targetUid,
+              email: user.email || 'user@malawiharvesthub.mw',
+              fullName: isSuperAdmin ? 'Peter Malikebu' : user.displayName || 'Google User',
+              role: isSuperAdmin ? 'admin' : 'farmer',
+              district: 'Lilongwe',
+              region: 'Central',
+            }),
+          });
+
+          if (syncRes.ok && isMounted) {
+            const syncedUser = await safeParseJson<User | null>(syncRes, null);
+            if (syncedUser) {
+              setCurrentUser(syncedUser);
+              localStorage.setItem('mhh_active_uid', syncedUser.uid);
+              sessionStorage.setItem('mhh_active_uid', syncedUser.uid);
+              localStorage.setItem('mhh_cached_user', JSON.stringify(syncedUser));
+              sessionStorage.setItem('mhh_cached_user', JSON.stringify(syncedUser));
+            }
+          }
+        } else if (!isExplicitlyLoggedOut) {
+          // Check if session exists from database email login
+          const savedUid =
+            localStorage.getItem('mhh_active_uid') ||
+            sessionStorage.getItem('mhh_active_uid');
+
+          if (savedUid) {
+            const cachedRaw = localStorage.getItem('mhh_cached_user') || sessionStorage.getItem('mhh_cached_user');
+            if (cachedRaw) {
+              try {
+                const parsed = JSON.parse(cachedRaw);
+                if (parsed && (parsed.uid === savedUid || String(parsed.id) === savedUid) && isMounted) {
+                  setCurrentUser(parsed);
+                }
+              } catch {
+                // ignore cache parse error
+              }
+            }
+
+            const res = await fetch(`/api/users/${savedUid}`);
+            if (res.ok && isMounted) {
+              const u = await safeParseJson<User | null>(res, null);
+              if (u) {
+                const localPhoto =
+                  (u.uid ? localStorage.getItem(`mhh_user_photo_${u.uid}`) : null) ||
+                  (u.email ? localStorage.getItem(`mhh_user_photo_${u.email.toLowerCase().trim()}`) : null);
+                if (localPhoto && (!u.photoUrl || u.photoUrl.trim() === '')) {
+                  u.photoUrl = localPhoto;
+                }
+                setCurrentUser(u);
+                localStorage.setItem('mhh_cached_user', JSON.stringify(u));
+                sessionStorage.setItem('mhh_cached_user', JSON.stringify(u));
+              }
+            }
+          }
+        } else {
+          if (isMounted) {
+            setCurrentUser(null);
+            setFbUser(null);
+            setIdToken(null);
+          }
         }
-
-        // On first visit or if explicitly logged out, user signs in
-        setCurrentUser(null);
       } catch (err) {
-        console.error('Failed to load initial user profile:', err);
-        setCurrentUser(null);
+        console.error('Error during Firebase auth state synchronization:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
-    };
+    });
 
-    initAuth();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const refreshUser = async () => {
@@ -120,6 +190,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           sessionStorage.setItem('mhh_cached_user', JSON.stringify(u));
         }
       }
+      if (fbUser) {
+        const token = await fbUser.getIdToken(true);
+        setIdToken(token);
+      }
     } catch (err) {
       console.error('Failed to refresh user:', err);
     }
@@ -128,10 +202,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithEmailPassword = async (email: string, password: string): Promise<User> => {
     setLoading(true);
     try {
+      // Attempt Firebase Auth sign-in if the email/password provider is enabled
+      try {
+        const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+        if (userCred.user) {
+          setFbUser(userCred.user);
+          const token = await userCred.user.getIdToken();
+          setIdToken(token);
+        }
+      } catch (fbErr: any) {
+        // Log info; proceed to verified backend login check so local/admin accounts seamlessly authenticate
+        console.debug('Firebase Auth sign in fallback to database login:', fbErr?.code || fbErr?.message);
+      }
+
       const res = await fetch('/api/users/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
       const parsed = await safeParseResponse(res);
@@ -143,6 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!user) {
         throw new Error('User record missing in response');
       }
+
       setCurrentUser(user);
       sessionStorage.removeItem('mhh_logged_out');
       localStorage.removeItem('mhh_logged_out');
@@ -179,6 +267,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }): Promise<{ success: boolean; message: string }> => {
     setLoading(true);
     try {
+      // Attempt to register in Firebase Auth if provider is configured
+      try {
+        await createUserWithEmailAndPassword(auth, data.email.trim(), data.password);
+      } catch (fbErr: any) {
+        console.debug('Firebase Auth registration fallback:', fbErr?.code || fbErr?.message);
+      }
+
       const res = await fetch('/api/users/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -190,8 +285,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error(parsed.error || 'Registration failed.');
       }
 
-      // DO NOT auto-login as instructed by user:
-      // prompt him or her to sign in after signing up.
       return {
         success: true,
         message: parsed.data?.message || 'Account created successfully! Please sign in with your email and password.',
@@ -249,7 +342,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user.email === 'petermalikebu0@gmail.com' ||
         user.email === 'joshuamalikebu927@gmail.com';
 
-      // Sync or create in database
+      // Sync or create in centralized database
       const syncRes = await fetch('/api/users/sync', {
         method: 'POST',
         headers: {
@@ -292,6 +385,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: {
           'Content-Type': 'application/json',
           'x-user-uid': currentUser.uid,
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
         },
         body: JSON.stringify({
           ...currentUser,
@@ -301,7 +395,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }),
       });
       if (res.ok) {
-        const updated = await safeParseJson(res, null);
+        const updated = await safeParseJson<User | null>(res, null);
         if (updated) {
           setCurrentUser(updated);
           localStorage.setItem('mhh_cached_user', JSON.stringify(updated));
@@ -317,7 +411,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await fbSignOut(auth);
     } catch (e) {
-      // ignore
+      console.warn('Firebase signOut error:', e);
     }
     setFbUser(null);
     setIdToken(null);
