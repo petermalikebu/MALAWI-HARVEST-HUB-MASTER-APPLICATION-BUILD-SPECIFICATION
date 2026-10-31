@@ -2,11 +2,21 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { getTableName } from 'drizzle-orm';
 import { Pool } from 'pg';
 import * as schema from './schema.ts';
+import {
+  persistDocToFirestore,
+  deleteDocFromFirestore,
+  fetchCollectionFromFirestore,
+  setupFirestoreRealtimeSync,
+  getDocId,
+  COLLECTIONS,
+} from './firestoreStore.ts';
 
 declare global {
   var _postgresPool: Pool | undefined;
   var _inMemoryStore: Record<string, any[]> | undefined;
+  var _firestoreSyncInitialized: boolean | undefined;
 }
+
 
 export const isValidPostgresUrl = (str?: string): boolean => {
   if (!str) return false;
@@ -717,12 +727,14 @@ export function getInMemoryStore(): Record<string, any[]> {
   if (!global._inMemoryStore) {
     const fromDisk = loadStoreFromDisk();
     if (fromDisk && Array.isArray(fromDisk.users) && fromDisk.users.length > 0) {
-      // Deduplicate users loaded from disk by UID / email
+      // Deduplicate users loaded from disk by UID / email, excluding sample mock non-admin users
+      const mockSampleUids = new Set(['farmer-chimwemwe-01', 'buyer-alinafe-02', 'transporter-kondwani-03', 'finance-chisomo-04']);
       const seenUids = new Set<string>();
       const seenEmails = new Set<string>();
       const dedupedUsers: any[] = [];
       for (const u of fromDisk.users) {
         const uid = u.uid;
+        if (mockSampleUids.has(uid)) continue;
         const normEmail = (u.email || '').toLowerCase().trim();
         if (uid && seenUids.has(uid)) continue;
         if (normEmail && seenEmails.has(normEmail)) continue;
@@ -808,49 +820,12 @@ export function getInMemoryStore(): Record<string, any[]> {
         });
       }
 
-      // 3. Ensure demo users exist in store
+      // Ensure required collections are initialized
       const seed = initializeSeedStore();
-      for (const su of seed.users) {
-        const found = global._inMemoryStore.users.find((u: any) => u.uid === su.uid || u.email === su.email);
-        if (!found) {
-          const nextId = Math.max(...global._inMemoryStore.users.map((u: any) => Number(u.id) || 0)) + 1;
-          global._inMemoryStore.users.push({ ...su, id: nextId });
+      for (const coll of COLLECTIONS) {
+        if (!Array.isArray(global._inMemoryStore[coll])) {
+          global._inMemoryStore[coll] = (seed as any)[coll] || [];
         }
-      }
-
-      // 4. Ensure commodities, orders, and tables exist and are populated if empty
-      if (!Array.isArray(global._inMemoryStore.commodities) || global._inMemoryStore.commodities.length === 0) {
-        global._inMemoryStore.commodities = seed.commodities || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.categories) || global._inMemoryStore.categories.length === 0) {
-        global._inMemoryStore.categories = seed.categories || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.orders) || global._inMemoryStore.orders.length === 0) {
-        global._inMemoryStore.orders = seed.orders || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.transport_jobs) || global._inMemoryStore.transport_jobs.length === 0) {
-        global._inMemoryStore.transport_jobs = seed.transport_jobs || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.transactions) || global._inMemoryStore.transactions.length === 0) {
-        global._inMemoryStore.transactions = seed.transactions || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.revenue_ledger) || global._inMemoryStore.revenue_ledger.length === 0) {
-        global._inMemoryStore.revenue_ledger = seed.revenue_ledger || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.platform_settings) || global._inMemoryStore.platform_settings.length === 0) {
-        global._inMemoryStore.platform_settings = seed.platform_settings || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.notifications) || global._inMemoryStore.notifications.length === 0) {
-        global._inMemoryStore.notifications = seed.notifications || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.audit_logs) || global._inMemoryStore.audit_logs.length === 0) {
-        global._inMemoryStore.audit_logs = seed.audit_logs || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.support_tickets)) {
-        global._inMemoryStore.support_tickets = seed.support_tickets || [];
-      }
-      if (!Array.isArray(global._inMemoryStore.password_reset_requests)) {
-        global._inMemoryStore.password_reset_requests = [];
       }
 
       saveStoreToDisk(global._inMemoryStore);
@@ -858,9 +833,65 @@ export function getInMemoryStore(): Record<string, any[]> {
       global._inMemoryStore = initializeSeedStore();
       saveStoreToDisk(global._inMemoryStore);
     }
+
+    // Connect real-time bidirectional syncing with Cloud Firestore
+    if (!global._firestoreSyncInitialized) {
+      global._firestoreSyncInitialized = true;
+      try {
+        setupFirestoreRealtimeSync(global._inMemoryStore, (_collName) => {
+          if (global._inMemoryStore) {
+            saveStoreToDisk(global._inMemoryStore);
+          }
+        });
+
+        // Asynchronously bootstrap and sync with Cloud Firestore
+        (async () => {
+          try {
+            console.log('[FirestoreSync] Hydrating store from Cloud Firestore...');
+            for (const coll of COLLECTIONS) {
+              const cloudDocs = await fetchCollectionFromFirestore(coll);
+              if (cloudDocs && cloudDocs.length > 0) {
+                if (coll === 'users') {
+                  const mockSampleUids = new Set(['farmer-chimwemwe-01', 'buyer-alinafe-02', 'transporter-kondwani-03', 'finance-chisomo-04']);
+                  for (const cu of cloudDocs) {
+                    if (mockSampleUids.has(cu.uid)) {
+                      deleteDocFromFirestore('users', cu.uid).catch(() => {});
+                      continue;
+                    }
+                    const existingIdx = global._inMemoryStore!.users.findIndex(
+                      (u: any) => u.uid === cu.uid || (u.email && cu.email && u.email.toLowerCase().trim() === cu.email.toLowerCase().trim())
+                    );
+                    if (existingIdx >= 0) {
+                      global._inMemoryStore!.users[existingIdx] = { ...global._inMemoryStore!.users[existingIdx], ...cu };
+                    } else {
+                      global._inMemoryStore!.users.push(cu);
+                    }
+                  }
+                } else {
+                  global._inMemoryStore![coll] = cloudDocs;
+                }
+              } else {
+                // Seed initial records to Cloud Firestore if collection is empty
+                const itemsToSeed = global._inMemoryStore![coll] || [];
+                for (const item of itemsToSeed) {
+                  await persistDocToFirestore(coll, item);
+                }
+              }
+            }
+            saveStoreToDisk(global._inMemoryStore!);
+            console.log('[FirestoreSync] Cloud Firestore synchronization ready. All instances now share persistent cloud state.');
+          } catch (syncErr) {
+            console.warn('[FirestoreSync] Initial cloud hydration notice:', syncErr);
+          }
+        })();
+      } catch (err) {
+        console.warn('[FirestoreSync] Failed to start Firestore synchronization:', err);
+      }
+    }
   }
   return global._inMemoryStore;
 }
+
 
 function resolveItemProp(item: any, colName: string): any {
   if (item[colName] !== undefined) return item[colName];
@@ -1073,6 +1104,9 @@ function createInMemoryDb() {
                     updatedAt: new Date(),
                   };
                   inserted.push(table[existingIdx]);
+                  persistDocToFirestore(currentTableName, table[existingIdx]).catch((e) =>
+                    console.warn(`[Firestore] Failed to persist ${currentTableName}:`, e?.message || e)
+                  );
                 } else {
                   const nextId =
                     table.length > 0
@@ -1087,6 +1121,9 @@ function createInMemoryDb() {
                   };
                   table.push(newRecord);
                   inserted.push(newRecord);
+                  persistDocToFirestore(currentTableName, newRecord).catch((e) =>
+                    console.warn(`[Firestore] Failed to persist ${currentTableName}:`, e?.message || e)
+                  );
                 }
               }
 
@@ -1119,6 +1156,13 @@ function createInMemoryDb() {
           then: (resolve: (data: any[]) => void, reject?: (err: any) => void) => {
             try {
               const table = getTableData(tableDef);
+              const currentTableName = (() => {
+                try {
+                  return getTableName(tableDef);
+                } catch {
+                  return String(tableDef);
+                }
+              })();
               const updated: any[] = [];
 
               for (let i = 0; i < table.length; i++) {
@@ -1129,6 +1173,9 @@ function createInMemoryDb() {
                     updatedAt: new Date(),
                   };
                   updated.push(table[i]);
+                  persistDocToFirestore(currentTableName, table[i]).catch((e) =>
+                    console.warn(`[Firestore] Failed to update ${currentTableName}:`, e?.message || e)
+                  );
                 }
               }
 
@@ -1150,11 +1197,23 @@ function createInMemoryDb() {
           then: (resolve: (data: any[]) => void, reject?: (err: any) => void) => {
             try {
               const table = getTableData(tableDef);
+              const currentTableName = (() => {
+                try {
+                  return getTableName(tableDef);
+                } catch {
+                  return String(tableDef);
+                }
+              })();
               let deletedCount = 0;
               for (let i = table.length - 1; i >= 0; i--) {
                 if (!condition || evaluateSqlCondition(table[i], condition)) {
+                  const itemToDelete = table[i];
+                  const docId = getDocId(currentTableName, itemToDelete);
                   table.splice(i, 1);
                   deletedCount++;
+                  deleteDocFromFirestore(currentTableName, docId).catch((e) =>
+                    console.warn(`[Firestore] Failed to delete ${currentTableName}/${docId}:`, e?.message || e)
+                  );
                 }
               }
               saveStoreToDisk(store);

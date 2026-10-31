@@ -18,11 +18,15 @@ export const users = pgTable('users', {
   // Transporter specific
   vehicleType: text('vehicle_type').default(''),
   vehicleRegistration: text('vehicle_registration').default(''),
+  plateNumber: text('plate_number').default(''),
+  licenseType: text('license_type').default('Class C - Heavy Commercial'),
+  yearsExperience: text('years_experience').default('5 years'),
   vehicleCapacityKg: integer('vehicle_capacity_kg').default(0),
   bankName: text('bank_name').default('National Bank of Malawi'),
   bankAccount: text('bank_account').default(''),
   bankAccountName: text('bank_account_name').default(''),
   isAvailable: boolean('is_available').default(true),
+  currentRoute: text('current_route').default('Available'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -131,7 +135,14 @@ export const transportJobs = pgTable('transport_jobs', {
   requiredVehicleType: text('required_vehicle_type').notNull(),
   preferredDate: text('preferred_date').notNull(),
   specialRequirements: text('special_requirements').default(''),
-  transportFee: numeric('transport_fee').notNull(),
+  distanceKm: integer('distance_km').default(0),
+  transportFee: numeric('transport_fee').notNull().default('0'),
+  quotedPrice: numeric('quoted_price'),
+  pricePerKm: numeric('price_per_km'),
+  quoteNotes: text('quote_notes').default(''),
+  priceStatus: text('price_status').default('negotiating'), // pending_quote | quoted | confirmed_by_admin | confirmed_by_farmer | agreed | rejected
+  farmerConfirmedPrice: boolean('farmer_confirmed_price').default(false),
+  adminConfirmedPrice: boolean('admin_confirmed_price').default(false),
   paymentStatus: text('payment_status').default('pending_payment'), // pending_payment | paid_pending_approval | verified_by_finance | refunded
   paymentRef: text('payment_ref'),
   paymentMethod: text('payment_method').default('Airtel Money / TNM Mpamba Escrow'),
@@ -141,7 +152,7 @@ export const transportJobs = pgTable('transport_jobs', {
   recommendedDriverId: integer('recommended_driver_id'),
   recommendedDriverName: text('recommended_driver_name'),
   status: text('status').notNull().default('requested'),
-  // requested | pending_finance_approval | driver_assigned | picked_up | in_transit | delivered | completed | cancelled
+  // quote_requested | quote_submitted | price_agreed | requested | pending_finance_approval | driver_assigned | picked_up | in_transit | delivered | completed | cancelled
   currentLocation: text('current_location').default(''),
   estimatedArrival: text('estimated_arrival').default(''),
   acceptedAt: timestamp('accepted_at'),

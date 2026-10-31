@@ -126,6 +126,9 @@ router.post('/users/register', async (req, res) => {
       village,
       vehicleType,
       vehicleRegistration,
+      plateNumber,
+      licenseType,
+      yearsExperience,
       vehicleCapacityKg,
       photoUrl,
     } = req.body;
@@ -165,6 +168,7 @@ router.post('/users/register', async (req, res) => {
     }
 
     const uid = `usr-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const effectivePlate = plateNumber || vehicleRegistration || '';
 
     const inserted = await db.insert(users).values({
       uid,
@@ -179,9 +183,13 @@ router.post('/users/register', async (req, res) => {
       tradingArea: tradingArea || '',
       village: village || '',
       vehicleType: vehicleType || '',
-      vehicleRegistration: vehicleRegistration || '',
+      vehicleRegistration: effectivePlate,
+      plateNumber: effectivePlate,
+      licenseType: licenseType || (role === 'transporter' ? 'Class C - Heavy Commercial' : ''),
+      yearsExperience: yearsExperience || (role === 'transporter' ? '5 years' : ''),
       vehicleCapacityKg: Number(vehicleCapacityKg) || 0,
       isAvailable: true,
+      currentRoute: 'Available',
     }).returning();
 
     const newUser = inserted[0];
@@ -424,6 +432,151 @@ router.post('/users/profile-photo', async (req, res) => {
   } catch (error: any) {
     console.error('Error updating profile photo:', error);
     return res.status(500).json({ error: error.message || 'Failed to update profile photo' });
+  }
+});
+
+// Update Driver / User Profile (Transporter details: vehicle, plate number, license type, experience, availability)
+router.post('/users/profile', async (req, res) => {
+  try {
+    const {
+      uid,
+      fullName,
+      phoneNumber,
+      district,
+      region,
+      tradingArea,
+      village,
+      vehicleType,
+      vehicleRegistration,
+      plateNumber,
+      licenseType,
+      yearsExperience,
+      vehicleCapacityKg,
+      isAvailable,
+      currentRoute,
+      bankName,
+      bankAccount,
+      bankAccountName,
+    } = req.body;
+
+    if (!uid) return res.status(400).json({ error: 'User UID is required' });
+
+    const allUsers = await db.select().from(users);
+    const existing = allUsers.find(
+      (u: any) =>
+        u.uid === uid ||
+        String(u.id) === String(uid) ||
+        (u.email && u.email.toLowerCase().trim() === String(uid).toLowerCase().trim())
+    );
+    if (!existing) return res.status(404).json({ error: 'User not found' });
+
+    const effectivePlate = plateNumber ?? vehicleRegistration ?? existing.vehicleRegistration ?? '';
+
+    const updateData: Record<string, any> = {
+      updatedAt: new Date(),
+    };
+
+    if (fullName !== undefined) updateData.fullName = fullName;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+    if (district !== undefined) updateData.district = district;
+    if (region !== undefined) updateData.region = region;
+    if (tradingArea !== undefined) updateData.tradingArea = tradingArea;
+    if (village !== undefined) updateData.village = village;
+    if (vehicleType !== undefined) updateData.vehicleType = vehicleType;
+    if (effectivePlate !== undefined) {
+      updateData.vehicleRegistration = effectivePlate;
+      updateData.plateNumber = effectivePlate;
+    }
+    if (licenseType !== undefined) updateData.licenseType = licenseType;
+    if (yearsExperience !== undefined) updateData.yearsExperience = yearsExperience;
+    if (vehicleCapacityKg !== undefined) updateData.vehicleCapacityKg = Number(vehicleCapacityKg);
+    if (isAvailable !== undefined) updateData.isAvailable = Boolean(isAvailable);
+    if (currentRoute !== undefined) updateData.currentRoute = currentRoute;
+    if (bankName !== undefined) updateData.bankName = bankName;
+    if (bankAccount !== undefined) updateData.bankAccount = bankAccount;
+    if (bankAccountName !== undefined) updateData.bankAccountName = bankAccountName;
+
+    const updated = await db.update(users)
+      .set(updateData)
+      .where(eq(users.id, existing.id))
+      .returning();
+
+    const resultUser = updated.length > 0 ? updated[0] : { ...existing, ...updateData };
+
+    await logAudit({
+      userUid: resultUser.uid,
+      userEmail: resultUser.email,
+      userName: resultUser.fullName,
+      role: resultUser.role,
+      action: 'USER_PROFILE_UPDATED',
+      recordAffected: `User #${resultUser.id} (${resultUser.fullName})`,
+      newValue: `Updated details: ${Object.keys(updateData).filter(k => k !== 'updatedAt').join(', ')}`,
+    });
+
+    broadcastEvent('user_updated', resultUser);
+    broadcastEvent('transporter_availability_changed', {
+      uid: resultUser.uid,
+      isAvailable: resultUser.isAvailable,
+      currentRoute: resultUser.currentRoute,
+    });
+
+    return res.json({ success: true, user: resultUser });
+  } catch (error: any) {
+    console.error('Error updating user profile:', error);
+    return res.status(500).json({ error: error.message || 'Failed to update profile' });
+  }
+});
+
+// Toggle Transporter Availability
+router.post('/users/availability', async (req, res) => {
+  try {
+    const { uid, isAvailable, currentRoute } = req.body;
+    if (!uid) return res.status(400).json({ error: 'User UID is required' });
+
+    const allUsers = await db.select().from(users);
+    const existing = allUsers.find((u: any) => u.uid === uid || String(u.id) === String(uid));
+    if (!existing) return res.status(404).json({ error: 'User not found' });
+
+    const newAvail = Boolean(isAvailable);
+    const newRoute = currentRoute !== undefined ? currentRoute : (newAvail ? 'Available' : 'In Transit / On Delivery');
+
+    const updated = await db.update(users)
+      .set({
+        isAvailable: newAvail,
+        currentRoute: newRoute,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, existing.id))
+      .returning();
+
+    const resultUser = updated.length > 0 ? updated[0] : { ...existing, isAvailable: newAvail, currentRoute: newRoute };
+
+    await logAudit({
+      userUid: resultUser.uid,
+      userEmail: resultUser.email,
+      userName: resultUser.fullName,
+      role: resultUser.role,
+      action: 'TRANSPORTER_AVAILABILITY_CHANGED',
+      recordAffected: `Driver #${resultUser.id} (${resultUser.fullName})`,
+      newValue: `Available: ${newAvail ? 'YES' : 'NO'} | Route: ${newRoute}`,
+    });
+
+    broadcastEvent('user_updated', resultUser);
+    broadcastEvent('transporter_availability_changed', {
+      uid: resultUser.uid,
+      isAvailable: newAvail,
+      currentRoute: newRoute,
+    });
+
+    return res.json({
+      success: true,
+      isAvailable: newAvail,
+      currentRoute: newRoute,
+      user: resultUser,
+    });
+  } catch (error: any) {
+    console.error('Error toggling availability:', error);
+    return res.status(500).json({ error: error.message || 'Failed to toggle availability' });
   }
 });
 
@@ -2370,7 +2523,9 @@ router.get('/transport/jobs', async (req, res) => {
       conditions.push(
         or(
           eq(transportJobs.transporterUid, String(transporterUid)),
-          eq(transportJobs.status, 'requested') // allow transporter to view open jobs
+          eq(transportJobs.status, 'requested'),
+          eq(transportJobs.status, 'quote_requested'),
+          eq(transportJobs.status, 'quote_submitted')
         )
       );
     }
@@ -2385,6 +2540,330 @@ router.get('/transport/jobs', async (req, res) => {
     return res.json(list);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to fetch transport jobs' });
+  }
+});
+
+// Farmer requests a custom Transport Price Quote based on route, distance & cargo
+router.post('/transport/quote-request', async (req, res) => {
+  try {
+    const {
+      farmerUid,
+      farmerName,
+      farmerPhone,
+      commodityName,
+      quantityKg,
+      pickupLocation,
+      pickupDistrict,
+      destinationLocation,
+      destinationDistrict,
+      distanceKm,
+      requiredVehicleType,
+      preferredDate,
+      specialRequirements,
+      requestedDriverId,
+    } = req.body;
+
+    if (!farmerUid || !commodityName || !quantityKg || !pickupLocation || !destinationLocation) {
+      return res.status(400).json({ error: 'Missing required fields for transport quote inquiry.' });
+    }
+
+    const farmer = await db.select().from(users).where(eq(users.uid, farmerUid)).limit(1);
+    const orderNumber = `TRP-${Date.now().toString().slice(-6)}`;
+    const parsedDistance = Number(distanceKm) || 0;
+
+    let requestedDriver: any = null;
+    if (requestedDriverId) {
+      const driverRes = await db.select().from(users).where(eq(users.id, Number(requestedDriverId))).limit(1);
+      if (driverRes.length > 0) requestedDriver = driverRes[0];
+    }
+
+    const insertedJob = await db.insert(transportJobs).values({
+      orderNumber,
+      farmerId: farmer.length > 0 ? farmer[0].id : null,
+      farmerUid,
+      farmerName: farmerName || (farmer.length > 0 ? farmer[0].fullName : 'Farmer'),
+      farmerPhone: farmerPhone || (farmer.length > 0 ? farmer[0].phoneNumber : '+265 '),
+      transporterId: requestedDriver ? requestedDriver.id : null,
+      transporterUid: requestedDriver ? requestedDriver.uid : null,
+      transporterName: requestedDriver ? requestedDriver.fullName : null,
+      transporterPhone: requestedDriver ? requestedDriver.phoneNumber : null,
+      commodityName,
+      quantityKg: Number(quantityKg),
+      pickupLocation,
+      pickupDistrict: pickupDistrict || 'Mchinji',
+      destinationLocation,
+      destinationDistrict: destinationDistrict || 'Lilongwe',
+      distanceKm: parsedDistance,
+      requiredVehicleType: requiredVehicleType || 'Medium Truck (3-5 Ton)',
+      preferredDate: preferredDate || new Date().toISOString().split('T')[0],
+      specialRequirements: specialRequirements || '',
+      transportFee: '0',
+      priceStatus: 'pending_quote',
+      farmerConfirmedPrice: false,
+      adminConfirmedPrice: false,
+      status: 'quote_requested',
+      paymentStatus: 'pending_payment',
+    }).returning();
+
+    // Notify requested driver or broadcast to available transporters
+    if (requestedDriver) {
+      await createNotification({
+        userUid: requestedDriver.uid,
+        title: `New Transport Quote Inquiry #${orderNumber}`,
+        message: `Farmer ${insertedJob[0].farmerName} requested a price quote for ${quantityKg} kg of ${commodityName} from ${pickupDistrict} to ${destinationDistrict} (~${parsedDistance} km). Please provide your price per trip/distance.`,
+        type: 'transport',
+      });
+    } else {
+      // Notify all available transporters
+      const availableTransporters = await db.select().from(users).where(
+        and(eq(users.role, 'transporter'), eq(users.isAvailable, true))
+      );
+      for (const t of availableTransporters) {
+        await createNotification({
+          userUid: t.uid,
+          title: `New Route Inquiry #${orderNumber}`,
+          message: `Open transport request: ${quantityKg} kg ${commodityName} from ${pickupDistrict} to ${destinationDistrict} (~${parsedDistance} km). Submit your price quote!`,
+          type: 'transport',
+        });
+      }
+    }
+
+    // Also notify Lead Admins
+    await createNotification({
+      userUid: 'frF3xukObzdA8AhCBYIBPYV0UK13',
+      title: `Transport Quote Inquiry Created #${orderNumber}`,
+      message: `Farmer ${insertedJob[0].farmerName} requested route pricing for ${pickupDistrict} -> ${destinationDistrict} (~${parsedDistance} km).`,
+      type: 'transport',
+    });
+
+    await logAudit({
+      userUid: farmerUid,
+      userEmail: farmer.length > 0 ? farmer[0].email : 'farmer@harvesthub.mw',
+      userName: insertedJob[0].farmerName || 'Farmer',
+      role: 'farmer',
+      action: 'TRANSPORT_QUOTE_REQUESTED',
+      recordAffected: `Transport Job #${orderNumber}`,
+      newValue: `Route: ${pickupDistrict} -> ${destinationDistrict} (~${parsedDistance} km), Cargo: ${quantityKg} kg ${commodityName}`,
+    });
+
+    broadcastEvent('transport_requested', insertedJob[0]);
+    return res.status(201).json(insertedJob[0]);
+  } catch (error: any) {
+    console.error('Error submitting transport quote request:', error);
+    return res.status(500).json({ error: error.message || 'Failed to submit quote inquiry' });
+  }
+});
+
+// Transporter sets / submits price quote for the trip and distance
+router.post('/transport/jobs/:id/submit-quote', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { transporterUid, quotedPrice, pricePerKm, quoteNotes } = req.body;
+
+    if (!transporterUid) return res.status(401).json({ error: 'Transporter UID required' });
+    if (!quotedPrice || Number(quotedPrice) <= 0) {
+      return res.status(400).json({ error: 'Please enter a valid quoted transport amount in MWK.' });
+    }
+
+    const job = await db.select().from(transportJobs).where(eq(transportJobs.id, id)).limit(1);
+    if (job.length === 0) return res.status(404).json({ error: 'Transport job not found' });
+
+    const driverRes = await db.select().from(users).where(eq(users.uid, transporterUid)).limit(1);
+    if (driverRes.length === 0) return res.status(404).json({ error: 'Transporter profile not found' });
+    const driver = driverRes[0];
+
+    const numericPrice = Number(quotedPrice);
+    const dist = Number(job[0]?.distanceKm || 0);
+    const calculatedPerKm = pricePerKm ? Number(pricePerKm) : (dist > 0 ? Math.round(numericPrice / dist) : null);
+
+    const updated = await db.update(transportJobs)
+      .set({
+        transporterId: driver.id,
+        transporterUid: driver.uid,
+        transporterName: driver.fullName,
+        transporterPhone: driver.phoneNumber,
+        quotedPrice: numericPrice.toString(),
+        pricePerKm: calculatedPerKm ? calculatedPerKm.toString() : null,
+        quoteNotes: quoteNotes || `Price quoted by driver ${driver.fullName} (${driver.vehicleType || 'Truck'}, Reg: ${driver.plateNumber || driver.vehicleRegistration || 'BW 4921'})`,
+        transportFee: numericPrice.toString(),
+        priceStatus: 'quoted',
+        status: 'quote_submitted',
+        farmerConfirmedPrice: false,
+        adminConfirmedPrice: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(transportJobs.id, id))
+      .returning();
+
+    // Notify farmer of driver's quote
+    if (job[0].farmerUid) {
+      await createNotification({
+        userUid: job[0].farmerUid,
+        title: `🚚 Price Quote Received #${job[0].orderNumber}`,
+        message: `Driver ${driver.fullName} submitted a quote of MWK ${numericPrice.toLocaleString()} for your cargo route (${job[0].pickupDistrict} to ${job[0].destinationDistrict}). Review and confirm the price to proceed!`,
+        type: 'transport',
+      });
+    }
+
+    // Notify Finance Admin
+    await createNotification({
+      userUid: 'finance-chisomo-05',
+      title: `Driver Quote Submitted #${job[0].orderNumber}`,
+      message: `Driver ${driver.fullName} quoted MWK ${numericPrice.toLocaleString()} (~MWK ${calculatedPerKm || 'N/A'}/km) for route ${job[0].pickupDistrict} -> ${job[0].destinationDistrict}.`,
+      type: 'finance',
+    });
+
+    await logAudit({
+      userUid: driver.uid,
+      userEmail: driver.email,
+      userName: driver.fullName,
+      role: 'transporter',
+      action: 'TRANSPORT_QUOTE_SUBMITTED',
+      recordAffected: `Transport Job #${job[0].orderNumber}`,
+      newValue: `Quoted Amount: MWK ${numericPrice.toLocaleString()}, Notes: ${quoteNotes || 'Standard haulage rate'}`,
+    });
+
+    broadcastEvent('transport_updated', updated[0]);
+    return res.json({ success: true, job: updated[0] });
+  } catch (error: any) {
+    console.error('Error submitting transport quote:', error);
+    return res.status(500).json({ error: error.message || 'Failed to submit transport quote' });
+  }
+});
+
+// Farmer or Administrator confirms / agrees to the quoted price
+router.post('/transport/jobs/:id/confirm-quote', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { userUid, userRole, action, notes } = req.body;
+
+    const job = await db.select().from(transportJobs).where(eq(transportJobs.id, id)).limit(1);
+    if (job.length === 0) return res.status(404).json({ error: 'Transport job not found' });
+
+    const isFarmer = userRole === 'farmer' || job[0].farmerUid === userUid;
+    const isAdmin = userRole === 'admin' || userRole === 'finance_admin';
+
+    if (action === 'reject') {
+      const updated = await db.update(transportJobs)
+        .set({
+          priceStatus: 'rejected',
+          status: 'quote_requested',
+          quoteNotes: notes ? `Price rejected: ${notes}` : 'Price quote was declined. Transporter may revise price.',
+          updatedAt: new Date(),
+        })
+        .where(eq(transportJobs.id, id))
+        .returning();
+
+      if (job[0].transporterUid) {
+        await createNotification({
+          userUid: job[0].transporterUid,
+          title: `Quote Declined #${job[0].orderNumber}`,
+          message: `Your transport price quote for route ${job[0].pickupDistrict} -> ${job[0].destinationDistrict} was not accepted (${notes || 'Please adjust rate'}).`,
+          type: 'transport',
+        });
+      }
+
+      broadcastEvent('transport_updated', updated[0]);
+      return res.json({ success: true, message: 'Quote declined. Driver can submit adjusted pricing.', job: updated[0] });
+    }
+
+    // Confirm action
+    const newFarmerConfirmed = isFarmer ? true : job[0].farmerConfirmedPrice;
+    const newAdminConfirmed = isAdmin ? true : job[0].adminConfirmedPrice;
+
+    // If farmer confirmed or both confirmed, price agreement is locked
+    const isAgreed = newFarmerConfirmed || (newFarmerConfirmed && newAdminConfirmed);
+
+    const updated = await db.update(transportJobs)
+      .set({
+        farmerConfirmedPrice: newFarmerConfirmed,
+        adminConfirmedPrice: newAdminConfirmed,
+        priceStatus: isAgreed ? 'agreed' : (isFarmer ? 'confirmed_by_farmer' : 'confirmed_by_admin'),
+        status: isAgreed ? 'price_agreed' : job[0].status,
+        updatedAt: new Date(),
+      })
+      .where(eq(transportJobs.id, id))
+      .returning();
+
+    if (job[0].transporterUid) {
+      await createNotification({
+        userUid: job[0].transporterUid,
+        title: `✅ Quote Confirmed & Agreed #${job[0].orderNumber}`,
+        message: `Your price quote of MWK ${Number(job[0].quotedPrice || job[0].transportFee).toLocaleString()} was confirmed by ${isFarmer ? 'the Farmer' : 'Administrator'}! Escrow funding is now proceeding.`,
+        type: 'transport',
+      });
+    }
+
+    await logAudit({
+      userUid: userUid || 'system',
+      userEmail: 'user@harvesthub.mw',
+      userName: isFarmer ? (job[0].farmerName || 'Farmer') : 'Administrator',
+      role: userRole || 'farmer',
+      action: 'TRANSPORT_QUOTE_CONFIRMED',
+      recordAffected: `Transport Job #${job[0].orderNumber}`,
+      newValue: `Price MWK ${job[0].quotedPrice} confirmed. Status: ${isAgreed ? 'Price Agreed' : 'Pending Counter-party'}`,
+    });
+
+    broadcastEvent('transport_updated', updated[0]);
+    return res.json({ success: true, isAgreed, job: updated[0] });
+  } catch (error: any) {
+    console.error('Error confirming transport quote:', error);
+    return res.status(500).json({ error: error.message || 'Failed to confirm quote' });
+  }
+});
+
+// Farmer deposits escrow for agreed transport fee
+router.post('/transport/jobs/:id/deposit-escrow', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { farmerUid, paymentMethod, paymentRef } = req.body;
+
+    const job = await db.select().from(transportJobs).where(eq(transportJobs.id, id)).limit(1);
+    if (job.length === 0) return res.status(404).json({ error: 'Transport job not found' });
+
+    const agreedFee = Number(job[0].quotedPrice || job[0].transportFee || 0);
+    if (agreedFee <= 0) {
+      return res.status(400).json({ error: 'No confirmed price quote exists for this transport booking.' });
+    }
+
+    const ref = paymentRef || `ESC-${Date.now().toString().slice(-6)}`;
+    const method = paymentMethod || 'Airtel Money / TNM Mpamba Escrow';
+
+    const updated = await db.update(transportJobs)
+      .set({
+        paymentStatus: 'paid_pending_approval',
+        paymentRef: ref,
+        paymentMethod: method,
+        status: 'pending_finance_approval',
+        updatedAt: new Date(),
+      })
+      .where(eq(transportJobs.id, id))
+      .returning();
+
+    // Alert Finance Admin to verify funds
+    await createNotification({
+      userUid: 'finance-chisomo-05',
+      title: `Verify Transport Escrow Deposit #${job[0].orderNumber}`,
+      message: `Farmer ${job[0].farmerName} deposited MK ${agreedFee.toLocaleString()} via ${method} (Ref: ${ref}). Please verify funds and authorize driver dispatch.`,
+      type: 'finance',
+    });
+
+    if (job[0].transporterUid) {
+      await createNotification({
+        userUid: job[0].transporterUid,
+        title: `Escrow Funded for Job #${job[0].orderNumber}`,
+        message: `Farmer ${job[0].farmerName} deposited the agreed MK ${agreedFee.toLocaleString()} into platform escrow! Dispatch authorization is pending Finance Admin check.`,
+        type: 'transport',
+      });
+    }
+
+    broadcastEvent('transport_updated', updated[0]);
+    broadcastEvent('finance_pending_updated', { job: updated[0] });
+
+    return res.json({ success: true, job: updated[0] });
+  } catch (error: any) {
+    console.error('Error depositing escrow:', error);
+    return res.status(500).json({ error: error.message || 'Failed to deposit escrow' });
   }
 });
 
@@ -2651,6 +3130,38 @@ router.post('/transport/jobs/:id/status', async (req, res) => {
       .where(eq(transportJobs.id, id))
       .returning();
 
+    // Dynamically update transporter availability in users table based on transit stage
+    const transporterUid = job[0].transporterUid || userUid;
+    if (transporterUid) {
+      if (status === 'in_transit') {
+        await db.update(users)
+          .set({
+            isAvailable: false,
+            currentRoute: `In Transit: ${job[0].pickupDistrict} ➔ ${job[0].destinationDistrict}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.uid, transporterUid));
+        broadcastEvent('transporter_availability_changed', {
+          uid: transporterUid,
+          isAvailable: false,
+          currentRoute: `In Transit: ${job[0].pickupDistrict} ➔ ${job[0].destinationDistrict}`,
+        });
+      } else if (status === 'delivered' || status === 'completed') {
+        await db.update(users)
+          .set({
+            isAvailable: true,
+            currentRoute: `Available in ${job[0].destinationDistrict}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.uid, transporterUid));
+        broadcastEvent('transporter_availability_changed', {
+          uid: transporterUid,
+          isAvailable: true,
+          currentRoute: `Available in ${job[0].destinationDistrict}`,
+        });
+      }
+    }
+
     // Map to order status
     let orderStatus = status;
     if (status === 'picked_up') orderStatus = 'picked_up';
@@ -2679,7 +3190,9 @@ router.post('/transport/jobs/:id/status', async (req, res) => {
     });
 
     broadcastEvent('transport_updated', updatedJob[0]);
-    broadcastEvent('order_updated', { id: job[0].orderId, status: orderStatus });
+    if (job[0].orderId) {
+      broadcastEvent('order_updated', { id: job[0].orderId, status: orderStatus });
+    }
     return res.json(updatedJob[0]);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to update transport status' });

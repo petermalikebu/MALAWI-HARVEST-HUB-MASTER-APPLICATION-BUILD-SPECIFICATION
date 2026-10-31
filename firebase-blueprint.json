@@ -1,0 +1,147 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered platform participant: admin, farmer, buyer, transporter, or finance admin",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "farmer", "buyer", "transporter", "finance_admin"] },
+        "phoneNumber": { "type": "string" },
+        "district": { "type": "string" },
+        "region": { "type": "string" },
+        "tradingArea": { "type": "string" },
+        "village": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "isAvailable": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "fullName", "role"]
+    },
+    "Commodity": {
+      "title": "Commodity",
+      "description": "Harvest listing created by verified farmers",
+      "type": "object",
+      "properties": {
+        "farmerUid": { "type": "string" },
+        "farmerName": { "type": "string" },
+        "commodityName": { "type": "string" },
+        "category": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "pricePerUnit": { "type": "string" },
+        "district": { "type": "string" },
+        "location": { "type": "string" },
+        "region": { "type": "string" },
+        "quality": { "type": "string" },
+        "availabilityDate": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "reserved", "sold"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["farmerUid", "commodityName", "category", "quantity", "unit", "pricePerUnit", "district", "status"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Escrow order placed by a buyer for a commodity",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string" },
+        "buyerUid": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "buyerPhone": { "type": "string" },
+        "farmerUid": { "type": "string" },
+        "farmerName": { "type": "string" },
+        "commodityId": { "type": "number" },
+        "commodityName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "unitPrice": { "type": "string" },
+        "commoditySubtotal": { "type": "string" },
+        "transportFee": { "type": "string" },
+        "platformCommissionFee": { "type": "string" },
+        "totalAmount": { "type": "string" },
+        "deliveryLocation": { "type": "string" },
+        "deliveryDistrict": { "type": "string" },
+        "deliveryDate": { "type": "string" },
+        "status": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["orderNumber", "buyerUid", "farmerUid", "commodityName", "quantity", "totalAmount", "status", "paymentStatus"]
+    },
+    "TransportJob": {
+      "title": "TransportJob",
+      "description": "Logistics dispatch assignment for hauling harvest",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string" },
+        "farmerUid": { "type": "string" },
+        "transporterUid": { "type": "string" },
+        "pickupDistrict": { "type": "string" },
+        "destinationDistrict": { "type": "string" },
+        "transportFee": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["orderNumber", "status"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Agricultural produce categories",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Platform audit and compliance trail",
+      "type": "object",
+      "properties": {
+        "userUid": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "role": { "type": "string" },
+        "action": { "type": "string" },
+        "recordAffected": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["action", "recordAffected"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Registered platform users and profiles"
+    },
+    "/commodities/{commodityId}": {
+      "schema": "Commodity",
+      "description": "Agricultural produce listings"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Escrow orders and payment records"
+    },
+    "/transport_jobs/{jobId}": {
+      "schema": "TransportJob",
+      "description": "Produce transportation dispatch jobs"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Commodity classification categories"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "System security and administrative audit logs"
+    }
+  }
+}

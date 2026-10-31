@@ -24,6 +24,7 @@ import {
   ArrowRight,
   ShieldAlert,
   X,
+  Truck,
 } from 'lucide-react';
 import { PasswordResetModal } from './PasswordResetModal.tsx';
 import { useLanguage } from '../../context/LanguageContext.tsx';
@@ -63,6 +64,10 @@ export const SignInView: React.FC<SignInViewProps> = ({
   const [regPhone, setRegPhone] = useState('+265 ');
   const [regTradingArea, setRegTradingArea] = useState('');
   const [regVehicleType, setRegVehicleType] = useState('Light Truck (3-5 Ton)');
+  const [regPlateNumber, setRegPlateNumber] = useState('');
+  const [regLicenseType, setRegLicenseType] = useState('Class C (Heavy Commercial Vehicle)');
+  const [regExperience, setRegExperience] = useState('5 years commercial haulage');
+  const [regCapacityKg, setRegCapacityKg] = useState('5000');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
 
@@ -235,6 +240,10 @@ export const SignInView: React.FC<SignInViewProps> = ({
         phoneNumber: regPhone.trim(),
         tradingArea: regTradingArea.trim(),
         vehicleType: regRole === 'transporter' ? regVehicleType : '',
+        plateNumber: regRole === 'transporter' ? regPlateNumber.trim() : '',
+        licenseType: regRole === 'transporter' ? regLicenseType : '',
+        yearsExperience: regRole === 'transporter' ? regExperience.trim() : '',
+        vehicleCapacityKg: regRole === 'transporter' ? Number(regCapacityKg) || 5000 : 0,
       });
 
       setSuccessMsg(
@@ -939,22 +948,91 @@ export const SignInView: React.FC<SignInViewProps> = ({
             </div>
 
             {regRole === 'transporter' && (
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Vehicle Type / Capacity *
-                </label>
-                <select
-                  value={regVehicleType}
-                  onChange={(e) => setRegVehicleType(e.target.value)}
-                  className="w-full px-3 py-2.5 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600 bg-white font-medium"
-                >
-                  <option value="Pickup (1-2 Ton)">Pickup (1-2 Ton)</option>
-                  <option value="Light Truck (3-5 Ton)">Light Truck (3-5 Ton)</option>
-                  <option value="Medium Truck (5-7 Ton)">Medium Truck (5-7 Ton)</option>
-                  <option value="Heavy Truck (10-15 Ton)">Heavy Truck (10-15 Ton)</option>
-                  <option value="Articulated Trailer (20-30 Ton)">Articulated Trailer (20-30 Ton)</option>
-                  <option value="Motorcycle / Tricycle">Motorcycle / Tricycle</option>
-                </select>
+              <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200/80 space-y-3">
+                <div className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-blue-700" />
+                  <span>Transporter Credentials, License &amp; Vehicle Profile</span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      Driving License Type *
+                    </label>
+                    <select
+                      value={regLicenseType}
+                      onChange={(e) => setRegLicenseType(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white font-medium"
+                    >
+                      <option value="Class C (Heavy Commercial Vehicle)">Class C (Heavy Commercial Vehicle)</option>
+                      <option value="Class CE (Articulated Freight Trailer)">Class CE (Articulated Freight Trailer)</option>
+                      <option value="Class C1 (Medium Truck 3-16 Ton)">Class C1 (Medium Truck 3-16 Ton)</option>
+                      <option value="Class B (Light Truck / Pickup)">Class B (Light Truck / Pickup)</option>
+                      <option value="Class D (Passenger / Utility)">Class D (Passenger / Utility)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      Driving &amp; Haulage Experience *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 7 years commercial haulage"
+                      value={regExperience}
+                      onChange={(e) => setRegExperience(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      Vehicle Type *
+                    </label>
+                    <select
+                      value={regVehicleType}
+                      onChange={(e) => setRegVehicleType(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white font-medium"
+                    >
+                      <option value="Pickup (1-2 Ton)">Pickup (1-2 Ton)</option>
+                      <option value="Light Truck (3-5 Ton)">Light Truck (3-5 Ton)</option>
+                      <option value="Medium Truck (5-7 Ton)">Medium Truck (5-7 Ton)</option>
+                      <option value="Heavy Truck (10-15 Ton)">Heavy Truck (10-15 Ton)</option>
+                      <option value="Articulated Trailer (20-30 Ton)">Articulated Trailer (20-30 Ton)</option>
+                      <option value="Motorcycle / Tricycle">Motorcycle / Tricycle</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      Plate / Registration Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. BW 4921 / LL 8392"
+                      value={regPlateNumber}
+                      onChange={(e) => setRegPlateNumber(e.target.value.toUpperCase())}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white font-mono font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      Payload Capacity (kg) *
+                    </label>
+                    <input
+                      type="number"
+                      min="500"
+                      step="500"
+                      value={regCapacityKg}
+                      onChange={(e) => setRegCapacityKg(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white font-medium"
+                    />
+                  </div>
+                </div>
               </div>
             )}
 

@@ -21,6 +21,11 @@ interface AuthContextType {
     tradingArea?: string;
     village?: string;
     vehicleType?: string;
+    vehicleRegistration?: string;
+    plateNumber?: string;
+    licenseType?: string;
+    yearsExperience?: string;
+    vehicleCapacityKg?: number;
     photoUrl?: string;
   }) => Promise<{ success: boolean; message: string }>;
   uploadProfilePhoto: (photoUrl: string) => Promise<void>;
@@ -165,6 +170,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     tradingArea?: string;
     village?: string;
     vehicleType?: string;
+    vehicleRegistration?: string;
+    plateNumber?: string;
+    licenseType?: string;
+    yearsExperience?: string;
+    vehicleCapacityKg?: number;
     photoUrl?: string;
   }): Promise<{ success: boolean; message: string }> => {
     setLoading(true);

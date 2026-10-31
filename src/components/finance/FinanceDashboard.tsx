@@ -1534,11 +1534,14 @@ export const FinanceDashboard: React.FC = () => {
                       onChange={(e) => setSelectedDriverId(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl border border-stone-300 bg-white font-medium text-xs focus:outline-blue-600"
                     >
-                      {transportersList.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.fullName} &bull; {d.vehicleType || 'Truck'} ({d.vehicleRegistration || 'BW 4921'}) &bull; {d.district}
-                        </option>
-                      ))}
+                      {transportersList.map((d) => {
+                        const isAvail = d.isAvailable !== false;
+                        return (
+                          <option key={d.id} value={d.id}>
+                            {isAvail ? '🟢 Available' : '🟠 In Transit'} &bull; {d.fullName} &bull; {d.vehicleType || 'Truck'} ({d.plateNumber || d.vehicleRegistration || 'BW 4921'}) &bull; {d.yearsExperience || '5 yrs exp'} &bull; {d.district}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 

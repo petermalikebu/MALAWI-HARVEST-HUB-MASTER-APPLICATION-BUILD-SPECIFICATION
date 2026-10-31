@@ -307,13 +307,19 @@ export const FarmerDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white rounded-2xl p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-700/60 text-emerald-200 border border-emerald-600/40">
-              <Sprout className="w-3.5 h-3.5" />
-              <span>
-                {language === 'ch'
-                  ? 'Bwalo la Alimi Aang\'ono • Malonda a Pafamu'
-                  : 'Smallholder Farmer Portal • Direct Farmgate Trade'}
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-700/60 text-emerald-200 border border-emerald-600/40">
+                <Sprout className="w-3.5 h-3.5" />
+                <span>
+                  {language === 'ch'
+                    ? 'Bwalo la Alimi Aang\'ono • Malonda a Pafamu'
+                    : 'Smallholder Farmer Portal • Direct Farmgate Trade'}
+                </span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/50 text-emerald-300 border border-emerald-500/30">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Cloud Firestore Sync Active</span>
+              </div>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               {language === 'ch' ? `Moni, ${currentUser?.fullName}!` : `Welcome, ${currentUser?.fullName}!`}

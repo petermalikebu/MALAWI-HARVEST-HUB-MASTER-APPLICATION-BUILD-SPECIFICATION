@@ -15,11 +15,15 @@ export interface User {
   village?: string;
   vehicleType?: string;
   vehicleRegistration?: string;
+  plateNumber?: string;
+  licenseType?: string;
+  yearsExperience?: string;
   vehicleCapacityKg?: number;
   bankName?: string;
   bankAccount?: string;
   bankAccountName?: string;
   isAvailable?: boolean;
+  currentRoute?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -143,7 +147,14 @@ export interface TransportJob {
   requiredVehicleType: string;
   preferredDate: string;
   specialRequirements?: string;
+  distanceKm?: number;
   transportFee: string | number;
+  quotedPrice?: string | number;
+  pricePerKm?: string | number;
+  quoteNotes?: string;
+  priceStatus?: 'pending_quote' | 'quoted' | 'confirmed_by_admin' | 'confirmed_by_farmer' | 'agreed' | 'rejected';
+  farmerConfirmedPrice?: boolean;
+  adminConfirmedPrice?: boolean;
   paymentStatus?: 'pending_payment' | 'paid_pending_approval' | 'verified_by_finance' | 'refunded';
   paymentRef?: string;
   paymentMethod?: string;
@@ -153,6 +164,9 @@ export interface TransportJob {
   recommendedDriverId?: number;
   recommendedDriverName?: string;
   status:
+    | 'quote_requested'
+    | 'quote_submitted'
+    | 'price_agreed'
     | 'requested'
     | 'pending_finance_approval'
     | 'accepted'
