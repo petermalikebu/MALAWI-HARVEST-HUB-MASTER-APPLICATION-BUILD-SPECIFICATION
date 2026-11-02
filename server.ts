@@ -40,7 +40,10 @@ async function startServer() {
   });
 
   const isProduction = process.env.NODE_ENV === 'production';
-  const port = parseInt(process.env.PORT || '3000', 10);
+  const args = process.argv.slice(2);
+  const portArgIndex = args.indexOf('--port');
+  const portArg = portArgIndex !== -1 ? args[portArgIndex + 1] : undefined;
+  const port = parseInt(portArg || process.env.PORT || '3000', 10);
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');

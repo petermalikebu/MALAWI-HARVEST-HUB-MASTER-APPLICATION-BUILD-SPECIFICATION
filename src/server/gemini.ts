@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 // Initialize the official Gemini SDK client strictly on the server-side
 // Telemetry header set to 'aistudio-build' as mandated by Google GenAI guidelines
 export const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
+  apiKey: process.env.GEMINI_API_KEY || undefined,
   httpOptions: {
     headers: {
       'User-Agent': 'aistudio-build',
