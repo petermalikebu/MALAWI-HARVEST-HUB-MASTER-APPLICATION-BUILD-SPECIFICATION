@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
-import { RevenueMetrics, RevenueLedgerEntry, Transaction, TransportJob, User, Order } from '../../types/index.ts';
+import {
+  RevenueMetrics,
+  RevenueLedgerEntry,
+  Transaction,
+  TransportJob,
+  User,
+  Order,
+  getDistrictRegion,
+  getRegionColorClass,
+} from '../../types/index.ts';
 import {
   Coins,
   TrendingUp,
@@ -307,7 +316,7 @@ export const FinanceDashboard: React.FC = () => {
 
       if (res.ok) {
         const updated = await res.json();
-        setApprovalSuccessMsg(`Driver successfully approved and recommended for Job #${updated.orderNumber}! Notifications sent to Farmer ${updated.farmerName} and Driver ${updated.transporterName}.`);
+        setApprovalSuccessMsg(`Escrow verified, platform commission deducted (MK ${Number(updated.platformCommissionFee || 0).toLocaleString()}), and net payout of MK ${Number(updated.netTransporterAmount || 0).toLocaleString()} delivered to Driver ${updated.transporterName || updated.recommendedDriverName}! Driver can now start transport.`);
         setApprovingJob(null);
         fetchFinanceData();
       } else {
@@ -1345,8 +1354,8 @@ export const FinanceDashboard: React.FC = () => {
                           onClick={() => handleOpenApproveModal(job)}
                           className="px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5"
                         >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          <span>Verify Fee & Recommend Driver</span>
+                          <Coins className="w-3.5 h-3.5" />
+                          <span>Deduct Commission & Deliver Funds</span>
                         </button>
                       </div>
                     </div>
@@ -1387,69 +1396,96 @@ export const FinanceDashboard: React.FC = () => {
                       <th className="p-3">Order #</th>
                       <th className="p-3">Farmer</th>
                       <th className="p-3">Commodity & Route</th>
-                      <th className="p-3">Fee (MWK)</th>
+                      <th className="p-3">Gross Fee</th>
+                      <th className="p-3">Commission (4%)</th>
+                      <th className="p-3">Net Delivered to Driver</th>
                       <th className="p-3">Payment Status</th>
-                      <th className="p-3">Recommended Driver</th>
+                      <th className="p-3">Assigned Driver</th>
                       <th className="p-3">Job Status</th>
-                      <th className="p-3">Finance Approval Stamp</th>
+                      <th className="p-3">Actions & Stamp</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
-                    {transportJobs.map((job) => (
-                      <tr key={job.id} className="hover:bg-stone-50/50">
-                        <td className="p-3 font-mono font-bold text-stone-900">#{job.orderNumber}</td>
-                        <td className="p-3 font-medium text-stone-800">{job.farmerName || 'Farmer'}</td>
-                        <td className="p-3 text-stone-600">
-                          <div><strong>{job.commodityName}</strong> ({job.quantityKg} Kg)</div>
-                          <div className="text-[10px] text-stone-400">
-                            {job.pickupDistrict} &rarr; {job.destinationDistrict}
-                          </div>
-                        </td>
-                        <td className="p-3 font-bold text-stone-900">
-                          MK {Number(job.transportFee).toLocaleString()}
-                        </td>
-                        <td className="p-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              job.paymentStatus === 'verified_by_finance'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {job.paymentStatus === 'verified_by_finance' ? 'Verified in Escrow' : 'Pending Verification'}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          {job.recommendedDriverName || job.transporterName ? (
-                            <div>
-                              <div className="font-bold text-blue-900">
-                                {job.recommendedDriverName || job.transporterName}
-                              </div>
-                              <div className="text-[10px] text-stone-400">
-                                {job.transporterPhone || '+265 882 776 543'}
-                              </div>
+                    {transportJobs.map((job) => {
+                      const fee = Number(job.quotedPrice || job.transportFee || 0);
+                      const commRate = Number(job.platformCommissionRate) || metrics?.commissionRate || 0.04;
+                      const commFee = Number(job.platformCommissionFee) || Math.round(fee * commRate);
+                      const netAmount = Number(job.netTransporterAmount) || Math.max(0, fee - commFee);
+                      const isVerified = job.paymentStatus === 'verified_by_finance';
+
+                      return (
+                        <tr key={job.id} className="hover:bg-stone-50/50">
+                          <td className="p-3 font-mono font-bold text-stone-900">#{job.orderNumber}</td>
+                          <td className="p-3 font-medium text-stone-800">{job.farmerName || 'Farmer'}</td>
+                          <td className="p-3 text-stone-600">
+                            <div><strong>{job.commodityName}</strong> ({job.quantityKg} Kg)</div>
+                            <div className="text-[10px] text-stone-400">
+                              {job.pickupDistrict} ({getDistrictRegion(job.pickupDistrict)}) &rarr; {job.destinationDistrict} ({getDistrictRegion(job.destinationDistrict)})
                             </div>
-                          ) : (
-                            <span className="text-stone-400 italic">Not Assigned</span>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-800 capitalize">
-                            {job.status.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className="p-3 text-[11px] text-stone-500">
-                          {job.financeApprovedBy ? (
-                            <div>
-                              <span className="font-bold text-emerald-800">Approved</span>
-                              <div className="text-[10px] text-stone-400">by {job.financeApprovedBy}</div>
-                            </div>
-                          ) : (
-                            <span className="text-amber-700 font-semibold text-[10px]">Awaiting Stamp</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="p-3 font-bold text-stone-900">
+                            MK {fee.toLocaleString()}
+                          </td>
+                          <td className="p-3 text-amber-700 font-semibold">
+                            - MK {commFee.toLocaleString()}
+                          </td>
+                          <td className="p-3 font-extrabold text-emerald-700">
+                            MK {netAmount.toLocaleString()}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                isVerified
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {isVerified ? 'Delivered to Driver' : 'Pending Verification'}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            {job.recommendedDriverName || job.transporterName ? (
+                              <div>
+                                <div className="font-bold text-blue-900">
+                                  {job.recommendedDriverName || job.transporterName}
+                                </div>
+                                <div className="text-[10px] text-stone-400">
+                                  {job.transporterPhone || '+265 882 776 543'}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-stone-400 italic">Not Assigned</span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-800 capitalize">
+                              {job.status.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="p-3 text-[11px] text-stone-500">
+                            {!isVerified ? (
+                              <button
+                                onClick={() => handleOpenApproveModal(job)}
+                                className="px-3 py-1.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-[10px] shadow-xs flex items-center gap-1 active:scale-95 transition-all"
+                              >
+                                <Coins className="w-3 h-3" />
+                                <span>Deduct & Deliver</span>
+                              </button>
+                            ) : job.financeApprovedBy ? (
+                              <div>
+                                <span className="font-bold text-emerald-800 flex items-center gap-1">
+                                  <CheckCircle className="w-3 h-3 text-emerald-600" />
+                                  Delivered Net
+                                </span>
+                                <div className="text-[10px] text-stone-400">by {job.financeApprovedBy}</div>
+                              </div>
+                            ) : (
+                              <span className="text-emerald-700 font-semibold text-[10px]">Verified in Escrow</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1483,99 +1519,114 @@ export const FinanceDashboard: React.FC = () => {
                   </div>
                 )}
 
-                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200/80 space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">Commodity:</span>
-                    <span className="font-bold text-stone-900">
-                      {approvingJob.commodityName} ({approvingJob.quantityKg} Kg)
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">Route:</span>
-                    <span className="font-medium text-stone-800">
-                      {approvingJob.pickupDistrict} &rarr; {approvingJob.destinationDistrict}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">Transport Fee:</span>
-                    <span className="font-extrabold text-blue-900 text-sm">
-                      MWK {Number(approvingJob.transportFee).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">Escrow Payment Ref:</span>
-                    <span className="font-mono font-bold text-stone-800">
-                      {approvingJob.paymentRef} ({approvingJob.paymentMethod})
-                    </span>
-                  </div>
-                </div>
+                {(() => {
+                  const grossFee = Number(approvingJob.quotedPrice || approvingJob.transportFee || 0);
+                  const commRate = Number(approvingJob.platformCommissionRate) || metrics?.commissionRate || 0.04;
+                  const commFee = Math.round(grossFee * commRate);
+                  const netPayout = Math.max(0, grossFee - commFee);
 
-                <div className="space-y-4 text-xs">
-                  {/* Step 1: Verification confirmation */}
-                  <label className="flex items-start gap-2.5 p-3 rounded-xl border border-emerald-200 bg-emerald-50/60 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={paymentVerifiedCheck}
-                      onChange={(e) => setPaymentVerifiedCheck(e.target.checked)}
-                      className="rounded text-emerald-600 focus:ring-emerald-500 mt-0.5"
-                    />
-                    <div className="text-emerald-950 font-medium leading-relaxed">
-                      <strong>Fee Verification Confirmed:</strong> I certify that the farmer's transport fee payment of MWK {Number(approvingJob.transportFee).toLocaleString()} has cleared in the platform escrow account.
-                    </div>
-                  </label>
+                  return (
+                    <>
+                      <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200/80 space-y-2 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-stone-500">Commodity & Quantity:</span>
+                          <span className="font-bold text-stone-900">
+                            {approvingJob.commodityName} ({approvingJob.quantityKg} Kg)
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-stone-500">Corridor Route:</span>
+                          <span className="font-medium text-stone-800">
+                            {approvingJob.pickupDistrict} ({getDistrictRegion(approvingJob.pickupDistrict)}) &rarr; {approvingJob.destinationDistrict} ({getDistrictRegion(approvingJob.destinationDistrict)})
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-t border-stone-200/60 pt-2">
+                          <span className="text-stone-600 font-medium">Farmer Escrow Deposit:</span>
+                          <span className="font-bold text-stone-900">
+                            MWK {grossFee.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-amber-700 font-medium">
+                          <span>Platform Commission Deducted ({(commRate * 100).toFixed(1)}%):</span>
+                          <span className="font-bold">- MWK {commFee.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-emerald-200 pt-2 bg-emerald-50/80 -mx-4 -mb-4 p-3 rounded-b-2xl">
+                          <span className="font-extrabold text-emerald-950">Net Delivered to Transporter:</span>
+                          <span className="font-black text-emerald-700 text-sm">
+                            MWK {netPayout.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
 
-                  {/* Step 2: Driver Selection */}
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">
-                      Select Driver to Recommend & Assign *
-                    </label>
-                    <select
-                      value={selectedDriverId}
-                      onChange={(e) => setSelectedDriverId(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl border border-stone-300 bg-white font-medium text-xs focus:outline-blue-600"
-                    >
-                      {transportersList.map((d) => {
-                        const isAvail = d.isAvailable !== false;
-                        return (
-                          <option key={d.id} value={d.id}>
-                            {isAvail ? '🟢 Available' : '🟠 In Transit'} &bull; {d.fullName} &bull; {d.vehicleType || 'Truck'} ({d.plateNumber || d.vehicleRegistration || 'BW 4921'}) &bull; {d.yearsExperience || '5 yrs exp'} &bull; {d.district}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
+                      <div className="space-y-4 text-xs">
+                        {/* Step 1: Verification confirmation */}
+                        <label className="flex items-start gap-2.5 p-3 rounded-xl border border-emerald-200 bg-emerald-50/60 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={paymentVerifiedCheck}
+                            onChange={(e) => setPaymentVerifiedCheck(e.target.checked)}
+                            className="rounded text-emerald-600 focus:ring-emerald-500 mt-0.5"
+                          />
+                          <div className="text-emerald-950 font-medium leading-relaxed">
+                            <strong>Fee Verification &amp; Commission Deduction Confirmed:</strong> I certify that the farmer's transport escrow payment of MWK {grossFee.toLocaleString()} is verified, and confirm deducting the platform commission of MWK {commFee.toLocaleString()} ({(commRate * 100).toFixed(1)}%) so that net MWK {netPayout.toLocaleString()} is delivered to the transporter to begin cargo transit.
+                          </div>
+                        </label>
 
-                  {/* Step 3: Recommendation notes */}
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">
-                      Official Recommendation & Inspection Notes to Farmer *
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={recommendationNotes}
-                      onChange={(e) => setRecommendationNotes(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs focus:outline-blue-600"
-                      placeholder="e.g. Driver vetted with verified transit record on Mchinji-Lilongwe corridor. Vehicle inspected & suitable for payload."
-                    />
-                  </div>
-                </div>
+                        {/* Step 2: Driver Selection */}
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">
+                            Select Driver to Recommend & Assign *
+                          </label>
+                          <select
+                            value={selectedDriverId}
+                            onChange={(e) => setSelectedDriverId(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl border border-stone-300 bg-white font-medium text-xs focus:outline-blue-600"
+                          >
+                            {transportersList.map((d) => {
+                              const isAvail = d.isAvailable !== false;
+                              return (
+                                <option key={d.id} value={d.id}>
+                                  {isAvail ? '🟢 Available' : '🟠 In Transit'} &bull; {d.fullName} &bull; {d.vehicleType || 'Truck'} ({d.plateNumber || d.vehicleRegistration || 'BW 4921'}) &bull; {d.district} ({getDistrictRegion(d.district)} Region)
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
 
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    onClick={() => setApprovingJob(null)}
-                    className="px-4 py-2 rounded-xl text-stone-600 text-xs font-semibold hover:bg-stone-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleConfirmApproval}
-                    disabled={approvalSubmitting || !selectedDriverId}
-                    className="px-5 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    <span>{approvalSubmitting ? 'Approving...' : 'Approve Fee & Recommend Driver'}</span>
-                  </button>
-                </div>
+                        {/* Step 3: Recommendation notes */}
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">
+                            Official Recommendation & Inspection Notes to Farmer *
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={recommendationNotes}
+                            onChange={(e) => setRecommendationNotes(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs focus:outline-blue-600"
+                            placeholder="e.g. Driver vetted with verified transit record. Vehicle inspected & suitable for payload."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-3 pt-2">
+                        <button
+                          onClick={() => setApprovingJob(null)}
+                          className="px-4 py-2 rounded-xl text-stone-600 text-xs font-semibold hover:bg-stone-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleConfirmApproval}
+                          disabled={approvalSubmitting || !selectedDriverId}
+                          className="px-5 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          <Coins className="w-4 h-4" />
+                          <span>{approvalSubmitting ? 'Delivering Funds...' : 'Deduct Commission & Deliver Funds to Transporter'}</span>
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

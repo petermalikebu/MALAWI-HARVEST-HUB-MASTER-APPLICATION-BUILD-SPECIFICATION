@@ -24,6 +24,7 @@ interface AuthContextType {
     confirmPassword?: string;
     role: UserRole;
     district: string;
+    region?: string;
     phoneNumber?: string;
     tradingArea?: string;
     village?: string;

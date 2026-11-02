@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
-import { Commodity, Category, MALAWI_DISTRICTS } from '../../types/index.ts';
+import {
+  Commodity,
+  Category,
+  MALAWI_DISTRICTS,
+  NORTHERN_DISTRICTS,
+  CENTRAL_DISTRICTS,
+  SOUTHERN_DISTRICTS,
+  getDistrictRegion,
+  getRegionColorClass,
+} from '../../types/index.ts';
 import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import { useLanguage } from '../../context/LanguageContext.tsx';
 import {
@@ -35,6 +44,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedRegion, setSelectedRegion] = useState('All');
   const [selectedDistrict, setSelectedDistrict] = useState('All');
   const [selectedQuality, setSelectedQuality] = useState('All');
   const [sortBy, setSortBy] = useState<'price_asc' | 'price_desc' | 'qty_desc'>('qty_desc');
@@ -187,6 +197,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
   const filteredCommodities = commodities
     .filter((c) => {
       if (selectedCategory !== 'All' && c.category !== selectedCategory) return false;
+      if (selectedRegion !== 'All' && getDistrictRegion(c.district) !== selectedRegion) return false;
       if (selectedDistrict !== 'All' && c.district !== selectedDistrict) return false;
       if (selectedQuality !== 'All' && !c.quality.includes(selectedQuality)) return false;
       if (searchTerm.trim() !== '') {
@@ -287,19 +298,58 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
             </select>
           </div>
 
+          {/* Region filter */}
+          <div className="md:col-span-2">
+            <select
+              value={selectedRegion}
+              onChange={(e) => {
+                setSelectedRegion(e.target.value);
+                setSelectedDistrict('All');
+              }}
+              className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white font-medium"
+            >
+              <option value="All">All Regions (Malawi)</option>
+              <option value="Northern">Northern Region</option>
+              <option value="Central">Central Region</option>
+              <option value="Southern">Southern Region</option>
+            </select>
+          </div>
+
           {/* District filter */}
           <div className="md:col-span-2">
             <select
               value={selectedDistrict}
               onChange={(e) => setSelectedDistrict(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white"
+              className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white font-medium"
             >
               <option value="All">{t('market_district_all')}</option>
-              {MALAWI_DISTRICTS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
+              {(selectedRegion === 'All' || selectedRegion === 'Northern') && (
+                <optgroup label="Northern Region">
+                  {NORTHERN_DISTRICTS.map((d) => (
+                    <option key={d} value={d}>
+                      {d} (Northern)
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {(selectedRegion === 'All' || selectedRegion === 'Central') && (
+                <optgroup label="Central Region">
+                  {CENTRAL_DISTRICTS.map((d) => (
+                    <option key={d} value={d}>
+                      {d} (Central)
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {(selectedRegion === 'All' || selectedRegion === 'Southern') && (
+                <optgroup label="Southern Region">
+                  {SOUTHERN_DISTRICTS.map((d) => (
+                    <option key={d} value={d}>
+                      {d} (Southern)
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
@@ -381,10 +431,13 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                     </h3>
                   </div>
 
-                  <div className="flex items-center gap-1 text-xs text-stone-500 mt-1">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-stone-500 mt-1">
                     <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                     <span className="truncate">
-                      {c.location}, {c.district} ({c.region} Region)
+                      {c.location}, {c.district}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getRegionColorClass(getDistrictRegion(c.district))}`}>
+                      {getDistrictRegion(c.district)} Region
                     </span>
                   </div>
 
@@ -527,11 +580,27 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                         onChange={(e) => setDeliveryDistrict(e.target.value)}
                         className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white font-medium"
                       >
-                        {MALAWI_DISTRICTS.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
-                          </option>
-                        ))}
+                        <optgroup label="Northern Region">
+                          {NORTHERN_DISTRICTS.map((d) => (
+                            <option key={d} value={d}>
+                              {d} (Northern)
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Central Region">
+                          {CENTRAL_DISTRICTS.map((d) => (
+                            <option key={d} value={d}>
+                              {d} (Central)
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Southern Region">
+                          {SOUTHERN_DISTRICTS.map((d) => (
+                            <option key={d} value={d}>
+                              {d} (Southern)
+                            </option>
+                          ))}
+                        </optgroup>
                       </select>
                     </div>
 

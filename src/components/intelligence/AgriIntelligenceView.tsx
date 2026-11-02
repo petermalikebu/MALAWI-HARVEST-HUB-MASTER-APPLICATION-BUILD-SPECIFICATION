@@ -16,7 +16,14 @@ import {
   AlertCircle,
   HelpCircle,
 } from 'lucide-react';
-import { MALAWI_DISTRICTS } from '../../types/index.ts';
+import {
+  MALAWI_DISTRICTS,
+  NORTHERN_DISTRICTS,
+  CENTRAL_DISTRICTS,
+  SOUTHERN_DISTRICTS,
+  getDistrictRegion,
+  getRegionColorClass,
+} from '../../types/index.ts';
 
 interface AgriPlace {
   title: string;
@@ -203,19 +210,38 @@ export const AgriIntelligenceView: React.FC<AgriIntelligenceViewProps> = ({
               </div>
 
               {/* District Selector */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-stone-600">Focus District:</span>
                 <select
                   value={mapsDistrict}
                   onChange={(e) => setMapsDistrict(e.target.value)}
                   className="px-3 py-1.5 rounded-xl border border-stone-300 bg-stone-50 text-xs font-semibold text-stone-800 focus:outline-emerald-600"
                 >
-                  {MALAWI_DISTRICTS.map((d) => (
-                    <option key={d} value={d}>
-                      {d} District
-                    </option>
-                  ))}
+                  <optgroup label="Northern Region">
+                    {NORTHERN_DISTRICTS.map((d) => (
+                      <option key={d} value={d}>
+                        {d} (Northern Region)
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Central Region">
+                    {CENTRAL_DISTRICTS.map((d) => (
+                      <option key={d} value={d}>
+                        {d} (Central Region)
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Southern Region">
+                    {SOUTHERN_DISTRICTS.map((d) => (
+                      <option key={d} value={d}>
+                        {d} (Southern Region)
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getRegionColorClass(getDistrictRegion(mapsDistrict))}`}>
+                  {getDistrictRegion(mapsDistrict)}
+                </span>
               </div>
             </div>
 

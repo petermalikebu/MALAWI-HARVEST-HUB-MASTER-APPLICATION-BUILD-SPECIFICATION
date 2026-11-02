@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
-import { User as UserType, UserRole, MALAWI_DISTRICTS } from '../../types/index.ts';
+import {
+  User as UserType,
+  UserRole,
+  MALAWI_DISTRICTS,
+  NORTHERN_DISTRICTS,
+  CENTRAL_DISTRICTS,
+  SOUTHERN_DISTRICTS,
+  getDistrictRegion,
+} from '../../types/index.ts';
 import { safeParseResponse } from '../../lib/api.ts';
 import {
   Sprout,
@@ -237,6 +245,7 @@ export const SignInView: React.FC<SignInViewProps> = ({
         confirmPassword: regConfirmPassword,
         role: regRole,
         district: regDistrict,
+        region: getDistrictRegion(regDistrict),
         phoneNumber: regPhone.trim(),
         tradingArea: regTradingArea.trim(),
         vehicleType: regRole === 'transporter' ? regVehicleType : '',
@@ -905,11 +914,27 @@ export const SignInView: React.FC<SignInViewProps> = ({
                     onChange={(e) => setRegDistrict(e.target.value)}
                     className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600 bg-white font-medium"
                   >
-                    {MALAWI_DISTRICTS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
+                    <optgroup label="Northern Region">
+                      {NORTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Northern Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Central Region">
+                      {CENTRAL_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Central Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Southern Region">
+                      {SOUTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Southern Region)
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
               </div>

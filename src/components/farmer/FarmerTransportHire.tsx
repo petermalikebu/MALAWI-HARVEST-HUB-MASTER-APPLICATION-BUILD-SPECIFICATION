@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
-import { TransportJob, User, MALAWI_DISTRICTS } from '../../types/index.ts';
+import {
+  TransportJob,
+  User,
+  MALAWI_DISTRICTS,
+  NORTHERN_DISTRICTS,
+  CENTRAL_DISTRICTS,
+  SOUTHERN_DISTRICTS,
+  getDistrictRegion,
+  getRegionColorClass,
+} from '../../types/index.ts';
 import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import {
   Truck,
@@ -412,13 +421,29 @@ export const FarmerTransportHire: React.FC<FarmerTransportHireProps> = ({ onJobC
                   <select
                     value={quoteForm.pickupDistrict}
                     onChange={(e) => setQuoteForm({ ...quoteForm, pickupDistrict: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white font-medium"
                   >
-                    {MALAWI_DISTRICTS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
+                    <optgroup label="Northern Region">
+                      {NORTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Northern Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Central Region">
+                      {CENTRAL_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Central Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Southern Region">
+                      {SOUTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Southern Region)
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
 
@@ -429,13 +454,29 @@ export const FarmerTransportHire: React.FC<FarmerTransportHireProps> = ({ onJobC
                   <select
                     value={quoteForm.destinationDistrict}
                     onChange={(e) => setQuoteForm({ ...quoteForm, destinationDistrict: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white font-medium"
                   >
-                    {MALAWI_DISTRICTS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
+                    <optgroup label="Northern Region">
+                      {NORTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Northern Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Central Region">
+                      {CENTRAL_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Central Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Southern Region">
+                      {SOUTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Southern Region)
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
 
@@ -889,9 +930,12 @@ export const FarmerTransportHire: React.FC<FarmerTransportHireProps> = ({ onJobC
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-stone-900 text-sm truncate">{driver.fullName}</h4>
-                        <p className="text-[11px] text-stone-500 truncate">
-                          {driver.district} &bull; {driver.region} Region
-                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="text-[11px] text-stone-500 truncate">{driver.district}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getRegionColorClass(getDistrictRegion(driver.district))}`}>
+                            {getDistrictRegion(driver.district)} Region
+                          </span>
+                        </div>
                       </div>
 
                       {/* Real-time availability badge */}

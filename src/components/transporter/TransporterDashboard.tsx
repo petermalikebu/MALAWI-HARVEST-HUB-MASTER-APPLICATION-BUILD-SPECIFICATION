@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
-import { TransportJob, VEHICLE_TYPES } from '../../types/index.ts';
+import {
+  TransportJob,
+  VEHICLE_TYPES,
+  getDistrictRegion,
+  getRegionColorClass,
+  NORTHERN_DISTRICTS,
+  CENTRAL_DISTRICTS,
+  SOUTHERN_DISTRICTS,
+} from '../../types/index.ts';
 import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import {
   Truck,
@@ -289,7 +297,14 @@ export const TransporterDashboard: React.FC = () => {
       ['delivered', 'completed'].includes(j.status)
   );
 
-  const totalEarnings = myCompletedJobs.reduce((sum, j) => sum + Number(j.quotedPrice || j.transportFee || 0), 0);
+  // Net earnings delivered to driver after deducting the platform's 4% facilitation commission
+  const totalEarnings = myCompletedJobs.reduce((sum, j) => {
+    const net = Number(
+      j.netTransporterAmount ||
+      (Number(j.quotedPrice || j.transportFee || 0) * (1 - (Number(j.platformCommissionRate) || 0.04)))
+    );
+    return sum + Math.round(net);
+  }, 0);
 
   const isDriverAvailable = currentUser?.isAvailable !== false;
 
@@ -399,10 +414,11 @@ export const TransporterDashboard: React.FC = () => {
             </div>
           </div>
           <div>
-            <div className="text-xs text-blue-200 font-medium">Haulage Earnings</div>
+            <div className="text-xs text-blue-200 font-medium">Net Haulage Earnings</div>
             <div className="text-xl sm:text-2xl font-extrabold text-emerald-300 mt-0.5">
               MWK {totalEarnings.toLocaleString()}
             </div>
+            <div className="text-[10px] text-blue-300/80 mt-0.5">Post-4% commission</div>
           </div>
         </div>
       </div>
@@ -555,24 +571,34 @@ export const TransporterDashboard: React.FC = () => {
 
                       {/* Route & Distance Card */}
                       <div className="bg-stone-50 p-3 rounded-xl border border-stone-200 space-y-2 text-xs">
-                        <div className="flex items-start gap-2">
-                          <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                          <div>
-                            <div className="text-[10px] text-stone-400 font-bold uppercase">Pickup Depot</div>
-                            <div className="font-semibold text-stone-900">
-                              {job.pickupLocation}, {job.pickupDistrict}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2">
+                            <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <div>
+                              <div className="text-[10px] text-stone-400 font-bold uppercase">Pickup Depot</div>
+                              <div className="font-semibold text-stone-900">
+                                {job.pickupLocation}, {job.pickupDistrict}
+                              </div>
                             </div>
                           </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${getRegionColorClass(getDistrictRegion(job.pickupDistrict))}`}>
+                            {getDistrictRegion(job.pickupDistrict)}
+                          </span>
                         </div>
 
-                        <div className="flex items-start gap-2 pt-1 border-t border-stone-200/60">
-                          <MapPin className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                          <div>
-                            <div className="text-[10px] text-stone-400 font-bold uppercase">Destination Warehouse</div>
-                            <div className="font-semibold text-stone-900">
-                              {job.destinationLocation}, {job.destinationDistrict}
+                        <div className="flex items-start justify-between gap-2 pt-1 border-t border-stone-200/60">
+                          <div className="flex items-start gap-2">
+                            <MapPin className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                            <div>
+                              <div className="text-[10px] text-stone-400 font-bold uppercase">Destination Warehouse</div>
+                              <div className="font-semibold text-stone-900">
+                                {job.destinationLocation}, {job.destinationDistrict}
+                              </div>
                             </div>
                           </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${getRegionColorClass(getDistrictRegion(job.destinationDistrict))}`}>
+                            {getDistrictRegion(job.destinationDistrict)}
+                          </span>
                         </div>
 
                         {job.distanceKm ? (
@@ -594,26 +620,49 @@ export const TransporterDashboard: React.FC = () => {
                       )}
 
                       {/* Display current quote if already submitted */}
-                      {isQuoted && (
-                        <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200 text-xs space-y-1">
-                          <div className="flex justify-between items-center text-blue-950 font-bold">
-                            <span>Your Submitted Quote:</span>
-                            <span className="text-base text-blue-900 font-extrabold">
-                              MWK {Number(job.quotedPrice || job.transportFee).toLocaleString()}
-                            </span>
+                      {isQuoted && (() => {
+                        const grossVal = Number(job.quotedPrice || job.transportFee || 0);
+                        const commRate = Number(job.platformCommissionRate) || 0.04;
+                        const commVal = Number(job.platformCommissionFee || Math.round(grossVal * commRate));
+                        const netVal = Number(job.netTransporterAmount || (grossVal - commVal));
+
+                        return (
+                          <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200 text-xs space-y-1.5">
+                            <div className="flex justify-between items-center text-blue-950 font-bold">
+                              <span>Submitted Gross Quote:</span>
+                              <span className="text-sm text-stone-700 font-bold">
+                                MWK {grossVal.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-[11px] text-rose-600 font-semibold">
+                              <span>Platform Commission (-{Math.round(commRate * 100)}%):</span>
+                              <span>-MWK {commVal.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-emerald-800 font-extrabold pt-1 border-t border-blue-200/60">
+                              <span>Net Delivered to Driver:</span>
+                              <span className="text-base text-emerald-700 font-black">
+                                MWK {netVal.toLocaleString()}
+                              </span>
+                            </div>
+                            {job.disbursedToTransporterAt ? (
+                              <div className="text-[10px] text-emerald-700 font-bold bg-emerald-100/70 px-2 py-1 rounded-md border border-emerald-300 flex items-center gap-1 mt-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span>Commission deducted &amp; funds delivered ({job.disbursedToTransporterRef || 'Disbursed'})</span>
+                              </div>
+                            ) : null}
+                            {job.pricePerKm && (
+                              <div className="text-[10px] text-blue-800">
+                                Approx Rate: MWK {Number(job.pricePerKm).toLocaleString()}/km
+                              </div>
+                            )}
+                            {job.quoteNotes && (
+                              <div className="text-[11px] text-stone-600 pt-1 border-t border-blue-200/60 italic">
+                                &quot;{job.quoteNotes}&quot;
+                              </div>
+                            )}
                           </div>
-                          {job.pricePerKm && (
-                            <div className="text-[11px] text-blue-800">
-                              Approx Rate: MWK {Number(job.pricePerKm).toLocaleString()}/km
-                            </div>
-                          )}
-                          {job.quoteNotes && (
-                            <div className="text-[11px] text-stone-600 pt-1 border-t border-blue-200/60 italic">
-                              &quot;{job.quoteNotes}&quot;
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
 
                     <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-2">
@@ -703,24 +752,34 @@ export const TransporterDashboard: React.FC = () => {
 
                     {/* Route card */}
                     <div className="bg-stone-50 p-3 rounded-xl border border-stone-200 space-y-2 text-xs">
-                      <div className="flex items-start gap-2">
-                        <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <div>
-                          <div className="text-[10px] text-stone-400 font-bold uppercase">Pickup Depot</div>
-                          <div className="font-semibold text-stone-900">
-                            {job.pickupLocation}, {job.pickupDistrict}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="text-[10px] text-stone-400 font-bold uppercase">Pickup Depot</div>
+                            <div className="font-semibold text-stone-900">
+                              {job.pickupLocation}, {job.pickupDistrict}
+                            </div>
                           </div>
                         </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${getRegionColorClass(getDistrictRegion(job.pickupDistrict))}`}>
+                          {getDistrictRegion(job.pickupDistrict)}
+                        </span>
                       </div>
 
-                      <div className="flex items-start gap-2 pt-1 border-t border-stone-200/60">
-                        <MapPin className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                        <div>
-                          <div className="text-[10px] text-stone-400 font-bold uppercase">Destination Warehouse</div>
-                          <div className="font-semibold text-stone-900">
-                            {job.destinationLocation}, {job.destinationDistrict}
+                      <div className="flex items-start justify-between gap-2 pt-1 border-t border-stone-200/60">
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="text-[10px] text-stone-400 font-bold uppercase">Destination Warehouse</div>
+                            <div className="font-semibold text-stone-900">
+                              {job.destinationLocation}, {job.destinationDistrict}
+                            </div>
                           </div>
                         </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${getRegionColorClass(getDistrictRegion(job.destinationDistrict))}`}>
+                          {getDistrictRegion(job.destinationDistrict)}
+                        </span>
                       </div>
                     </div>
 
@@ -730,11 +789,18 @@ export const TransporterDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-stone-100 flex items-center justify-between">
-                    <div>
-                      <div className="text-[10px] text-stone-400 font-semibold uppercase">Offered Fee</div>
-                      <div className="text-xl font-extrabold text-blue-900">
-                        MWK {Number(job.transportFee).toLocaleString()}
+                  <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-stone-400 font-semibold uppercase">Gross Escrow:</span>
+                        <span className="text-xs text-stone-500">MWK {Number(job.transportFee).toLocaleString()}</span>
+                      </div>
+                      <div className="text-[11px] text-rose-600 font-medium">
+                        Platform Comm. (-4%): -MWK {Math.round(Number(job.transportFee) * 0.04).toLocaleString()}
+                      </div>
+                      <div className="text-[10px] text-emerald-600 font-bold uppercase">Net Delivered to Driver:</div>
+                      <div className="text-lg font-extrabold text-emerald-700">
+                        MWK {Math.round(Number(job.transportFee) * 0.96).toLocaleString()}
                       </div>
                     </div>
 
@@ -789,8 +855,26 @@ export const TransporterDashboard: React.FC = () => {
                         {job.status.replace('_', ' ')}
                       </span>
                     </div>
-                    <div className="text-xs font-bold text-blue-900">
-                      Agreed Fee: MWK {Number(job.quotedPrice || job.transportFee).toLocaleString()}
+                    <div className="text-right space-y-0.5">
+                      <div className="text-xs font-bold text-stone-700">
+                        Gross Escrow: MWK {Number(job.quotedPrice || job.transportFee).toLocaleString()}
+                      </div>
+                      <div className="text-[11px] text-rose-600 font-semibold">
+                        Platform Comm. (-4%): -MWK {Number(job.platformCommissionFee || Math.round(Number(job.quotedPrice || job.transportFee) * 0.04)).toLocaleString()}
+                      </div>
+                      <div className="text-sm font-black text-emerald-700">
+                        Net Delivered: MWK {Number(job.netTransporterAmount || Math.round(Number(job.quotedPrice || job.transportFee) * 0.96)).toLocaleString()}
+                      </div>
+                      {job.disbursedToTransporterAt ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Delivered to Mobile Escrow ({job.disbursedToTransporterRef || 'Verified'})</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          <span>Pending Finance Admin Disbursement</span>
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -799,19 +883,29 @@ export const TransporterDashboard: React.FC = () => {
                       <h4 className="font-bold text-stone-900 text-base">
                         {job.quantityKg.toLocaleString()} kg &bull; {job.commodityName}
                       </h4>
-                      <div className="text-xs text-stone-600 mt-2 space-y-1">
+                      <div className="text-xs text-stone-600 mt-2 space-y-1.5">
                         {job.farmerName && (
                           <div className="text-xs font-bold text-stone-900">
                             Client: {job.farmerName} {job.farmerPhone ? `(${job.farmerPhone})` : ''}
                           </div>
                         )}
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>Pickup: {job.pickupLocation}, {job.pickupDistrict}</span>
+                        <div className="flex items-center justify-between gap-1.5 bg-stone-50 p-2 rounded-lg border border-stone-100">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>Pickup: {job.pickupLocation}, <strong>{job.pickupDistrict}</strong></span>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${getRegionColorClass(getDistrictRegion(job.pickupDistrict))}`}>
+                            {getDistrictRegion(job.pickupDistrict)}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                          <span>Destination: {job.destinationLocation}, {job.destinationDistrict}</span>
+                        <div className="flex items-center justify-between gap-1.5 bg-stone-50 p-2 rounded-lg border border-stone-100">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span>Dest: {job.destinationLocation}, <strong>{job.destinationDistrict}</strong></span>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${getRegionColorClass(getDistrictRegion(job.destinationDistrict))}`}>
+                            {getDistrictRegion(job.destinationDistrict)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -908,16 +1002,32 @@ export const TransporterDashboard: React.FC = () => {
                     <div className="font-bold text-stone-900 text-sm">
                       {job.quantityKg.toLocaleString()} kg {job.commodityName}
                     </div>
-                    <div className="text-xs text-stone-500">
-                      {job.pickupDistrict} &rarr; {job.destinationDistrict}
+                    <div className="text-xs text-stone-600 flex items-center gap-1.5 flex-wrap">
+                      <span>{job.pickupDistrict}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${getRegionColorClass(getDistrictRegion(job.pickupDistrict))}`}>
+                        {getDistrictRegion(job.pickupDistrict)}
+                      </span>
+                      <span>&rarr;</span>
+                      <span>{job.destinationDistrict}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${getRegionColorClass(getDistrictRegion(job.destinationDistrict))}`}>
+                        {getDistrictRegion(job.destinationDistrict)}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <div className="text-xs text-stone-400 font-semibold uppercase">Earned Fee</div>
+                  <div className="text-right space-y-0.5">
+                    <div className="text-[10px] text-stone-400 font-bold uppercase">Net Earned Fee</div>
                     <div className="text-lg font-extrabold text-emerald-700">
-                      MWK {Number(job.quotedPrice || job.transportFee).toLocaleString()}
+                      MWK {Number(job.netTransporterAmount || (Number(job.quotedPrice || job.transportFee) * 0.96)).toLocaleString()}
                     </div>
+                    <div className="text-[11px] text-stone-400">
+                      Gross: MWK {Number(job.quotedPrice || job.transportFee).toLocaleString()} &bull; Commission (4%): -MWK {Number(job.platformCommissionFee || Math.round(Number(job.quotedPrice || job.transportFee) * 0.04)).toLocaleString()}
+                    </div>
+                    {job.disbursedToTransporterRef && (
+                      <div className="text-[10px] text-emerald-600 font-medium">
+                        Paid out: {job.disbursedToTransporterRef}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1050,9 +1160,20 @@ export const TransporterDashboard: React.FC = () => {
                     <div className="font-bold text-stone-900 text-sm">
                       {currentJob.quantityKg.toLocaleString()} kg &bull; {currentJob.commodityName}
                     </div>
-                    <div className="text-stone-600 flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Route: {currentJob.pickupDistrict} ({currentJob.pickupLocation}) &rarr; {currentJob.destinationDistrict}</span>
+                    <div className="text-stone-600 flex items-center justify-between gap-1 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Route: {currentJob.pickupDistrict} ({currentJob.pickupLocation}) &rarr; {currentJob.destinationDistrict} ({currentJob.destinationLocation})</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${getRegionColorClass(getDistrictRegion(currentJob.pickupDistrict))}`}>
+                          {getDistrictRegion(currentJob.pickupDistrict)}
+                        </span>
+                        <span>&rarr;</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${getRegionColorClass(getDistrictRegion(currentJob.destinationDistrict))}`}>
+                          {getDistrictRegion(currentJob.destinationDistrict)}
+                        </span>
+                      </div>
                     </div>
                     {distance > 0 && (
                       <div className="text-blue-900 font-semibold">
@@ -1079,6 +1200,31 @@ export const TransporterDashboard: React.FC = () => {
                         Equivalent to approximately <strong>MWK {ratePerKm.toLocaleString()}/km</strong> for {distance} km.
                       </p>
                     ) : null}
+
+                    {/* Live Commission Deduction Calculation */}
+                    {quotedAmount > 0 && (() => {
+                      const commFee = Math.round(quotedAmount * 0.04);
+                      const netPayout = quotedAmount - commFee;
+                      return (
+                        <div className="mt-2.5 p-3 rounded-xl bg-blue-50/80 border border-blue-200 space-y-1.5 text-xs">
+                          <div className="flex justify-between items-center text-blue-950 font-bold">
+                            <span>Gross Quoted Escrow:</span>
+                            <span className="font-mono text-stone-800">MWK {quotedAmount.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-rose-600 font-semibold text-[11px]">
+                            <span>Platform Facilitation Commission (4%):</span>
+                            <span>-MWK {commFee.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-emerald-800 font-black text-xs pt-1 border-t border-blue-200">
+                            <span>Net Delivered to Driver (Before Transit):</span>
+                            <span className="text-emerald-700 font-extrabold text-sm">MWK {netPayout.toLocaleString()}</span>
+                          </div>
+                          <p className="text-[10px] text-stone-500 pt-0.5 leading-normal">
+                            &bull; When the Finance Admin approves the escrow deposit, the 4% platform commission is deducted before delivering the net amount to your mobile money account so you can start transport immediately.
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div>
@@ -1235,6 +1381,54 @@ export const TransporterDashboard: React.FC = () => {
                     required
                     value={profileForm.phoneNumber}
                     onChange={(e) => setProfileForm({ ...profileForm, phoneNumber: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                    Base Operating District *
+                  </label>
+                  <select
+                    value={profileForm.district}
+                    onChange={(e) => setProfileForm({ ...profileForm, district: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600 bg-white"
+                  >
+                    <optgroup label="Northern Region">
+                      {NORTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Northern Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Central Region">
+                      {CENTRAL_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Central Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Southern Region">
+                      {SOUTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Southern Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                    Home Base Depot / Trading Centre
+                  </label>
+                  <input
+                    type="text"
+                    value={profileForm.tradingArea}
+                    onChange={(e) => setProfileForm({ ...profileForm, tradingArea: e.target.value })}
+                    placeholder="e.g. Kanengo Transport Depot / Katoto"
                     className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-blue-600"
                   />
                 </div>

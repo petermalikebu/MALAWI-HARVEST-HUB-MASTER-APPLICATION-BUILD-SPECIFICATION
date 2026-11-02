@@ -10,6 +10,7 @@ import {
   getDocId,
   COLLECTIONS,
 } from './firestoreStore.ts';
+import { getDistrictRegion } from '../types/index.ts';
 
 declare global {
   var _postgresPool: Pool | undefined;
@@ -65,6 +66,12 @@ export const createPool = () => {
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_by TEXT;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_ref TEXT;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_notes TEXT;
+      ALTER TABLE transport_jobs ADD COLUMN IF NOT EXISTS platform_commission_rate NUMERIC DEFAULT 0.04;
+      ALTER TABLE transport_jobs ADD COLUMN IF NOT EXISTS platform_commission_fee NUMERIC DEFAULT 0;
+      ALTER TABLE transport_jobs ADD COLUMN IF NOT EXISTS net_transporter_amount NUMERIC DEFAULT 0;
+      ALTER TABLE transport_jobs ADD COLUMN IF NOT EXISTS disbursed_to_transporter_at TIMESTAMP;
+      ALTER TABLE transport_jobs ADD COLUMN IF NOT EXISTS disbursed_to_transporter_ref TEXT;
+      ALTER TABLE transport_jobs ADD COLUMN IF NOT EXISTS disbursed_to_transporter_by TEXT;
     `).catch(() => {});
   }
   return global._postgresPool;
@@ -825,6 +832,30 @@ export function getInMemoryStore(): Record<string, any[]> {
       for (const coll of COLLECTIONS) {
         if (!Array.isArray(global._inMemoryStore[coll])) {
           global._inMemoryStore[coll] = (seed as any)[coll] || [];
+        }
+      }
+
+      // Automatically normalize regional classification and transport commissions
+      for (const u of global._inMemoryStore.users) {
+        if (u.district) {
+          u.region = getDistrictRegion(u.district);
+        }
+      }
+      if (Array.isArray(global._inMemoryStore.commodities)) {
+        for (const c of global._inMemoryStore.commodities) {
+          if (c.district) {
+            c.region = getDistrictRegion(c.district);
+          }
+        }
+      }
+      if (Array.isArray(global._inMemoryStore.transport_jobs)) {
+        for (const j of global._inMemoryStore.transport_jobs) {
+          const fee = Number(j.quotedPrice || j.transportFee || 0);
+          if (fee > 0) {
+            j.platformCommissionRate = j.platformCommissionRate || '0.04';
+            j.platformCommissionFee = j.platformCommissionFee || String(Math.round(fee * Number(j.platformCommissionRate)));
+            j.netTransporterAmount = j.netTransporterAmount || String(Math.max(0, fee - Number(j.platformCommissionFee)));
+          }
         }
       }
 

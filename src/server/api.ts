@@ -179,7 +179,7 @@ router.post('/users/register', async (req, res) => {
       role,
       phoneNumber: phoneNumber || '+265 ',
       district: district || 'Lilongwe',
-      region: 'Central',
+      region: getDistrictRegion(district || 'Lilongwe'),
       tradingArea: tradingArea || '',
       village: village || '',
       vehicleType: vehicleType || '',
@@ -478,8 +478,12 @@ router.post('/users/profile', async (req, res) => {
 
     if (fullName !== undefined) updateData.fullName = fullName;
     if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
-    if (district !== undefined) updateData.district = district;
-    if (region !== undefined) updateData.region = region;
+    if (district !== undefined) {
+      updateData.district = district;
+      updateData.region = region !== undefined ? region : getDistrictRegion(district);
+    } else if (region !== undefined) {
+      updateData.region = region;
+    }
     if (tradingArea !== undefined) updateData.tradingArea = tradingArea;
     if (village !== undefined) updateData.village = village;
     if (vehicleType !== undefined) updateData.vehicleType = vehicleType;
@@ -634,7 +638,7 @@ router.post('/users/sync', async (req, res) => {
           phoneNumber: phoneNumber ?? targetUser.phoneNumber,
           photoUrl: newPhotoUrl,
           district: district ?? targetUser.district,
-          region: region ?? targetUser.region,
+          region: region ?? (district ? getDistrictRegion(district) : targetUser.region),
           tradingArea: tradingArea ?? targetUser.tradingArea,
           village: village ?? targetUser.village,
           vehicleType: vehicleType ?? targetUser.vehicleType,
@@ -656,7 +660,7 @@ router.post('/users/sync', async (req, res) => {
           photoUrl: photoUrl || '',
           phoneNumber: phoneNumber || '+265 ',
           district: district || 'Lilongwe',
-          region: region || 'Central',
+          region: region || (district ? getDistrictRegion(district) : 'Central'),
           tradingArea: tradingArea || '',
           village: village || '',
           vehicleType: vehicleType || '',
@@ -1232,7 +1236,7 @@ router.post('/commodities', async (req, res) => {
       );
     }
 
-    const calculatedRegion = region || (farmer && farmer.region) || getDistrictRegion(district) || 'Central';
+    const calculatedRegion = getDistrictRegion(district) || region || (farmer && farmer.region) || 'Central';
 
     if (!farmer) {
       // Auto-provision profile so a registered farmer never gets blocked from listing produce
@@ -1254,7 +1258,7 @@ router.post('/commodities', async (req, res) => {
     const safeFarmerName = farmer?.fullName || 'Registered Farmer';
     const safeFarmerEmail = farmer?.email || 'farmer@harvesthub.mw';
     const safeFarmerRole = farmer?.role || 'farmer';
-    const finalRegion = calculatedRegion || farmer?.region || 'Central';
+    const finalRegion = getDistrictRegion(district) || calculatedRegion || farmer?.region || 'Central';
 
     const inserted = await db.insert(commodities).values({
       farmerId: safeFarmerId,
@@ -1348,6 +1352,7 @@ router.put('/commodities/:id', async (req, res) => {
         quantity: quantity !== undefined ? Number(quantity) : existing[0].quantity,
         pricePerUnit: pricePerUnit !== undefined ? String(pricePerUnit) : existing[0].pricePerUnit,
         district: district ?? existing[0].district,
+        region: district ? getDistrictRegion(district) : (existing[0].region || getDistrictRegion(existing[0].district)),
         location: location ?? existing[0].location,
         quality: quality ?? existing[0].quality,
         description: description ?? existing[0].description,
@@ -1898,6 +1903,9 @@ router.post('/orders/:id/finance-disburse-funds', async (req, res) => {
     // Permanent revenue ledger entry
     const revenueId = `REV-${Date.now().toString().slice(-7)}`;
     const transportFee = Number(ord[0].transportFee) || 0;
+    const transportCommission = transportFee > 0 ? Math.round(transportFee * commissionRate) : 0;
+    const netTransporterEarnings = Math.max(0, transportFee - transportCommission);
+    const totalCommission = commissionFee + transportCommission;
 
     await db.insert(revenueLedger).values({
       revenueId,
@@ -1905,15 +1913,47 @@ router.post('/orders/:id/finance-disburse-funds', async (req, res) => {
       sourceType: 'commodity_commission',
       sourceOrderId: ord[0].id,
       sourceOrderNumber: ord[0].orderNumber,
-      grossTransactionAmount: grossAmount.toString(),
+      grossTransactionAmount: (grossAmount + transportFee).toString(),
       commissionRate: commissionRate.toString(),
-      commissionAmount: commissionFee.toString(),
+      commissionAmount: totalCommission.toString(),
       transportFee: transportFee.toString(),
       farmerEarnings: farmerEarnings.toString(),
-      transporterEarnings: transportFee.toString(),
+      transporterEarnings: netTransporterEarnings.toString(),
       status: 'settled',
       createdSource: 'finance_admin_disbursement',
     });
+
+    // If order includes transport, update linked transport job with commission deduction and notify driver
+    if (transportFee > 0) {
+      const linkedJobs = await db.select().from(transportJobs).where(eq(transportJobs.orderId, id));
+      if (linkedJobs.length > 0) {
+        for (const lj of linkedJobs) {
+          await db.update(transportJobs)
+            .set({
+              platformCommissionRate: commissionRate.toString(),
+              platformCommissionFee: transportCommission.toString(),
+              netTransporterAmount: netTransporterEarnings.toString(),
+              disbursedToTransporterAt: new Date(),
+              disbursedToTransporterRef: ref,
+              disbursedToTransporterBy: financeAdminName || 'Financial Administrator',
+              paymentStatus: 'verified_by_finance',
+              status: lj.status === 'in_transit' ? 'completed' : lj.status,
+              updatedAt: new Date(),
+            })
+            .where(eq(transportJobs.id, lj.id));
+
+          if (lj.transporterUid) {
+            await createNotification({
+              userUid: lj.transporterUid,
+              title: `Transit Payment Disbursed #${ord[0].orderNumber}`,
+              message: `Financial Administrator disbursed your transport fee of MK ${netTransporterEarnings.toLocaleString()} (net of ${(commissionRate * 100).toFixed(1)}% platform commission: MK ${transportCommission.toLocaleString()}) via ${payoutMethod || 'Mobile Money'} (Ref: ${ref}).`,
+              type: 'finance',
+              relatedOrderId: ord[0].id,
+            });
+          }
+        }
+      }
+    }
 
     // Notify farmer of payout
     await createNotification({
@@ -1928,7 +1968,7 @@ router.post('/orders/:id/finance-disburse-funds', async (req, res) => {
     await createNotification({
       userUid: ord[0].buyerUid,
       title: `Order Completed & Escrow Settled #${ord[0].orderNumber}`,
-      message: `Order #${ord[0].orderNumber} has been finalized and payment disbursed to the farmer. Thank you for trading on Malawi Harvest Hub!`,
+      message: `Order #${ord[0].orderNumber} has been finalized and payment disbursed to the farmer and transporter. Thank you for trading on Malawi Harvest Hub!`,
       type: 'order',
       relatedOrderId: ord[0].id,
     });
@@ -2444,7 +2484,10 @@ router.post('/orders/:id/confirm-delivery', async (req, res) => {
     const commissionRate = Number(ord[0].platformCommissionRate) || 0.04;
     const commissionAmount = Number(ord[0].platformCommissionFee) || Math.round(grossAmount * commissionRate);
     const transportFee = Number(ord[0].transportFee) || 0;
+    const transportCommission = transportFee > 0 ? Math.round(transportFee * commissionRate) : 0;
     const farmerEarnings = grossAmount - commissionAmount;
+    const netTransporterEarnings = Math.max(0, transportFee - transportCommission);
+    const totalCommission = commissionAmount + transportCommission;
 
     await db.insert(revenueLedger).values({
       revenueId,
@@ -2452,12 +2495,12 @@ router.post('/orders/:id/confirm-delivery', async (req, res) => {
       sourceType: 'commodity_commission',
       sourceOrderId: ord[0].id,
       sourceOrderNumber: ord[0].orderNumber,
-      grossTransactionAmount: grossAmount.toString(),
+      grossTransactionAmount: (grossAmount + transportFee).toString(),
       commissionRate: commissionRate.toString(),
-      commissionAmount: commissionAmount.toString(),
+      commissionAmount: totalCommission.toString(),
       transportFee: transportFee.toString(),
       farmerEarnings: farmerEarnings.toString(),
-      transporterEarnings: transportFee.toString(),
+      transporterEarnings: netTransporterEarnings.toString(),
       status: 'settled',
       createdSource: 'system_escrow_engine',
     });
@@ -2991,6 +3034,12 @@ router.post('/transport/jobs/:id/finance-approve-recommend', async (req, res) =>
     const driver = await db.select().from(users).where(eq(users.id, Number(recommendedDriverId))).limit(1);
     if (driver.length === 0) return res.status(404).json({ error: 'Selected driver/transporter not found' });
 
+    const grossTransportFee = Number(job[0].quotedPrice || job[0].transportFee || 0);
+    const commissionRate = await getCommissionRate();
+    const commissionFee = Math.round(grossTransportFee * commissionRate);
+    const netTransporterAmount = Math.max(0, grossTransportFee - commissionFee);
+    const disbursementRef = `TRP-DSB-${Date.now().toString().slice(-6)}`;
+
     const updatedJob = await db.update(transportJobs)
       .set({
         transporterId: driver[0].id,
@@ -3002,6 +3051,12 @@ router.post('/transport/jobs/:id/finance-approve-recommend', async (req, res) =>
         financeApprovedBy: financeAdminName || 'Finance Administrator',
         financeApprovedAt: new Date(),
         financeRecommendationNotes: recommendationNotes || `Driver ${driver[0].fullName} vetted and recommended for cargo transit. Capacity: ${driver[0].vehicleCapacityKg || '5000'} kg.`,
+        platformCommissionRate: commissionRate.toString(),
+        platformCommissionFee: commissionFee.toString(),
+        netTransporterAmount: netTransporterAmount.toString(),
+        disbursedToTransporterAt: new Date(),
+        disbursedToTransporterRef: disbursementRef,
+        disbursedToTransporterBy: financeAdminName || 'Finance Administrator',
         paymentStatus: 'verified_by_finance',
         status: 'driver_assigned',
         acceptedAt: new Date(),
@@ -3010,21 +3065,38 @@ router.post('/transport/jobs/:id/finance-approve-recommend', async (req, res) =>
       .where(eq(transportJobs.id, id))
       .returning();
 
-    // 1. Notify Farmer with the recommended driver details
+    // 1. Record transport platform commission in platform revenue ledger
+    await db.insert(revenueLedger).values({
+      revenueId: `REV-TRP-${Date.now().toString().slice(-7)}`,
+      transactionId: `TX-TRP-${job[0].orderNumber || id}`,
+      sourceType: 'transport_commission',
+      sourceOrderId: job[0].orderId || null,
+      sourceOrderNumber: job[0].orderNumber,
+      grossTransactionAmount: grossTransportFee.toString(),
+      commissionRate: commissionRate.toString(),
+      commissionAmount: commissionFee.toString(),
+      transportFee: grossTransportFee.toString(),
+      farmerEarnings: '0',
+      transporterEarnings: netTransporterAmount.toString(),
+      status: 'settled',
+      createdSource: 'finance_admin_transport_disbursement',
+    });
+
+    // 2. Notify Farmer with the recommended driver details
     if (job[0].farmerUid) {
       await createNotification({
         userUid: job[0].farmerUid,
-        title: `✅ Driver Approved & Recommended #${job[0].orderNumber}`,
-        message: `Finance Administrator verified your fee payment of MK ${Number(job[0].transportFee).toLocaleString()}! Recommended Driver: ${driver[0].fullName} (${driver[0].vehicleRegistration || driver[0].vehicleType || 'Truck'}). Phone: ${driver[0].phoneNumber || '+265 882 776 543'}. Notes: ${updatedJob[0].financeRecommendationNotes}`,
+        title: `✅ Driver Approved & Transit Authorized #${job[0].orderNumber}`,
+        message: `Finance Administrator verified transport payment of MK ${grossTransportFee.toLocaleString()} (net MK ${netTransporterAmount.toLocaleString()} delivered to driver after platform commission). Recommended Driver: ${driver[0].fullName} (${driver[0].vehicleRegistration || driver[0].vehicleType || 'Truck'}). Phone: ${driver[0].phoneNumber || '+265 882 776 543'}. Notes: ${updatedJob[0].financeRecommendationNotes}`,
         type: 'transport',
       });
     }
 
-    // 2. Notify Transporter of assigned job
+    // 3. Notify Transporter of assigned job and net funds delivered
     await createNotification({
       userUid: driver[0].uid,
-      title: `New Job Assigned by Finance Admin #${job[0].orderNumber}`,
-      message: `You have been recommended and assigned to transport ${job[0].quantityKg} kg of ${job[0].commodityName} from ${job[0].pickupLocation} to ${job[0].destinationLocation} for ${job[0].farmerName}. Escrow fee: MK ${Number(job[0].transportFee).toLocaleString()}.`,
+      title: `Transit Funds Disbursed & Job Assigned #${job[0].orderNumber}`,
+      message: `Finance Administrator verified escrow payment and deducted the ${(commissionRate * 100).toFixed(1)}% platform commission (MK ${commissionFee.toLocaleString()}). Net transit payout of MK ${netTransporterAmount.toLocaleString()} has been authorized/disbursed (Ref: ${disbursementRef}) so you can start transporting ${job[0].quantityKg} kg of ${job[0].commodityName} from ${job[0].pickupLocation} to ${job[0].destinationLocation} for Farmer ${job[0].farmerName}.`,
       type: 'transport',
     });
 
@@ -3033,10 +3105,10 @@ router.post('/transport/jobs/:id/finance-approve-recommend', async (req, res) =>
       userEmail: 'finance@harvesthub.mw',
       userName: financeAdminName || 'Finance Administrator',
       role: 'finance_admin',
-      action: 'TRANSPORT_PAYMENT_VERIFIED_DRIVER_RECOMMENDED',
+      action: 'TRANSPORT_PAYMENT_VERIFIED_COMMISSION_DEDUCTED_DRIVER_ASSIGNED',
       recordAffected: `Transport Job #${job[0].orderNumber}`,
-      newValue: `Driver: ${driver[0].fullName}, Fee Verified: MK ${job[0].transportFee}`,
-      reason: recommendationNotes || 'Fee payment verified and driver vetted',
+      newValue: `Driver: ${driver[0].fullName}, Gross Fee: MK ${grossTransportFee}, Commission Deducted: MK ${commissionFee} (${(commissionRate * 100).toFixed(1)}%), Net Delivered to Driver: MK ${netTransporterAmount}, Ref: ${disbursementRef}`,
+      reason: recommendationNotes || 'Transport fee verified in escrow, platform commission deducted, and net funds delivered to driver before starting transit',
     });
 
     broadcastEvent('transport_updated', updatedJob[0]);
@@ -3046,6 +3118,93 @@ router.post('/transport/jobs/:id/finance-approve-recommend', async (req, res) =>
   } catch (error: any) {
     console.error('Error approving transport and recommending driver:', error);
     return res.status(500).json({ error: error.message || 'Failed to approve transport fee and recommend driver' });
+  }
+});
+
+// Direct endpoint for Finance Admin to disburse funds to transporter with platform commission deduction
+router.post('/transport/jobs/:id/finance-disburse-transporter', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { financeAdminUid, financeAdminName, payoutMethod, payoutRef, notes } = req.body;
+
+    const job = await db.select().from(transportJobs).where(eq(transportJobs.id, id)).limit(1);
+    if (job.length === 0) return res.status(404).json({ error: 'Transport job not found' });
+
+    if (!job[0].transporterUid && !job[0].recommendedDriverId) {
+      return res.status(400).json({ error: 'No driver is currently assigned to this transport job.' });
+    }
+
+    const grossTransportFee = Number(job[0].quotedPrice || job[0].transportFee || 0);
+    const commissionRate = await getCommissionRate();
+    const commissionFee = Math.round(grossTransportFee * commissionRate);
+    const netTransporterAmount = Math.max(0, grossTransportFee - commissionFee);
+    const ref = payoutRef || `TRP-DSB-${Date.now().toString().slice(-6)}`;
+
+    const updatedJob = await db.update(transportJobs)
+      .set({
+        platformCommissionRate: commissionRate.toString(),
+        platformCommissionFee: commissionFee.toString(),
+        netTransporterAmount: netTransporterAmount.toString(),
+        disbursedToTransporterAt: new Date(),
+        disbursedToTransporterRef: ref,
+        disbursedToTransporterBy: financeAdminName || 'Finance Administrator',
+        paymentStatus: 'verified_by_finance',
+        updatedAt: new Date(),
+      })
+      .where(eq(transportJobs.id, id))
+      .returning();
+
+    await db.insert(revenueLedger).values({
+      revenueId: `REV-TRP-${Date.now().toString().slice(-7)}`,
+      transactionId: `TX-TRP-${job[0].orderNumber || id}`,
+      sourceType: 'transport_commission',
+      sourceOrderId: job[0].orderId || null,
+      sourceOrderNumber: job[0].orderNumber,
+      grossTransactionAmount: grossTransportFee.toString(),
+      commissionRate: commissionRate.toString(),
+      commissionAmount: commissionFee.toString(),
+      transportFee: grossTransportFee.toString(),
+      farmerEarnings: '0',
+      transporterEarnings: netTransporterAmount.toString(),
+      status: 'settled',
+      createdSource: 'finance_admin_transport_disbursement',
+    });
+
+    const targetDriverUid = job[0].transporterUid;
+    if (targetDriverUid) {
+      await createNotification({
+        userUid: targetDriverUid,
+        title: `Transit Funds Disbursed #${job[0].orderNumber}`,
+        message: `Finance Administrator disbursed your transport payout of MK ${netTransporterAmount.toLocaleString()} (net of ${(commissionRate * 100).toFixed(1)}% platform commission: MK ${commissionFee.toLocaleString()}) via ${payoutMethod || 'Mobile Money'} (Ref: ${ref}). You can now start transporting the goods!`,
+        type: 'transport',
+      });
+    }
+
+    await logAudit({
+      userUid: financeAdminUid || 'finance-admin',
+      userEmail: 'finance@harvesthub.mw',
+      userName: financeAdminName || 'Finance Administrator',
+      role: 'finance_admin',
+      action: 'TRANSPORT_FUNDS_DISBURSED_TO_TRANSPORTER',
+      recordAffected: `Transport Job #${job[0].orderNumber}`,
+      newValue: `Gross: MK ${grossTransportFee}, Commission Deducted: MK ${commissionFee}, Net Delivered to Driver: MK ${netTransporterAmount} (Ref: ${ref})`,
+      reason: notes || 'Platform commission deducted and net funds delivered to driver before transport',
+    });
+
+    broadcastEvent('transport_updated', updatedJob[0]);
+    broadcastEvent('revenue_updated', { trigger: 'transport_disbursed', jobId: id });
+
+    return res.json({
+      success: true,
+      job: updatedJob[0],
+      grossTransportFee,
+      commissionFee,
+      netTransporterAmount,
+      disbursedRef: ref,
+    });
+  } catch (error: any) {
+    console.error('Error disbursing funds to transporter:', error);
+    return res.status(500).json({ error: error.message || 'Failed to disburse funds to transporter' });
   }
 });
 

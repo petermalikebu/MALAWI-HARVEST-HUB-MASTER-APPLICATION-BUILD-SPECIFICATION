@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
-import { Commodity, Order, Category, MALAWI_DISTRICTS, getDistrictRegion } from '../../types/index.ts';
+import {
+  Commodity,
+  Order,
+  Category,
+  MALAWI_DISTRICTS,
+  NORTHERN_DISTRICTS,
+  CENTRAL_DISTRICTS,
+  SOUTHERN_DISTRICTS,
+  getDistrictRegion,
+  getRegionColorClass,
+} from '../../types/index.ts';
 import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import {
   Sprout,
@@ -146,7 +156,7 @@ export const FarmerDashboard: React.FC = () => {
     }
 
     try {
-      const commodityRegion = currentUser.region || getDistrictRegion(newCommodity.district) || 'Central';
+      const commodityRegion = getDistrictRegion(newCommodity.district) || currentUser.region || 'Central';
       const res = await fetch('/api/commodities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -518,10 +528,13 @@ export const FarmerDashboard: React.FC = () => {
                       <h3 className="font-bold text-stone-900 text-base leading-tight">
                         {c.commodityName}
                       </h3>
-                      <div className="flex items-center gap-1.5 text-xs text-stone-500 mt-1">
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-stone-500 mt-1">
                         <MapPin className="w-3.5 h-3.5 text-stone-400" />
                         <span>
                           {c.location}, {c.district}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getRegionColorClass(getDistrictRegion(c.district))}`}>
+                          {getDistrictRegion(c.district)} Region
                         </span>
                       </div>
                       <div className="mt-2 text-xs text-emerald-800 font-medium bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
@@ -987,13 +1000,29 @@ export const FarmerDashboard: React.FC = () => {
                     onChange={(e) =>
                       setNewCommodity({ ...newCommodity, district: e.target.value })
                     }
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600 bg-white"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600 bg-white font-medium"
                   >
-                    {MALAWI_DISTRICTS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
+                    <optgroup label="Northern Region">
+                      {NORTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Northern Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Central Region">
+                      {CENTRAL_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Central Region)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Southern Region">
+                      {SOUTHERN_DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d} (Southern Region)
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
 

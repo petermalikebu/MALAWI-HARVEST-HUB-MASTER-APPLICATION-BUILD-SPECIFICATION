@@ -163,6 +163,12 @@ export interface TransportJob {
   financeRecommendationNotes?: string;
   recommendedDriverId?: number;
   recommendedDriverName?: string;
+  platformCommissionRate?: string | number;
+  platformCommissionFee?: string | number;
+  netTransporterAmount?: string | number;
+  disbursedToTransporterAt?: string;
+  disbursedToTransporterRef?: string;
+  disbursedToTransporterBy?: string;
   status:
     | 'quote_requested'
     | 'quote_submitted'
@@ -294,51 +300,114 @@ export interface ImpactMetrics {
   };
 }
 
-export const MALAWI_DISTRICTS = [
+export const NORTHERN_DISTRICTS = [
+  'Chitipa',
+  'Karonga',
+  'Likoma',
+  'Mzimba',
+  'Mzuzu',
+  'Nkhata Bay',
+  'Rumphi',
+] as const;
+
+export const CENTRAL_DISTRICTS = [
+  'Dedza',
+  'Dowa',
+  'Kasungu',
   'Lilongwe',
   'Mchinji',
-  'Dedza',
-  'Kasungu',
-  'Dowa',
-  'Ntcheu',
-  'Salima',
   'Nkhotakota',
+  'Ntcheu',
   'Ntchisi',
-  'Blantyre',
-  'Zomba',
-  'Mangochi',
-  'Chikwawa',
-  'Nsanje',
+  'Salima',
+] as const;
+
+export const SOUTHERN_DISTRICTS = [
   'Balaka',
-  'Machinga',
-  'Mulanje',
-  'Thyolo',
+  'Blantyre',
+  'Chikwawa',
   'Chiradzulu',
-  'Phalombe',
+  'Machinga',
+  'Mangochi',
+  'Mulanje',
   'Mwanza',
   'Neno',
-  'Mzuzu',
-  'Mzimba',
-  'Karonga',
-  'Rumphi',
-  'Nkhatabay',
+  'Nsanje',
+  'Phalombe',
+  'Thyolo',
+  'Zomba',
+] as const;
+
+export const MALAWI_DISTRICTS_BY_REGION = {
+  Northern: NORTHERN_DISTRICTS,
+  Central: CENTRAL_DISTRICTS,
+  Southern: SOUTHERN_DISTRICTS,
+} as const;
+
+export const MALAWI_REGIONS = ['Northern', 'Central', 'Southern'] as const;
+export type MalawiRegion = (typeof MALAWI_REGIONS)[number];
+
+export const MALAWI_DISTRICTS = [
+  // Northern Region
   'Chitipa',
+  'Karonga',
   'Likoma',
+  'Mzimba',
+  'Mzuzu',
+  'Nkhata Bay',
+  'Rumphi',
+  // Central Region
+  'Dedza',
+  'Dowa',
+  'Kasungu',
+  'Lilongwe',
+  'Mchinji',
+  'Nkhotakota',
+  'Ntcheu',
+  'Ntchisi',
+  'Salima',
+  // Southern Region
+  'Balaka',
+  'Blantyre',
+  'Chikwawa',
+  'Chiradzulu',
+  'Machinga',
+  'Mangochi',
+  'Mulanje',
+  'Mwanza',
+  'Neno',
+  'Nsanje',
+  'Phalombe',
+  'Thyolo',
+  'Zomba',
 ];
 
 export function getDistrictRegion(district?: string): 'Central' | 'Southern' | 'Northern' {
   if (!district) return 'Central';
   const d = district.trim().toLowerCase();
+  
   const northern = ['chitipa', 'karonga', 'likoma', 'mzimba', 'mzuzu', 'nkhatabay', 'nkhata bay', 'rumphi'];
-  if (northern.includes(d)) return 'Northern';
+  if (northern.some((n) => d === n || d.includes(n))) return 'Northern';
 
   const southern = [
     'balaka', 'blantyre', 'chikwawa', 'chiradzulu', 'machinga', 'mangochi',
     'mulanje', 'mwanza', 'neno', 'nsanje', 'phalombe', 'thyolo', 'zomba'
   ];
-  if (southern.includes(d)) return 'Southern';
+  if (southern.some((s) => d === s || d.includes(s))) return 'Southern';
 
   return 'Central';
+}
+
+export function getRegionColorClass(region: string): string {
+  switch (region) {
+    case 'Northern':
+      return 'bg-sky-100 text-sky-800 border-sky-200';
+    case 'Southern':
+      return 'bg-amber-100 text-amber-800 border-amber-200';
+    case 'Central':
+    default:
+      return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  }
 }
 
 export const VEHICLE_TYPES = [

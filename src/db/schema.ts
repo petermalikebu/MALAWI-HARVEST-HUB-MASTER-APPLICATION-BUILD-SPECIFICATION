@@ -151,6 +151,12 @@ export const transportJobs = pgTable('transport_jobs', {
   financeRecommendationNotes: text('finance_recommendation_notes'),
   recommendedDriverId: integer('recommended_driver_id'),
   recommendedDriverName: text('recommended_driver_name'),
+  platformCommissionRate: numeric('platform_commission_rate').default('0.04'),
+  platformCommissionFee: numeric('platform_commission_fee').default('0'),
+  netTransporterAmount: numeric('net_transporter_amount').default('0'),
+  disbursedToTransporterAt: timestamp('disbursed_to_transporter_at'),
+  disbursedToTransporterRef: text('disbursed_to_transporter_ref'),
+  disbursedToTransporterBy: text('disbursed_to_transporter_by'),
   status: text('status').notNull().default('requested'),
   // quote_requested | quote_submitted | price_agreed | requested | pending_finance_approval | driver_assigned | picked_up | in_transit | delivered | completed | cancelled
   currentLocation: text('current_location').default(''),
