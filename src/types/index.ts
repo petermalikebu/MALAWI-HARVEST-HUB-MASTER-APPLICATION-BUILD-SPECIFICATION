@@ -490,9 +490,40 @@ export interface MarketPrice {
   updatedAt?: string;
 }
 
-export const COMMODITY_UNITS = [
-  { value: 'kg', label: 'Kilogram (kg)', multiplierKg: 1 },
-  { value: '50kg bag', label: '50kg Bag', multiplierKg: 50 },
-  { value: 'Ton', label: 'Metric Ton (1,000 kg)', multiplierKg: 1000 },
-];
+export const COMMODITY_UNITS = ['kg', '50kg bag', 'Ton'] as const;
+
+export interface AgriConsultation {
+  id: number;
+  consultationNumber: string;
+  farmerUid: string;
+  farmerName: string;
+  farmerPhone?: string;
+  district: string;
+  epa?: string;
+  cropOrTopic: string;
+  question: string;
+  imageUrl?: string;
+  urgency: 'normal' | 'high' | 'critical';
+  status: 'pending_expert_review' | 'under_review' | 'answered';
+  aiInitialSummary?: string;
+  expertName?: string;
+  expertTitle?: string;
+  expertResponse?: string;
+  answeredAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AgriChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  imageUrl?: string;
+  chichewaSummary?: string;
+  recommendedActions?: string[];
+  warningOrDisclaimer?: string;
+  suggestedFollowUps?: string[];
+  canEscalateToExpert?: boolean;
+  timestamp: string;
+}
 

@@ -33,7 +33,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
-import { AdminMarketPricesPanel } from './AdminMarketPricesPanel.tsx';
+import { MarketPriceAdmin } from './MarketPriceAdmin.tsx';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
@@ -1332,7 +1332,7 @@ export const AdminDashboard: React.FC = () => {
 
       {/* SUB TAB 6.5: MARKET PRICE MANAGEMENT */}
       {activeSubTab === 'market_prices' && (
-        <AdminMarketPricesPanel categoriesList={categoriesList} />
+        <MarketPriceAdmin categoriesList={categoriesList} />
       )}
 
       {/* SUB TAB 7: QUERIES & HELP DESK */}
