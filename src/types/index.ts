@@ -470,3 +470,29 @@ export interface PasswordResetRequest {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface MarketPrice {
+  id: number;
+  commodityName: string;
+  category: string;
+  district: string;
+  marketLocation: string; // e.g. "Mitundu Market", "Limbe Market", "Mzuzu Main Market", "All Markets"
+  region: 'Central' | 'Southern' | 'Northern';
+  priceMin: number | string; // prevailing minimum market price (MWK)
+  priceMax: number | string; // prevailing maximum market price (MWK)
+  priceAvg: number | string; // standard recommended benchmark price (MWK)
+  unit: string; // "kg" | "50kg bag" | "Ton"
+  notes?: string;
+  updatedByAdminName?: string;
+  updatedByAdminUid?: string;
+  effectiveDate: string; // ISO date string or YYYY-MM-DD
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const COMMODITY_UNITS = [
+  { value: 'kg', label: 'Kilogram (kg)', multiplierKg: 1 },
+  { value: '50kg bag', label: '50kg Bag', multiplierKg: 50 },
+  { value: 'Ton', label: 'Metric Ton (1,000 kg)', multiplierKg: 1000 },
+];
+

@@ -13,6 +13,7 @@ import {
   auditLogs,
   supportTickets,
   passwordResetRequests,
+  marketPrices,
 } from '../db/schema.ts';
 import { eq, desc, and, or, sql } from 'drizzle-orm';
 import { broadcastEvent } from './realtime.ts';
@@ -3811,6 +3812,309 @@ router.put('/settings', async (req, res) => {
   } catch (error: any) {
     console.error('Error updating platform setting:', error);
     return res.status(500).json({ error: error.message || 'Failed to update setting' });
+  }
+});
+
+// ----------------------------------------------------
+// MARKET PRICE MANAGEMENT & LOCATION-BASED PRICING
+// ----------------------------------------------------
+
+// GET /market-prices: List all prevailing market prices with optional district / commodity filtering
+router.get('/market-prices', async (req, res) => {
+  try {
+    const { district, commodityName, region, category } = req.query;
+    const store = getInMemoryStore();
+    let list: any[] = [];
+
+    if (Array.isArray(store.market_prices)) {
+      list = store.market_prices.slice();
+    } else {
+      list = await db.select().from(marketPrices);
+    }
+
+    if (district && typeof district === 'string' && district !== 'all') {
+      const dLower = district.trim().toLowerCase();
+      list = list.filter((p) => p.district?.toLowerCase() === dLower);
+    }
+
+    if (commodityName && typeof commodityName === 'string' && commodityName !== 'all') {
+      const cLower = commodityName.trim().toLowerCase();
+      list = list.filter((p) => p.commodityName?.toLowerCase().includes(cLower));
+    }
+
+    if (category && typeof category === 'string' && category !== 'all') {
+      const catLower = category.trim().toLowerCase();
+      list = list.filter((p) => p.category?.toLowerCase() === catLower);
+    }
+
+    if (region && typeof region === 'string' && region !== 'all') {
+      const rLower = region.trim().toLowerCase();
+      list = list.filter((p) => p.region?.toLowerCase() === rLower);
+    }
+
+    // Sort by effectiveDate descending, then commodityName
+    list.sort((a, b) => {
+      const dateA = new Date(a.effectiveDate || a.updatedAt || 0).getTime();
+      const dateB = new Date(b.effectiveDate || b.updatedAt || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return String(a.commodityName || '').localeCompare(String(b.commodityName || ''));
+    });
+
+    return res.json(list);
+  } catch (error: any) {
+    console.error('Error fetching market prices:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch market prices' });
+  }
+});
+
+// GET /market-prices/benchmark: Find matching benchmark price for a specific commodity & district
+router.get('/market-prices/benchmark', async (req, res) => {
+  try {
+    const { commodityName, district, unit } = req.query;
+    if (!commodityName) {
+      return res.status(400).json({ error: 'commodityName query parameter is required' });
+    }
+
+    const store = getInMemoryStore();
+    const allPrices: any[] = Array.isArray(store.market_prices) ? store.market_prices : await db.select().from(marketPrices);
+
+    const cName = String(commodityName).trim().toLowerCase();
+    const distName = district ? String(district).trim().toLowerCase() : '';
+    const unitName = unit ? String(unit).trim().toLowerCase() : 'kg';
+
+    // 1. Exact match on commodity + district + unit
+    let matched = allPrices.find((p) => {
+      const pComm = String(p.commodityName || '').toLowerCase();
+      const pDist = String(p.district || '').toLowerCase();
+      const pUnit = String(p.unit || 'kg').toLowerCase();
+      return (pComm.includes(cName) || cName.includes(pComm)) && pDist === distName && pUnit === unitName;
+    });
+
+    // 2. Fallback to commodity + district (any unit)
+    if (!matched && distName) {
+      matched = allPrices.find((p) => {
+        const pComm = String(p.commodityName || '').toLowerCase();
+        const pDist = String(p.district || '').toLowerCase();
+        return (pComm.includes(cName) || cName.includes(pComm)) && pDist === distName;
+      });
+    }
+
+    // 3. Fallback to commodity in same Region
+    if (!matched && district) {
+      const targetRegion = getDistrictRegion(String(district));
+      matched = allPrices.find((p) => {
+        const pComm = String(p.commodityName || '').toLowerCase();
+        const pReg = String(p.region || '');
+        return (pComm.includes(cName) || cName.includes(pComm)) && pReg.toLowerCase() === targetRegion.toLowerCase();
+      });
+    }
+
+    // 4. Fallback to any national market price for this commodity
+    if (!matched) {
+      matched = allPrices.find((p) => {
+        const pComm = String(p.commodityName || '').toLowerCase();
+        return pComm.includes(cName) || cName.includes(pComm);
+      });
+    }
+
+    return res.json({
+      benchmark: matched || null,
+      districtMatch: Boolean(matched && String(matched.district).toLowerCase() === distName),
+      regionMatch: Boolean(matched && String(matched.region).toLowerCase() === getDistrictRegion(String(district)).toLowerCase()),
+    });
+  } catch (error: any) {
+    console.error('Error finding benchmark market price:', error);
+    return res.status(500).json({ error: error.message || 'Failed to find benchmark price' });
+  }
+});
+
+// POST /market-prices: Administrator adds a new location-based market price record
+router.post('/market-prices', async (req, res) => {
+  try {
+    const {
+      commodityName,
+      category,
+      district,
+      marketLocation,
+      region,
+      priceMin,
+      priceMax,
+      priceAvg,
+      unit,
+      notes,
+      effectiveDate,
+      adminUid,
+      adminName,
+    } = req.body;
+
+    if (!commodityName || !district || priceAvg === undefined || !effectiveDate) {
+      return res.status(400).json({ error: 'commodityName, district, priceAvg, and effectiveDate are required' });
+    }
+
+    const avg = Number(priceAvg);
+    const min = priceMin !== undefined && !isNaN(Number(priceMin)) ? Number(priceMin) : Math.round(avg * 0.95);
+    const max = priceMax !== undefined && !isNaN(Number(priceMax)) ? Number(priceMax) : Math.round(avg * 1.05);
+    const reg = region || getDistrictRegion(district);
+    const resolvedUnit = unit || 'kg';
+
+    const newRecord: any = {
+      commodityName: String(commodityName).trim(),
+      category: category || 'Grains & Cereals',
+      district: String(district).trim(),
+      marketLocation: marketLocation ? String(marketLocation).trim() : `${district} Central Market`,
+      region: reg,
+      priceMin: Math.round(min),
+      priceMax: Math.round(max),
+      priceAvg: Math.round(avg),
+      unit: resolvedUnit,
+      notes: notes || '',
+      updatedByAdminName: adminName || 'Peter Malikebu',
+      updatedByAdminUid: adminUid || 'admin',
+      effectiveDate: String(effectiveDate).split('T')[0],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const inserted = await db.insert(marketPrices).values(newRecord).returning();
+    const createdItem = inserted[0] || newRecord;
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'Platform Administrator',
+      role: 'admin',
+      action: 'MARKET_PRICE_ADDED',
+      recordAffected: `Market Price: ${newRecord.commodityName} in ${newRecord.district}`,
+      newValue: `Benchmark: MWK ${avg.toLocaleString()}/${resolvedUnit} (Range: MWK ${min.toLocaleString()} - ${max.toLocaleString()}) at ${newRecord.marketLocation}`,
+      reason: 'Administrator published location-based prevailing standard market price',
+    });
+
+    // Notify users about new market pricing update
+    broadcastEvent('market_price_updated', {
+      action: 'created',
+      price: createdItem,
+      message: `Updated market price published for ${newRecord.commodityName} in ${newRecord.district}: MWK ${avg.toLocaleString()}/${resolvedUnit}`,
+    });
+
+    return res.status(201).json(createdItem);
+  } catch (error: any) {
+    console.error('Error creating market price:', error);
+    return res.status(500).json({ error: error.message || 'Failed to create market price' });
+  }
+});
+
+// PUT /market-prices/:id: Administrator updates an existing location-based market price record
+router.put('/market-prices/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const {
+      commodityName,
+      category,
+      district,
+      marketLocation,
+      region,
+      priceMin,
+      priceMax,
+      priceAvg,
+      unit,
+      notes,
+      effectiveDate,
+      adminUid,
+      adminName,
+    } = req.body;
+
+    const existingList = await db.select().from(marketPrices).where(eq(marketPrices.id, id)).limit(1);
+    if (!existingList || existingList.length === 0) {
+      return res.status(404).json({ error: 'Market price record not found' });
+    }
+
+    const prev = existingList[0];
+    const avg = priceAvg !== undefined ? Number(priceAvg) : Number(prev.priceAvg);
+    const min = priceMin !== undefined && !isNaN(Number(priceMin)) ? Number(priceMin) : (priceAvg !== undefined ? Math.round(Number(priceAvg) * 0.95) : Number(prev.priceMin));
+    const max = priceMax !== undefined && !isNaN(Number(priceMax)) ? Number(priceMax) : (priceAvg !== undefined ? Math.round(Number(priceAvg) * 1.05) : Number(prev.priceMax));
+    const dist = district ? String(district).trim() : prev.district;
+    const reg = region || (district ? getDistrictRegion(district) : prev.region);
+    const resolvedUnit = unit || prev.unit || 'kg';
+
+    const updateData: any = {
+      commodityName: commodityName ? String(commodityName).trim() : prev.commodityName,
+      category: category || prev.category,
+      district: dist,
+      marketLocation: marketLocation ? String(marketLocation).trim() : prev.marketLocation,
+      region: reg,
+      priceMin: Math.round(min),
+      priceMax: Math.round(max),
+      priceAvg: Math.round(avg),
+      unit: resolvedUnit,
+      notes: notes !== undefined ? notes : prev.notes,
+      updatedByAdminName: adminName || 'Peter Malikebu',
+      updatedByAdminUid: adminUid || 'admin',
+      effectiveDate: effectiveDate ? String(effectiveDate).split('T')[0] : prev.effectiveDate,
+      updatedAt: new Date(),
+    };
+
+    const updated = await db.update(marketPrices).set(updateData).where(eq(marketPrices.id, id)).returning();
+    const updatedItem = updated[0] || { ...prev, ...updateData };
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'Platform Administrator',
+      role: 'admin',
+      action: 'MARKET_PRICE_UPDATED',
+      recordAffected: `Market Price ID #${id}: ${updateData.commodityName} (${dist})`,
+      previousValue: `MWK ${Number(prev.priceAvg).toLocaleString()}/${prev.unit}`,
+      newValue: `MWK ${avg.toLocaleString()}/${resolvedUnit} (Range: MWK ${min.toLocaleString()} - ${max.toLocaleString()})`,
+      reason: 'Administrator updated prevailing market price benchmark',
+    });
+
+    broadcastEvent('market_price_updated', {
+      action: 'updated',
+      price: updatedItem,
+      message: `Market price updated for ${updateData.commodityName} in ${dist}: MWK ${avg.toLocaleString()}/${resolvedUnit}`,
+    });
+
+    return res.json(updatedItem);
+  } catch (error: any) {
+    console.error('Error updating market price:', error);
+    return res.status(500).json({ error: error.message || 'Failed to update market price' });
+  }
+});
+
+// DELETE /market-prices/:id: Administrator deletes a market price record
+router.delete('/market-prices/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const adminUid = req.query.adminUid as string;
+    const adminName = req.query.adminName as string;
+
+    const existing = await db.select().from(marketPrices).where(eq(marketPrices.id, id)).limit(1);
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({ error: 'Market price record not found' });
+    }
+
+    await db.delete(marketPrices).where(eq(marketPrices.id, id));
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'Platform Administrator',
+      role: 'admin',
+      action: 'MARKET_PRICE_DELETED',
+      recordAffected: `Market Price ID #${id}: ${existing[0].commodityName} in ${existing[0].district}`,
+      previousValue: `MWK ${Number(existing[0].priceAvg).toLocaleString()}/${existing[0].unit}`,
+      reason: 'Administrator removed decommissioned market price benchmark',
+    });
+
+    broadcastEvent('market_price_updated', {
+      action: 'deleted',
+      id,
+    });
+
+    return res.json({ success: true, message: 'Market price record removed successfully' });
+  } catch (error: any) {
+    console.error('Error deleting market price:', error);
+    return res.status(500).json({ error: error.message || 'Failed to delete market price' });
   }
 });
 

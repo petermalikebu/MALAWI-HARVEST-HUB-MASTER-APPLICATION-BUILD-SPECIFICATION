@@ -30,40 +30,17 @@ import {
   Minus,
   Sliders,
   ArrowUpRight,
-  RotateCcw,
+  TrendingUp,
 } from 'lucide-react';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
+import { AdminMarketPricesPanel } from './AdminMarketPricesPanel.tsx';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const { subscribe } = useRealtime();
 
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'commission' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
-  const [userRoleFilter, setUserRoleFilter] = useState<'admins' | 'all'>('admins');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'commission' | 'market_prices' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
   const [usersList, setUsersList] = useState<User[]>([]);
-  const uniqueUsersList = React.useMemo(() => {
-    const seen = new Set<string>();
-    return usersList.filter((u) => {
-      const key = u.uid || (u.email ? u.email.toLowerCase().trim() : '') || String(u.id);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [usersList]);
-
-  const adminUsersList = React.useMemo(() => {
-    const seen = new Set<string>();
-    return usersList
-      .filter((u) => u.role === 'admin' || u.fullName.toLowerCase().includes('malikebu') || u.email?.toLowerCase().includes('malikebu'))
-      .filter((u) => {
-        const key = u.uid || (u.email ? u.email.toLowerCase().trim() : '') || String(u.id);
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-  }, [usersList]);
-
-  const displayedUsersList = userRoleFilter === 'admins' ? adminUsersList : uniqueUsersList;
   const [commoditiesList, setCommoditiesList] = useState<Commodity[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [auditLogsList, setAuditLogsList] = useState<AuditLogItem[]>([]);
@@ -75,39 +52,10 @@ export const AdminDashboard: React.FC = () => {
   const [isUpdatingCommission, setIsUpdatingCommission] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [processingResetId, setProcessingResetId] = useState<string | null>(null);
-  const [isPurgingSampleUsers, setIsPurgingSampleUsers] = useState<boolean>(false);
-  const [purgeSuccessMsg, setPurgeSuccessMsg] = useState<string>('');
 
   // User deletion state
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
-
-  const handlePurgeSampleUsers = async () => {
-    if (!confirm('Are you sure you want to transition to production? This will delete all sample test users and sample marketplace orders/listings, leaving only the Administrator accounts. Future users will register themselves.')) {
-      return;
-    }
-    setIsPurgingSampleUsers(true);
-    setPurgeSuccessMsg('');
-    try {
-      const res = await fetch('/api/admin/purge-sample-users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminUid: currentUser?.uid }),
-      });
-      const data = await safeParseResponse(res);
-      if (data.ok) {
-        setPurgeSuccessMsg(data.data?.message || 'All sample users successfully removed. Only Administrators remain.');
-        await fetchAll();
-        setTimeout(() => setPurgeSuccessMsg(''), 7000);
-      } else {
-        alert(data.error || 'Failed to purge sample users');
-      }
-    } catch (err: any) {
-      alert(err.message || 'Error purging sample users');
-    } finally {
-      setIsPurgingSampleUsers(false);
-    }
-  };
 
   // New category modal
   const [newCatName, setNewCatName] = useState('');
@@ -117,14 +65,6 @@ export const AdminDashboard: React.FC = () => {
   // Order cancellation modal
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState('Administrative intervention / dispute resolution');
-
-  // Order refund modal
-  const [refundingOrder, setRefundingOrder] = useState<Order | null>(null);
-  const [refundMethod, setRefundMethod] = useState<'airtel_money' | 'tnm_mpamba' | 'nbs_bank'>('airtel_money');
-  const [buyerRefundChannelDetail, setBuyerRefundChannelDetail] = useState<string>('');
-  const [refundRef, setRefundRef] = useState<string>('');
-  const [refundNotes, setRefundNotes] = useState<string>('');
-  const [isRefunding, setIsRefunding] = useState<boolean>(false);
 
   // Commodity deletion modal
   const [deletingCommodity, setDeletingCommodity] = useState<Commodity | null>(null);
@@ -462,52 +402,6 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleOpenRefundModal = (ord: Order) => {
-    setRefundingOrder(ord);
-    setBuyerRefundChannelDetail(ord.buyerPhone || '+265 999 036 912');
-    setRefundRef(`RFND-${Date.now().toString().slice(-6)}`);
-    setRefundNotes(`Refund of MWK ${Number(ord.totalAmount).toLocaleString()} issued for cancelled Order #${ord.orderNumber}.`);
-  };
-
-  const handleAdminProcessRefund = async () => {
-    if (!refundingOrder) return;
-    setIsRefunding(true);
-    try {
-      const formattedChannel =
-        refundMethod === 'airtel_money'
-          ? `Airtel Money (${buyerRefundChannelDetail || refundingOrder.buyerPhone})`
-          : refundMethod === 'tnm_mpamba'
-          ? `TNM Mpamba (${buyerRefundChannelDetail || refundingOrder.buyerPhone})`
-          : `NBS Bank (${buyerRefundChannelDetail || refundingOrder.buyerPhone})`;
-
-      const res = await fetch(`/api/orders/${refundingOrder.id}/finance-process-refund`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          financeAdminUid: currentUser?.uid || 'frF3xukObzdA8AhCBYIBPYV0UK13',
-          financeAdminName: currentUser?.fullName || 'Peter Malikebu (Lead Admin)',
-          refundMethod: formattedChannel,
-          refundRef,
-          refundAmount: refundingOrder.totalAmount,
-          notes: refundNotes,
-        }),
-      });
-
-      const parsed = await safeParseResponse(res);
-      if (!parsed.ok) {
-        throw new Error(parsed.error || 'Failed to process refund');
-      }
-
-      alert(`Refund of MWK ${Number(refundingOrder.totalAmount).toLocaleString()} successfully processed for Buyer ${refundingOrder.buyerName}!`);
-      setRefundingOrder(null);
-      fetchAll();
-    } catch (err: any) {
-      alert(err.message || 'Error processing refund');
-    } finally {
-      setIsRefunding(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Top Banner */}
@@ -705,6 +599,17 @@ export const AdminDashboard: React.FC = () => {
           <span>Commission ({(Number(commissionRate) * 100).toFixed(1)}%)</span>
         </button>
         <button
+          onClick={() => setActiveSubTab('market_prices')}
+          className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
+            activeSubTab === 'market_prices'
+              ? 'bg-emerald-100 text-emerald-950 font-black ring-1 ring-emerald-400 shadow-2xs'
+              : 'text-stone-700 bg-emerald-50/60 hover:bg-emerald-100/70 border border-emerald-200/60'
+          }`}
+        >
+          <TrendingUp className="w-3.5 h-3.5 text-emerald-700" />
+          <span>Market Prices</span>
+        </button>
+        <button
           onClick={() => setActiveSubTab('categories')}
           className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
             activeSubTab === 'categories' ? 'bg-purple-100 text-purple-900' : 'text-stone-600 hover:bg-stone-100'
@@ -790,60 +695,10 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs">
-            <div className="p-4 border-b border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-stone-900 text-sm">
-                  {userRoleFilter === 'admins' ? 'Authorized Platform Administrators' : 'Registered Ecosystem Users'}
-                </h3>
-                <span className="text-xs text-stone-500">
-                  {userRoleFilter === 'admins'
-                    ? `Lead Administrators \u2022 ${adminUsersList.length} Authorized Accounts`
-                    : `Active Ecosystem Directory \u2022 ${uniqueUsersList.length} Total Accounts`}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={handlePurgeSampleUsers}
-                  disabled={isPurgingSampleUsers}
-                  className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-98 disabled:opacity-50"
-                  title="Delete all sample test users, leaving only administrators for production"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                  <span>{isPurgingSampleUsers ? 'Purging...' : 'Production Clean: Purge Test Users'}</span>
-                </button>
-                <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl text-xs font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => setUserRoleFilter('admins')}
-                    className={`px-3 py-1 rounded-lg transition-all ${
-                      userRoleFilter === 'admins'
-                        ? 'bg-white text-purple-900 shadow-2xs font-bold'
-                        : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  >
-                    Administrators Only ({adminUsersList.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUserRoleFilter('all')}
-                    className={`px-3 py-1 rounded-lg transition-all ${
-                      userRoleFilter === 'all'
-                        ? 'bg-white text-purple-900 shadow-2xs font-bold'
-                        : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  >
-                    All Accounts ({uniqueUsersList.length})
-                  </button>
-                </div>
-              </div>
+            <div className="p-4 border-b border-stone-100 flex items-center justify-between">
+              <h3 className="font-bold text-stone-900 text-sm">Registered Ecosystem Users</h3>
+              <span className="text-xs text-stone-500">Live PostgreSQL `users` table</span>
             </div>
-            {purgeSuccessMsg && (
-              <div className="mx-4 my-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2 font-medium animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{purgeSuccessMsg}</span>
-              </div>
-            )}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider text-[10px]">
@@ -856,7 +711,7 @@ export const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {displayedUsersList.map((u) => {
+                {usersList.map((u) => {
                   const isCurrentSelf = u.id === currentUser?.id || u.uid === currentUser?.uid;
                   const isFellowAdmin = u.role === 'admin' && !isCurrentSelf;
                   const isLeadAdminUser =
@@ -1052,54 +907,19 @@ export const AdminDashboard: React.FC = () => {
                       MWK {Number(o.totalAmount).toLocaleString()}
                     </td>
                     <td className="p-3">
-                      <div className="flex flex-col gap-1">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold capitalize w-fit ${
-                          o.status === 'cancelled'
-                            ? 'bg-stone-200 text-stone-800'
-                            : o.status === 'completed'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-stone-100 text-stone-800'
-                        }`}>
-                          {o.status.replace('_', ' ')}
-                        </span>
-                        {o.paymentStatus === 'refund_required' && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-600 text-white w-fit animate-pulse flex items-center gap-1">
-                            <AlertTriangle className="w-2.5 h-2.5" />
-                            <span>Refund Required</span>
-                          </span>
-                        )}
-                        {o.paymentStatus === 'refunded' && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-700 text-white w-fit">
-                            Refund Completed
-                          </span>
-                        )}
-                        {o.paymentStatus === 'escrow_held' && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-100 text-blue-800 w-fit">
-                            Secured in Escrow
-                          </span>
-                        )}
-                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold capitalize bg-stone-100 text-stone-800">
+                        {o.status.replace('_', ' ')}
+                      </span>
                     </td>
                     <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                        {o.paymentStatus === 'refund_required' && (
-                          <button
-                            onClick={() => handleOpenRefundModal(o)}
-                            className="px-2.5 py-1 rounded-lg text-white bg-rose-600 hover:bg-rose-700 font-bold text-[11px] shadow-xs flex items-center gap-1"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Process Refund</span>
-                          </button>
-                        )}
-                        {o.status !== 'completed' && o.status !== 'cancelled' && (
-                          <button
-                            onClick={() => setCancellingOrderId(o.id)}
-                            className="px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 font-bold text-[11px]"
-                          >
-                            Cancel Order
-                          </button>
-                        )}
-                      </div>
+                      {o.status !== 'completed' && o.status !== 'cancelled' && (
+                        <button
+                          onClick={() => setCancellingOrderId(o.id)}
+                          className="px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 font-bold text-[11px]"
+                        >
+                          Cancel Order
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1510,6 +1330,11 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* SUB TAB 6.5: MARKET PRICE MANAGEMENT */}
+      {activeSubTab === 'market_prices' && (
+        <AdminMarketPricesPanel categoriesList={categoriesList} />
+      )}
+
       {/* SUB TAB 7: QUERIES & HELP DESK */}
       {activeSubTab === 'queries' && (
         <SupportQueriesDesk />
@@ -1900,163 +1725,6 @@ export const AdminDashboard: React.FC = () => {
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>{isDeletingComm ? 'Removing Product...' : 'Confirm Remove Product'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Process Buyer Refund Modal */}
-      {refundingOrder !== null && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-150 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <div className="flex items-center gap-2.5 text-rose-600">
-                <div className="p-2 rounded-xl bg-rose-100 text-rose-700">
-                  <RotateCcw className="w-5 h-5 text-rose-600" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-stone-900 text-base">
-                    Process Buyer Escrow Refund
-                  </h3>
-                  <p className="text-xs text-stone-500">
-                    Order #{refundingOrder.orderNumber} &bull; Buyer {refundingOrder.buyerName}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setRefundingOrder(null)}
-                className="text-stone-400 hover:text-stone-700 text-lg p-1"
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Refund Financial Summary */}
-            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-2 text-xs">
-              <div className="flex justify-between text-stone-700">
-                <span>Commodity Subtotal:</span>
-                <span className="font-semibold text-stone-900">
-                  MWK {Number(refundingOrder.commoditySubtotal).toLocaleString()}
-                </span>
-              </div>
-              {Number(refundingOrder.transportFee) > 0 && (
-                <div className="flex justify-between text-stone-700">
-                  <span>Logistics Transport Fee:</span>
-                  <span className="font-semibold text-stone-900">
-                    MWK {Number(refundingOrder.transportFee).toLocaleString()}
-                  </span>
-                </div>
-              )}
-              <div className="pt-2 border-t border-rose-200/80 flex justify-between font-extrabold text-base text-rose-950">
-                <span>Total Refund Due to Buyer:</span>
-                <span className="text-rose-700 text-lg">
-                  MWK {Number(refundingOrder.totalAmount).toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Refund Channel / Payout Account *
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRefundMethod('airtel_money')}
-                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs ${
-                      refundMethod === 'airtel_money'
-                        ? 'border-red-600 bg-red-50 text-red-700 ring-2 ring-red-500/20'
-                        : 'border-stone-200 bg-white text-stone-600'
-                    }`}
-                  >
-                    Airtel Money
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRefundMethod('tnm_mpamba')}
-                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs ${
-                      refundMethod === 'tnm_mpamba'
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500/20'
-                        : 'border-stone-200 bg-white text-stone-600'
-                    }`}
-                  >
-                    TNM Mpamba
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRefundMethod('nbs_bank')}
-                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs ${
-                      refundMethod === 'nbs_bank'
-                        ? 'border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-500/20'
-                        : 'border-stone-200 bg-white text-stone-600'
-                    }`}
-                  >
-                    NBS Bank
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Buyer Phone Number or Bank Account for Refund *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={buyerRefundChannelDetail}
-                  onChange={(e) => setBuyerRefundChannelDetail(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 font-medium text-xs focus:outline-rose-600"
-                  placeholder="+265 999 234 567 or Bank Account Number"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Refund Transaction Reference (SMS Code / Bank Ref) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={refundRef}
-                  onChange={(e) => setRefundRef(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 font-bold text-xs focus:outline-rose-600"
-                  placeholder="e.g. RFND-491024 or AT78291"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Refund Audit Notes
-                </label>
-                <textarea
-                  rows={2}
-                  value={refundNotes}
-                  onChange={(e) => setRefundNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs focus:outline-rose-600"
-                />
-              </div>
-
-              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-[11px] text-rose-950 leading-relaxed">
-                Confirming this refund marks the order as <strong>Refunded</strong>, creates an immutable regulatory audit log, notifies Buyer <strong>{refundingOrder.buyerName}</strong>, and permanently settles the escrow file.
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => setRefundingOrder(null)}
-                className="px-4 py-2 rounded-xl text-stone-600 text-xs font-semibold hover:bg-stone-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAdminProcessRefund}
-                disabled={isRefunding}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span>{isRefunding ? 'Recording Refund...' : 'Confirm Refund Sent to Buyer'}</span>
               </button>
             </div>
           </div>

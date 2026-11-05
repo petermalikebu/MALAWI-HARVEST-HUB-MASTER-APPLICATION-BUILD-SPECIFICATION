@@ -292,6 +292,26 @@ export const passwordResetRequests = pgTable('password_reset_requests', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Admin Market Price Management & Location-based Benchmarking
+export const marketPrices = pgTable('market_prices', {
+  id: serial('id').primaryKey(),
+  commodityName: text('commodity_name').notNull(),
+  category: text('category').notNull().default('Grains & Cereals'),
+  district: text('district').notNull(),
+  marketLocation: text('market_location').notNull().default('Central Market'),
+  region: text('region').notNull().default('Central'),
+  priceMin: numeric('price_min').notNull(),
+  priceMax: numeric('price_max').notNull(),
+  priceAvg: numeric('price_avg').notNull(),
+  unit: text('unit').notNull().default('kg'),
+  notes: text('notes').default(''),
+  updatedByAdminName: text('updated_by_admin_name').default('Platform Administrator'),
+  updatedByAdminUid: text('updated_by_admin_uid').default(''),
+  effectiveDate: text('effective_date').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Relationships
 export const usersRelations = relations(users, ({ many }) => ({
   commodities: many(commodities),

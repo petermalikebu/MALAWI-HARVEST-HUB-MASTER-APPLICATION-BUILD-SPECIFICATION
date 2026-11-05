@@ -1,17 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
-import {
-  Commodity,
-  Order,
-  Category,
-  MALAWI_DISTRICTS,
-  NORTHERN_DISTRICTS,
-  CENTRAL_DISTRICTS,
-  SOUTHERN_DISTRICTS,
-  getDistrictRegion,
-  getRegionColorClass,
-} from '../../types/index.ts';
+import { Commodity, Order, Category, MALAWI_DISTRICTS, getDistrictRegion, MarketPrice } from '../../types/index.ts';
 import { safeParseJson, safeParseResponse } from '../../lib/api.ts';
 import {
   Sprout,
@@ -46,9 +36,11 @@ export const FarmerDashboard: React.FC = () => {
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [marketPricesList, setMarketPricesList] = useState<MarketPrice[]>([]);
+  const [marketPriceFilterDistrict, setMarketPriceFilterDistrict] = useState<string>(currentUser?.district || 'all');
   const [platformCommissionRate, setPlatformCommissionRate] = useState<number>(0.04);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'commodities' | 'orders' | 'earnings' | 'hire_transport' | 'queries'>('commodities');
+  const [activeTab, setActiveTab] = useState<'commodities' | 'orders' | 'market_prices' | 'earnings' | 'hire_transport' | 'queries'>('commodities');
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -87,16 +79,18 @@ export const FarmerDashboard: React.FC = () => {
     if (!currentUser) return;
     try {
       setLoading(true);
-      const [commRes, ordRes, catRes, setRes] = await Promise.all([
+      const [commRes, ordRes, catRes, setRes, priceRes] = await Promise.all([
         fetch(`/api/commodities?farmerUid=${currentUser.uid}`),
         fetch(`/api/orders?farmerUid=${currentUser.uid}`),
         fetch('/api/categories'),
         fetch('/api/settings'),
+        fetch('/api/market-prices'),
       ]);
 
       if (commRes.ok) setCommodities(await safeParseJson(commRes, []));
       if (ordRes.ok) setOrders(await safeParseJson(ordRes, []));
       if (catRes.ok) setCategories(await safeParseJson(catRes, []));
+      if (priceRes.ok) setMarketPricesList(await safeParseJson(priceRes, []));
       if (setRes.ok) {
         const settingsList: any[] = await safeParseJson(setRes, []);
         const cr = settingsList.find((s: any) => s.key === 'commission_rate');
@@ -117,11 +111,12 @@ export const FarmerDashboard: React.FC = () => {
     fetchData();
   }, [currentUser]);
 
-  // Real-time listener for orders, commodities, and commission settings
+  // Real-time listener for orders, commodities, market prices, and commission settings
   useEffect(() => {
     const unsubOrder = subscribe('order_created', () => fetchData());
     const unsubOrderUp = subscribe('order_updated', () => fetchData());
     const unsubComm = subscribe('commodity_updated', () => fetchData());
+    const unsubMarketPrice = subscribe('market_price_updated', () => fetchData());
     const unsubSetting = subscribe('setting_updated', (data: any) => {
       if (data?.key === 'commission_rate') {
         fetchData();
@@ -138,6 +133,7 @@ export const FarmerDashboard: React.FC = () => {
       unsubOrder();
       unsubOrderUp();
       unsubComm();
+      unsubMarketPrice();
       unsubSetting();
       unsubCommRate();
     };
@@ -156,7 +152,7 @@ export const FarmerDashboard: React.FC = () => {
     }
 
     try {
-      const commodityRegion = getDistrictRegion(newCommodity.district) || currentUser.region || 'Central';
+      const commodityRegion = currentUser.region || getDistrictRegion(newCommodity.district) || 'Central';
       const res = await fetch('/api/commodities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -317,19 +313,13 @@ export const FarmerDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white rounded-2xl p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-700/60 text-emerald-200 border border-emerald-600/40">
-                <Sprout className="w-3.5 h-3.5" />
-                <span>
-                  {language === 'ch'
-                    ? 'Bwalo la Alimi Aang\'ono • Malonda a Pafamu'
-                    : 'Smallholder Farmer Portal • Direct Farmgate Trade'}
-                </span>
-              </div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/50 text-emerald-300 border border-emerald-500/30">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Cloud Firestore Sync Active</span>
-              </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-700/60 text-emerald-200 border border-emerald-600/40">
+              <Sprout className="w-3.5 h-3.5" />
+              <span>
+                {language === 'ch'
+                  ? 'Bwalo la Alimi Aang\'ono • Malonda a Pafamu'
+                  : 'Smallholder Farmer Portal • Direct Farmgate Trade'}
+              </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               {language === 'ch' ? `Moni, ${currentUser?.fullName}!` : `Welcome, ${currentUser?.fullName}!`}
@@ -431,6 +421,20 @@ export const FarmerDashboard: React.FC = () => {
           )}
         </button>
         <button
+          onClick={() => setActiveTab('market_prices')}
+          className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 shrink-0 ${
+            activeTab === 'market_prices'
+              ? 'bg-emerald-100 text-emerald-950 font-black ring-1 ring-emerald-400'
+              : 'text-stone-700 bg-emerald-50/50 hover:bg-emerald-100/70'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4 text-emerald-700" />
+          <span>{language === 'ch' ? 'Mitengo ya pamsika ya m’boma' : 'Prevailing Market Prices'}</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-200 text-emerald-900 font-bold">
+            {marketPricesList.length}
+          </span>
+        </button>
+        <button
           onClick={() => setActiveTab('hire_transport')}
           className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 shrink-0 ${
             activeTab === 'hire_transport'
@@ -528,13 +532,10 @@ export const FarmerDashboard: React.FC = () => {
                       <h3 className="font-bold text-stone-900 text-base leading-tight">
                         {c.commodityName}
                       </h3>
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-stone-500 mt-1">
+                      <div className="flex items-center gap-1.5 text-xs text-stone-500 mt-1">
                         <MapPin className="w-3.5 h-3.5 text-stone-400" />
                         <span>
                           {c.location}, {c.district}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getRegionColorClass(getDistrictRegion(c.district))}`}>
-                          {getDistrictRegion(c.district)} Region
                         </span>
                       </div>
                       <div className="mt-2 text-xs text-emerald-800 font-medium bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
@@ -849,6 +850,212 @@ export const FarmerDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* TAB 2.5: LOCATION-BASED PREVAILING MARKET PRICES */}
+      {activeTab === 'market_prices' && (
+        <div className="space-y-6">
+          {/* Header Explanation Banner */}
+          <div className="bg-gradient-to-r from-emerald-900 via-green-950 to-stone-900 rounded-3xl p-6 text-white shadow-sm border border-emerald-800/40">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1.5 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-400/30">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>{language === 'ch' ? 'Kalozera wa Mitengo ya M’boma Mwanu' : 'Official Agricultural Price Guidelines & Local Market Benchmarks'}</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+                  {language === 'ch' ? 'Mitengo Yovomerezeka ya Pamsika' : 'Prevailing Standard Market Prices'}
+                </h2>
+                <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
+                  {language === 'ch'
+                    ? 'Oyang’anira nsanja amalemba mitengo yodalirika ya pamsika pa mbewu zosiyanasiyana m’maboma ndi m’misika yapafupi nanu. Gwiritsani ntchito mitengoyi ngati chitsogozo panthawi yomwe mukugulitsa zokolola zanu. Muli ndi ufulu wonse wosankha mtengo wanu!'
+                    : 'Administrators regularly monitor and update prevailing standard market prices across districts and local trading centers. Use these prices as transparent benchmarks to compare and inform your selling prices. You retain full control over your final pricing!'}
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all active:scale-95"
+                >
+                  <Plus className="w-4 h-4 text-stone-950" />
+                  <span>{language === 'ch' ? 'Gulititsani Mbewu Pamsika' : 'List Produce for Sale'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* District Filter Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-emerald-600" />
+              <span className="font-bold text-stone-800">
+                {language === 'ch' ? 'Sankhani Boma la Msika:' : 'Filter by Location / District:'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setMarketPriceFilterDistrict('all')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors ${
+                  marketPriceFilterDistrict === 'all'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                All 28 Districts
+              </button>
+
+              {currentUser?.district && (
+                <button
+                  type="button"
+                  onClick={() => setMarketPriceFilterDistrict(currentUser.district)}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1 ${
+                    marketPriceFilterDistrict === currentUser.district
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                >
+                  <MapPin className="w-3 h-3 text-emerald-600" />
+                  <span>My District ({currentUser.district})</span>
+                </button>
+              )}
+
+              <select
+                value={marketPriceFilterDistrict}
+                onChange={(e) => setMarketPriceFilterDistrict(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border border-stone-300 font-semibold text-xs text-stone-800 bg-white focus:outline-emerald-600"
+              >
+                <option value="all">Select Any District</option>
+                {MALAWI_DISTRICTS.map((d) => (
+                  <option key={d} value={d}>
+                    {d} ({getDistrictRegion(d)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Price Cards Grid */}
+          {marketPricesList.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-3xl border border-stone-200 space-y-3">
+              <TrendingUp className="w-12 h-12 text-stone-300 mx-auto" />
+              <h3 className="font-bold text-stone-900 text-sm">
+                {language === 'ch' ? 'Palibe mitengo yolembedwa panopa' : 'No market prices recorded yet'}
+              </h3>
+              <p className="text-xs text-stone-500 max-w-md mx-auto">
+                Platform administrators will record standard price updates shortly.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {marketPricesList
+                .filter((p) => marketPriceFilterDistrict === 'all' || p.district.toLowerCase() === marketPriceFilterDistrict.toLowerCase())
+                .map((price) => {
+                  const isUserDistrict = currentUser?.district && price.district.toLowerCase() === currentUser.district.toLowerCase();
+                  return (
+                    <div
+                      key={price.id}
+                      className={`bg-white rounded-2xl border p-5 flex flex-col justify-between space-y-4 shadow-xs hover:shadow-md transition-all ${
+                        isUserDistrict ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20' : 'border-stone-200'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-stone-100 text-stone-600">
+                              {price.category}
+                            </span>
+                            <h3 className="text-base font-bold text-stone-900 mt-1 leading-snug">
+                              {price.commodityName}
+                            </h3>
+                          </div>
+
+                          {isUserDistrict && (
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                              <CheckCircle className="w-3 h-3 text-emerald-700" />
+                              <span>Your Local Hub</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Location Details */}
+                        <div className="mt-3 flex items-center gap-1.5 text-xs text-stone-600 bg-stone-50 p-2.5 rounded-xl border border-stone-200/60">
+                          <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div className="truncate">
+                            <span className="font-bold text-stone-900">{price.district}</span>
+                            <span className="text-stone-400 mx-1">&bull;</span>
+                            <span className="text-stone-600">{price.marketLocation}</span>
+                          </div>
+                        </div>
+
+                        {/* Benchmark Pricing Callout */}
+                        <div className="mt-3.5 p-3.5 rounded-xl bg-gradient-to-br from-emerald-500/10 via-green-500/5 to-transparent border border-emerald-300/80">
+                          <div className="flex items-center justify-between text-[11px] text-emerald-950 font-bold uppercase tracking-wider">
+                            <span>Standard Prevailing Price</span>
+                            <span className="text-stone-500 normal-case font-medium">per {price.unit}</span>
+                          </div>
+                          <div className="mt-1 flex items-baseline gap-1.5">
+                            <span className="text-2xl sm:text-3xl font-black text-emerald-800">
+                              MWK {Number(price.priceAvg).toLocaleString()}
+                            </span>
+                            <span className="text-xs font-semibold text-emerald-950">/{price.unit}</span>
+                          </div>
+
+                          <div className="mt-2.5 pt-2 border-t border-emerald-200/80 flex items-center justify-between text-xs text-emerald-950 font-semibold">
+                            <span>
+                              Lowest: <strong>MWK {Number(price.priceMin).toLocaleString()}</strong>
+                            </span>
+                            <span className="text-emerald-300">|</span>
+                            <span>
+                              Highest: <strong>MWK {Number(price.priceMax).toLocaleString()}</strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Market Notes */}
+                        {price.notes && (
+                          <p className="mt-3 text-xs text-stone-600 leading-relaxed bg-stone-50/70 p-2.5 rounded-xl border border-stone-150">
+                            {price.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Action & Date Footer */}
+                      <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-2 text-xs">
+                        <span className="text-[11px] text-stone-400 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-stone-400" />
+                          <span>Updated: {price.effectiveDate}</span>
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewCommodity({
+                              ...newCommodity,
+                              commodityName: price.commodityName,
+                              category: price.category || 'Grains & Cereals',
+                              unit: price.unit || 'kg',
+                              pricePerUnit: Number(price.priceAvg),
+                              district: price.district,
+                              location: price.marketLocation,
+                            });
+                            setShowAddModal(true);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1"
+                        >
+                          <span>List at this price</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* TAB 4: HIRE TRANSPORTER & DRIVER ESCROW */}
       {activeTab === 'hire_transport' && (
         <FarmerTransportHire onJobCreated={fetchData} />
@@ -985,10 +1192,117 @@ export const FarmerDashboard: React.FC = () => {
                     onChange={(e) =>
                       setNewCommodity({ ...newCommodity, pricePerUnit: Number(e.target.value) })
                     }
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600 font-mono font-bold"
                   />
                 </div>
               </div>
+
+              {/* LIVE MARKET PRICE BENCHMARK COMPARISON & FAIR PRICING ALERT */}
+              {(() => {
+                const cName = (newCommodity.commodityName || newCommodity.category || '').toLowerCase();
+                const dName = (newCommodity.district || '').toLowerCase();
+                const uName = (newCommodity.unit || 'kg').toLowerCase();
+
+                // Find matching benchmark price for commodity + district
+                let match = marketPricesList.find((p) => {
+                  const pComm = p.commodityName.toLowerCase();
+                  const pDist = p.district.toLowerCase();
+                  const pUnit = (p.unit || 'kg').toLowerCase();
+                  return (pComm.includes(cName) || cName.includes(pComm)) && pDist === dName && pUnit === uName;
+                });
+
+                if (!match) {
+                  match = marketPricesList.find((p) => {
+                    const pComm = p.commodityName.toLowerCase();
+                    const pDist = p.district.toLowerCase();
+                    return (pComm.includes(cName) || cName.includes(pComm)) && pDist === dName;
+                  });
+                }
+
+                if (!match) {
+                  const reg = getDistrictRegion(newCommodity.district);
+                  match = marketPricesList.find((p) => {
+                    const pComm = p.commodityName.toLowerCase();
+                    return (pComm.includes(cName) || cName.includes(pComm)) && p.region === reg;
+                  });
+                }
+
+                if (!match) {
+                  match = marketPricesList.find((p) => {
+                    const pComm = p.commodityName.toLowerCase();
+                    return pComm.includes(cName) || cName.includes(pComm);
+                  });
+                }
+
+                if (!match) return null;
+
+                const proposedPrice = Number(newCommodity.pricePerUnit) || 0;
+                const benchmarkPrice = Number(match.priceAvg) || 1;
+                const diffPercent = Math.round(((proposedPrice - benchmarkPrice) / benchmarkPrice) * 100);
+                const isSignificantlyHigh = diffPercent > 25;
+                const isSignificantlyLow = diffPercent < -25;
+
+                return (
+                  <div className={`p-3.5 rounded-2xl border text-xs space-y-2 transition-all ${
+                    isSignificantlyHigh
+                      ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+                      : isSignificantlyLow
+                      ? 'bg-blue-50/90 border-blue-300 text-blue-950'
+                      : 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <TrendingUp className="w-4 h-4 text-emerald-700" />
+                        <span>Prevailing Market Price Benchmark ({match.district})</span>
+                      </div>
+                      <span className="text-[11px] font-mono font-bold bg-white/80 px-2 py-0.5 rounded-md border border-stone-200">
+                        MWK {Number(match.priceAvg).toLocaleString()}/{match.unit}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-stone-600 pt-1 border-t border-black/5">
+                      <span>
+                        Market Range: <strong>MWK {Number(match.priceMin).toLocaleString()}</strong> - <strong>MWK {Number(match.priceMax).toLocaleString()}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setNewCommodity({ ...newCommodity, pricePerUnit: Number(match!.priceAvg) })}
+                        className="text-emerald-700 font-bold hover:underline"
+                      >
+                        Use Benchmark (MWK {Number(match.priceAvg).toLocaleString()})
+                      </button>
+                    </div>
+
+                    {/* Price Comparison Callout */}
+                    {proposedPrice > 0 && (
+                      <div className="pt-1 text-[11px] leading-relaxed">
+                        {isSignificantlyHigh ? (
+                          <div className="flex items-start gap-1.5 text-amber-900 font-medium">
+                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <span>
+                              <strong>Notice:</strong> Your proposed price of <strong>MWK {proposedPrice.toLocaleString()}/{newCommodity.unit}</strong> is <strong>+{diffPercent}% above</strong> the prevailing benchmark in {match.district}. While you have full freedom to set your price, higher prices may take longer to attract wholesale buyers.
+                            </span>
+                          </div>
+                        ) : isSignificantlyLow ? (
+                          <div className="flex items-start gap-1.5 text-blue-900 font-medium">
+                            <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                            <span>
+                              <strong>Fair Trade Notice:</strong> Your proposed price is <strong>{diffPercent}% below</strong> the prevailing standard price in {match.district}. You may be leaving money on the table; consider raising closer to the benchmark (MWK {Number(match.priceAvg).toLocaleString()}) to maximize your farming earnings.
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-emerald-900 font-semibold">
+                            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>
+                              Your price aligns closely with the prevailing market standard ({diffPercent >= 0 ? `+${diffPercent}%` : `${diffPercent}%`} of benchmark). Highly competitive for wholesale buyers!
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1000,29 +1314,13 @@ export const FarmerDashboard: React.FC = () => {
                     onChange={(e) =>
                       setNewCommodity({ ...newCommodity, district: e.target.value })
                     }
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600 bg-white font-medium"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-emerald-600 bg-white"
                   >
-                    <optgroup label="Northern Region">
-                      {NORTHERN_DISTRICTS.map((d) => (
-                        <option key={d} value={d}>
-                          {d} (Northern Region)
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Central Region">
-                      {CENTRAL_DISTRICTS.map((d) => (
-                        <option key={d} value={d}>
-                          {d} (Central Region)
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Southern Region">
-                      {SOUTHERN_DISTRICTS.map((d) => (
-                        <option key={d} value={d}>
-                          {d} (Southern Region)
-                        </option>
-                      ))}
-                    </optgroup>
+                    {MALAWI_DISTRICTS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
