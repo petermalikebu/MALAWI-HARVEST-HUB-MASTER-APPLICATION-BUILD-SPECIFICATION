@@ -22,10 +22,12 @@ import {
   HelpCircle,
   MessageSquare,
   Trash2,
+  Sparkles,
 } from 'lucide-react';
 import { FarmerTransportHire } from './FarmerTransportHire.tsx';
 import { compressImageFile } from '../../lib/imageCompressor.ts';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
+import { AgriIntelligenceView } from '../intelligence/AgriIntelligenceView.tsx';
 import { useLanguage } from '../../context/LanguageContext.tsx';
 
 export const FarmerDashboard: React.FC = () => {
@@ -40,7 +42,7 @@ export const FarmerDashboard: React.FC = () => {
   const [marketPriceFilterDistrict, setMarketPriceFilterDistrict] = useState<string>(currentUser?.district || 'all');
   const [platformCommissionRate, setPlatformCommissionRate] = useState<number>(0.04);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'commodities' | 'orders' | 'market_prices' | 'earnings' | 'hire_transport' | 'queries'>('commodities');
+  const [activeTab, setActiveTab] = useState<'commodities' | 'orders' | 'market_prices' | 'earnings' | 'hire_transport' | 'queries' | 'agri_advisor'>('commodities');
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -466,11 +468,48 @@ export const FarmerDashboard: React.FC = () => {
           <MessageSquare className="w-4 h-4 text-emerald-700" />
           <span>{t('nav_queries_help')}</span>
         </button>
+        <button
+          onClick={() => setActiveTab('agri_advisor')}
+          className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 shrink-0 ${
+            activeTab === 'agri_advisor'
+              ? 'bg-purple-100 text-purple-950 font-black ring-1 ring-purple-400'
+              : 'text-purple-800 bg-purple-50/70 hover:bg-purple-100'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-purple-700" />
+          <span>AI Agricultural Advisor &amp; Knowledge Centre</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-200 text-purple-900 font-bold">
+            Gemini
+          </span>
+        </button>
       </div>
 
       {/* TAB 1: COMMODITIES LISTING */}
       {activeTab === 'commodities' && (
         <div className="space-y-4">
+          {/* AI Advisor Callout Banner */}
+          <div className="bg-gradient-to-r from-emerald-800 via-emerald-900 to-teal-950 text-white rounded-3xl p-5 sm:p-6 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-emerald-700/60">
+            <div className="space-y-1.5 max-w-2xl">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 text-[11px] font-bold uppercase tracking-wider">
+                <Sparkles className="w-3 h-3 text-emerald-300" /> AI Farming Companion &amp; Quality Guide
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-white">
+                Diagnose Pests, Improve Grain Quality &amp; Boost Selling Price
+              </h3>
+              <p className="text-xs text-emerald-100/90 leading-relaxed">
+                Consult Mlimi Wodziwa with voice or photo upload for pest diagnosis, proper drying, and MBS Grade A standards that unlock up to +30% buyer premium prices.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('agri_advisor')}
+              className="px-5 py-2.5 rounded-2xl bg-white text-emerald-900 hover:bg-emerald-50 font-extrabold text-xs shadow-sm flex items-center gap-2 shrink-0 transition-all self-start sm:self-auto"
+            >
+              <Sparkles className="w-4 h-4 text-emerald-700" />
+              <span>Launch AI Advisor</span>
+            </button>
+          </div>
+
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-stone-900">Your Agricultural Inventory</h2>
             <button
@@ -1064,6 +1103,11 @@ export const FarmerDashboard: React.FC = () => {
       {/* TAB 5: QUERIES & SUGGESTIONS DESK */}
       {activeTab === 'queries' && (
         <SupportQueriesDesk />
+      )}
+
+      {/* TAB 6: AI AGRICULTURAL ADVISOR & KNOWLEDGE CENTRE */}
+      {activeTab === 'agri_advisor' && (
+        <AgriIntelligenceView embedded={true} />
       )}
 
       {/* MODAL: ADD COMMODITY LISTING */}

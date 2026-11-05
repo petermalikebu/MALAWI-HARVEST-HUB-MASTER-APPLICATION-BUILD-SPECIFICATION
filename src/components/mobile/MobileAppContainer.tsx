@@ -32,6 +32,7 @@ import { TransporterDashboard } from '../transporter/TransporterDashboard.tsx';
 import { AdminDashboard } from '../admin/AdminDashboard.tsx';
 import { FinanceDashboard } from '../finance/FinanceDashboard.tsx';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
+import { AgriIntelligenceView } from '../intelligence/AgriIntelligenceView.tsx';
 
 interface MobileAppContainerProps {
   onCloseMobileMode: () => void;
@@ -104,6 +105,21 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
             <span>Back to Dashboard</span>
           </button>
           <SupportQueriesDesk />
+        </div>
+      );
+    }
+
+    if (mobileTab === 'agri_intel' || mobileTab === 'advisor') {
+      return (
+        <div className="p-2">
+          <button
+            onClick={() => setMobileTab('home')}
+            className="mb-2 px-3 py-1.5 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold flex items-center gap-1"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Back to Dashboard</span>
+          </button>
+          <AgriIntelligenceView embedded={true} />
         </div>
       );
     }
@@ -520,6 +536,15 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
                 >
                   <ShoppingCart className="w-4 h-4" />
                   <span>Market</span>
+                </button>
+                <button
+                  onClick={() => setMobileTab('agri_intel')}
+                  className={`flex flex-col items-center gap-0.5 ${
+                    mobileTab === 'agri_intel' ? 'text-purple-700 font-bold' : 'text-purple-900'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <span>AI Advisor</span>
                 </button>
                 <button
                   onClick={() => setMobileTab('profile')}

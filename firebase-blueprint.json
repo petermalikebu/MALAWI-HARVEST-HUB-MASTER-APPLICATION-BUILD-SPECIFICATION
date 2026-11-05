@@ -116,6 +116,24 @@
         "createdAt": { "type": "string" }
       },
       "required": ["action", "recordAffected"]
+    },
+    "AgriConsultation": {
+      "title": "AgriConsultation",
+      "description": "Farmer consultation request for agricultural extension officers and AI analysis",
+      "type": "object",
+      "properties": {
+        "consultationNumber": { "type": "string" },
+        "farmerUid": { "type": "string" },
+        "farmerName": { "type": "string" },
+        "district": { "type": "string" },
+        "epa": { "type": "string" },
+        "cropOrTopic": { "type": "string" },
+        "question": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["normal", "high", "critical"] },
+        "status": { "type": "string", "enum": ["pending_expert_review", "under_review", "answered"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["consultationNumber", "farmerUid", "cropOrTopic", "question", "district", "status"]
     }
   },
   "firestore": {
@@ -142,6 +160,10 @@
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
       "description": "System security and administrative audit logs"
+    },
+    "/agri_consultations/{consultationId}": {
+      "schema": "AgriConsultation",
+      "description": "Farmer agricultural extension queries and expert responses"
     }
   }
 }

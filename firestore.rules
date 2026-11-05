@@ -90,6 +90,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Agricultural Expert Consultations
+    match /agri_consultations/{consultationId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
     // Fallback collection matching for system syncing
     match /{document=**} {
       allow read, write: if true;

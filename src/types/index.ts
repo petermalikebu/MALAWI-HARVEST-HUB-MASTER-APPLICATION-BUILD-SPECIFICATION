@@ -521,6 +521,7 @@ export interface AgriChatMessage {
   imageUrl?: string;
   chichewaSummary?: string;
   recommendedActions?: string[];
+  qualityAndGradingTip?: string;
   warningOrDisclaimer?: string;
   suggestedFollowUps?: string[];
   canEscalateToExpert?: boolean;

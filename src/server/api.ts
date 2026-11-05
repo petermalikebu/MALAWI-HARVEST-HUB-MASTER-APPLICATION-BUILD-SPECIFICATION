@@ -14,6 +14,7 @@ import {
   supportTickets,
   passwordResetRequests,
   marketPrices,
+  agriConsultations,
 } from '../db/schema.ts';
 import { eq, desc, and, or, sql } from 'drizzle-orm';
 import { broadcastEvent } from './realtime.ts';
@@ -4979,6 +4980,346 @@ router.post('/ai/search-grounding', async (req, res) => {
   } catch (error: any) {
     console.error('Error in Google Search Grounding:', error);
     return res.status(500).json({ error: error.message || 'Failed to retrieve grounded Google Search information' });
+  }
+});
+
+// ----------------------------------------------------
+// 10. AI-POWERED AGRICULTURAL ASSISTANT & KNOWLEDGE CENTRE
+// ----------------------------------------------------
+import {
+  generateAgriAdvice,
+  MALAWI_CROP_KNOWLEDGE_BASE,
+  AGRI_KNOWLEDGE_TOPICS,
+} from './agriAdvisor.ts';
+
+// Interactive Agricultural Chatbot (Text, Voice transcripts, Images, Multi-turn)
+router.post('/ai/agri-chat', async (req, res) => {
+  try {
+    const {
+      message,
+      history,
+      imageBase64,
+      imageMimeType,
+      district,
+      preferredLanguage,
+      topic,
+    } = req.body;
+
+    if (!message && !imageBase64) {
+      return res.status(400).json({ error: 'Please provide an agricultural question or upload an image.' });
+    }
+
+    const advice = await generateAgriAdvice({
+      message: message || 'Please analyze this agricultural crop/produce image and advise on quality, pest/disease symptoms, and remedies.',
+      history: Array.isArray(history) ? history : [],
+      imageBase64,
+      imageMimeType,
+      district: district || 'Lilongwe',
+      preferredLanguage: preferredLanguage || 'en',
+      topic,
+    });
+
+    return res.json({
+      success: true,
+      ...advice,
+    });
+  } catch (error: any) {
+    console.error('Error in AI Agricultural Chat Assistant:', error);
+    return res.status(500).json({
+      error: error.message || 'Failed to process agricultural advice request',
+    });
+  }
+});
+
+// Knowledge Centre: Crop guides, topics, and agricultural calendar
+router.get('/agri/knowledge', (_req, res) => {
+  try {
+    return res.json({
+      success: true,
+      crops: MALAWI_CROP_KNOWLEDGE_BASE,
+      topics: AGRI_KNOWLEDGE_TOPICS,
+    });
+  } catch (error: any) {
+    console.error('Error fetching agricultural knowledge:', error);
+    return res.status(500).json({ error: 'Failed to retrieve agricultural knowledge' });
+  }
+});
+
+// Product Quality & Grading Assessment Simulator
+router.post('/ai/quality-assessment', async (req, res) => {
+  try {
+    const {
+      commodityName,
+      moisturePercent,
+      foreignMatterPercent,
+      brokenPercent,
+      moldPercent,
+      shrivelledPercent,
+    } = req.body;
+
+    const moisture = Number(moisturePercent || 12.5);
+    const foreignMatter = Number(foreignMatterPercent || 1.0);
+    const broken = Number(brokenPercent || 2.0);
+    const mold = Number(moldPercent || 0.0);
+    const shrivelled = Number(shrivelledPercent || 1.5);
+
+    // Determine target moisture threshold based on commodity
+    const normName = String(commodityName || 'maize').toLowerCase();
+    let maxGradeAMoisture = 13.0;
+    let commodityBasePrice = 650; // MWK/kg
+    if (normName.includes('groundnut') || normName.includes('mtedza')) {
+      maxGradeAMoisture = 7.5;
+      commodityBasePrice = 1400;
+    } else if (normName.includes('soya')) {
+      maxGradeAMoisture = 11.5;
+      commodityBasePrice = 950;
+    } else if (normName.includes('rice') || normName.includes('mpunga')) {
+      maxGradeAMoisture = 13.0;
+      commodityBasePrice = 1800;
+    } else if (normName.includes('bean') || normName.includes('nyemba')) {
+      maxGradeAMoisture = 12.0;
+      commodityBasePrice = 1600;
+    }
+
+    // Quality grading calculation
+    let grade: 'Grade A - Premium' | 'Grade B - Standard' | 'Grade C - Commercial' | 'Sub-standard / High Risk' = 'Grade A - Premium';
+    const deductions: string[] = [];
+    const recommendations: string[] = [];
+
+    if (mold > 1.0) {
+      grade = 'Sub-standard / High Risk';
+      deductions.push(`Visible mold (${mold}%) poses critical aflatoxin and mycotoxin contamination risk.`);
+      recommendations.push('Discard and sort out all discolored or moldy kernels immediately to prevent toxin spread.');
+    } else if (moisture > maxGradeAMoisture + 2.0) {
+      grade = 'Sub-standard / High Risk';
+      deductions.push(`Excess moisture (${moisture}%) exceeds safety ceiling of ${maxGradeAMoisture}%. Storage will rot rapidly.`);
+      recommendations.push('Immediate sun-drying on clean tarpaulins for 2-3 consecutive days until moisture is below ' + maxGradeAMoisture + '%.');
+    } else if (moisture > maxGradeAMoisture) {
+      if (grade === 'Grade A - Premium') grade = 'Grade B - Standard';
+      deductions.push(`Moisture (${moisture}%) is slightly above the Grade A threshold (${maxGradeAMoisture}%).`);
+      recommendations.push(`Sun-dry for 4-6 hours to reach safe threshold (${maxGradeAMoisture}%).`);
+    }
+
+    if (foreignMatter > 2.0) {
+      if (grade === 'Grade A - Premium') grade = 'Grade B - Standard';
+      deductions.push(`Foreign matter (${foreignMatter}%) exceeds MBS clean grain limit (2.0%).`);
+      recommendations.push('Winnow thoroughly to remove chaff, dust, and stones.');
+    }
+
+    if (broken > 4.0 || shrivelled > 4.0) {
+      if (grade === 'Grade A - Premium') grade = 'Grade B - Standard';
+      deductions.push(`Broken / shrivelled grains (${broken}% broken, ${shrivelled}% shrivelled) degrade flour/milling quality.`);
+      recommendations.push('Sieve grains with appropriate wire screen mesh to separate premium whole seeds from broken grits.');
+    }
+
+    // Estimated market price value
+    let priceMultiplier = 1.0;
+    if (grade === 'Grade A - Premium') priceMultiplier = 1.15; // +15% premium
+    else if (grade === 'Grade B - Standard') priceMultiplier = 1.0;
+    else priceMultiplier = 0.65; // -35% distress sale
+
+    const estimatedMarketPrice = Math.round(commodityBasePrice * priceMultiplier);
+    const potentialGainPerTon = Math.round((commodityBasePrice * 1.15 - estimatedMarketPrice) * 1000);
+
+    return res.json({
+      success: true,
+      commodityName: commodityName || 'White Maize',
+      grade,
+      moisture,
+      targetMoisture: maxGradeAMoisture,
+      estimatedMarketPriceMwkPerKg: estimatedMarketPrice,
+      gradeAPotentialPriceMwkPerKg: Math.round(commodityBasePrice * 1.15),
+      potentialGainPerTonMwk: Math.max(0, potentialGainPerTon),
+      deductions,
+      recommendations: recommendations.length > 0 ? recommendations : [
+        'Produce meets Grade A specifications! Maintain airtight hermetic storage in PICS bags to preserve high market value.'
+      ],
+      mbsCertified: grade === 'Grade A - Premium',
+    });
+  } catch (error: any) {
+    console.error('Error in quality assessment:', error);
+    return res.status(500).json({ error: error.message || 'Failed to complete quality assessment' });
+  }
+});
+
+// Agricultural Expert Consultations Desk (List)
+router.get('/agri/consultations', async (req, res) => {
+  try {
+    const { farmerUid, status } = req.query;
+    let list: any[] = [];
+
+    try {
+      let query = db.select().from(agriConsultations);
+      if (farmerUid) {
+        list = await query.where(eq(agriConsultations.farmerUid, String(farmerUid))).orderBy(desc(agriConsultations.createdAt));
+      } else if (status) {
+        list = await query.where(eq(agriConsultations.status, String(status))).orderBy(desc(agriConsultations.createdAt));
+      } else {
+        list = await query.orderBy(desc(agriConsultations.createdAt));
+      }
+    } catch {
+      // Fallback from in-memory store
+      const store = getInMemoryStore();
+      list = (store.agri_consultations || []).slice();
+      if (farmerUid) {
+        list = list.filter((c: any) => c.farmerUid === String(farmerUid));
+      }
+      if (status) {
+        list = list.filter((c: any) => c.status === String(status));
+      }
+      list.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    }
+
+    return res.json(list);
+  } catch (error: any) {
+    console.error('Error fetching agri consultations:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch consultations' });
+  }
+});
+
+// Agricultural Expert Consultations Desk (Create Consultation)
+router.post('/agri/consultations', async (req, res) => {
+  try {
+    const {
+      farmerUid,
+      farmerName,
+      farmerPhone,
+      district,
+      epa,
+      cropOrTopic,
+      question,
+      imageUrl,
+      urgency,
+      aiInitialSummary,
+    } = req.body;
+
+    if (!farmerUid || !cropOrTopic || !question) {
+      return res.status(400).json({ error: 'Farmer UID, Crop/Topic, and detailed question are required.' });
+    }
+
+    const consultationNumber = `AC-${Date.now().toString().slice(-6)}`;
+    const newRecord = {
+      consultationNumber,
+      farmerUid: String(farmerUid),
+      farmerName: farmerName || 'Smallholder Farmer',
+      farmerPhone: farmerPhone || '+265 ',
+      district: district || 'Lilongwe',
+      epa: epa || 'Central EPA',
+      cropOrTopic: String(cropOrTopic),
+      question: String(question),
+      imageUrl: imageUrl || '',
+      urgency: urgency || 'normal',
+      status: 'pending_expert_review',
+      aiInitialSummary: aiInitialSummary || '',
+      expertName: '',
+      expertTitle: '',
+      expertResponse: '',
+      answeredAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    let insertedRecord: any = newRecord;
+    try {
+      const inserted = await db.insert(agriConsultations).values(newRecord).returning();
+      insertedRecord = inserted[0] || newRecord;
+    } catch (dbErr) {
+      const store = getInMemoryStore();
+      if (!Array.isArray(store.agri_consultations)) store.agri_consultations = [];
+      const newId = store.agri_consultations.length + 1;
+      insertedRecord = { id: newId, ...newRecord };
+      store.agri_consultations.unshift(insertedRecord);
+      saveStoreToDisk(store);
+    }
+
+    // Create system notification for extension officers / admins
+    try {
+      await db.insert(notifications).values({
+        userUid: 'frF3xukObzdA8AhCBYIBPYV0UK13',
+        title: `New Agricultural Query #${consultationNumber}`,
+        message: `${farmerName} from ${district} (${epa || 'EPA'}) submitted an agricultural inquiry on ${cropOrTopic}.`,
+        type: 'system',
+        isRead: false,
+      });
+    } catch {}
+
+    broadcastEvent('AGRI_CONSULTATION_CREATED', insertedRecord);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Consultation inquiry submitted to Agricultural Extension Officers.',
+      consultation: insertedRecord,
+    });
+  } catch (error: any) {
+    console.error('Error submitting agri consultation:', error);
+    return res.status(500).json({ error: error.message || 'Failed to submit consultation' });
+  }
+});
+
+// Agricultural Expert Consultations Desk (Expert Reply)
+router.put('/agri/consultations/:id/reply', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { expertName, expertTitle, expertResponse, status } = req.body;
+
+    if (!expertResponse || !String(expertResponse).trim()) {
+      return res.status(400).json({ error: 'Official expert recommendation response is required.' });
+    }
+
+    const updatedData = {
+      expertName: expertName || 'Agricultural Extension Development Officer (AEDO)',
+      expertTitle: expertTitle || 'Extension Officer / Research Specialist',
+      expertResponse: String(expertResponse).trim(),
+      status: status || 'answered',
+      answeredAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    let updatedItem: any = null;
+    try {
+      const updated = await db
+        .update(agriConsultations)
+        .set(updatedData)
+        .where(eq(agriConsultations.id, id))
+        .returning();
+      updatedItem = updated[0];
+    } catch {
+      const store = getInMemoryStore();
+      const idx = (store.agri_consultations || []).findIndex((c: any) => c.id === id);
+      if (idx >= 0) {
+        store.agri_consultations[idx] = { ...store.agri_consultations[idx], ...updatedData };
+        updatedItem = store.agri_consultations[idx];
+        saveStoreToDisk(store);
+      }
+    }
+
+    if (!updatedItem) {
+      return res.status(404).json({ error: 'Consultation record not found' });
+    }
+
+    // Notify farmer of expert response
+    if (updatedItem.farmerUid) {
+      try {
+        await db.insert(notifications).values({
+          userUid: updatedItem.farmerUid,
+          title: `Agricultural Advisory Response #${updatedItem.consultationNumber}`,
+          message: `${updatedItem.expertName} (${updatedItem.expertTitle}) answered your inquiry regarding ${updatedItem.cropOrTopic}.`,
+          type: 'system',
+          isRead: false,
+        });
+      } catch {}
+    }
+
+    broadcastEvent('AGRI_CONSULTATION_ANSWERED', updatedItem);
+
+    return res.json({
+      success: true,
+      message: 'Expert response recorded and farmer notified.',
+      consultation: updatedItem,
+    });
+  } catch (error: any) {
+    console.error('Error answering consultation:', error);
+    return res.status(500).json({ error: error.message || 'Failed to submit expert reply' });
   }
 });
 

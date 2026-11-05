@@ -686,6 +686,51 @@ function initializeSeedStore(): Record<string, any[]> {
     }
   ];
 
+  const agriConsultations = [
+    {
+      id: 1,
+      consultationNumber: 'AC-2026-001',
+      farmerUid: 'farmer-chimwemwe-01',
+      farmerName: 'Chimwemwe Phiri',
+      farmerPhone: '+265 888 123 456',
+      district: 'Mchinji',
+      epa: 'Kamwendo EPA',
+      cropOrTopic: 'White Maize (Pest Control & Grading)',
+      question: 'How do I identify and manage Fall Armyworm in early vegetative maize, and how does moisture level affect Grade A classification at ADMARC depots?',
+      imageUrl: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=600&auto=format&fit=crop&q=80',
+      urgency: 'high',
+      status: 'answered',
+      aiInitialSummary: 'Visual analysis suggests early whorl feeding symptoms characteristic of Spodoptera frugiperda (Fall Armyworm). Grade A maize requires moisture content below 13.0% with maximum 2% foreign matter and zero live weevils.',
+      expertName: 'Dr. Kondwani Banda',
+      expertTitle: 'Senior Agronomist, Chitedze Agricultural Research Station',
+      expertResponse: 'Hello Chimwemwe. For Fall Armyworm at vegetative stage: 1) Apply Chlorantraniliprole (Belt) or Emamectin benzoate directly into the whorl in the late afternoon. 2) For Grade A grading: Sun dry grain thoroughly on clean tarpaulins until moisture reaches 12.5-13.0%. Perform the bottle-salt test if you lack a moisture meter. Winnow thoroughly to remove broken kernels and chaff.',
+      answeredAt: now,
+      createdAt: new Date(Date.now() - 86400000 * 2),
+      updatedAt: now,
+    },
+    {
+      id: 2,
+      consultationNumber: 'AC-2026-002',
+      farmerUid: 'farmer-chimwemwe-01',
+      farmerName: 'Chimwemwe Phiri',
+      farmerPhone: '+265 888 123 456',
+      district: 'Kasungu',
+      epa: 'Lisasadzi EPA',
+      cropOrTopic: 'Chalimbana Groundnuts (Aflatoxin Prevention & Quality)',
+      question: 'What are the critical steps to eliminate aflatoxin contamination in Chalimbana groundnuts during lifting and post-harvest drying?',
+      imageUrl: 'https://images.unsplash.com/photo-1599940824399-b87987ceb72a?w=600&auto=format&fit=crop&q=80',
+      urgency: 'normal',
+      status: 'pending_expert_review',
+      aiInitialSummary: 'Aflatoxin is caused by Aspergillus flavus mold thriving in damp, soil-contacted pods. Mandatory prevention requires lifting at correct physiological maturity (dark markings inside pods) and drying with pods facing upward off bare ground.',
+      expertName: '',
+      expertTitle: '',
+      expertResponse: '',
+      answeredAt: null,
+      createdAt: new Date(Date.now() - 3600000 * 4),
+      updatedAt: now,
+    }
+  ];
+
   return {
     users,
     categories,
@@ -699,6 +744,8 @@ function initializeSeedStore(): Record<string, any[]> {
     audit_logs: auditLogs,
     support_tickets: [],
     password_reset_requests: [],
+    market_prices: [],
+    agri_consultations: agriConsultations,
   };
 }
 

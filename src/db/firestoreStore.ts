@@ -39,6 +39,8 @@ export const COLLECTIONS = [
   'audit_logs',
   'support_tickets',
   'password_reset_requests',
+  'market_prices',
+  'agri_consultations',
 ] as const;
 
 export type CollectionName = (typeof COLLECTIONS)[number];

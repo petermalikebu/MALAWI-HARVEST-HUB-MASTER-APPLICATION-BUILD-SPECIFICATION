@@ -312,6 +312,30 @@ export const marketPrices = pgTable('market_prices', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Agricultural Expert Consultations Desk
+export const agriConsultations = pgTable('agri_consultations', {
+  id: serial('id').primaryKey(),
+  consultationNumber: text('consultation_number').notNull().unique(),
+  farmerUid: text('farmer_uid').notNull(),
+  farmerName: text('farmer_name').notNull(),
+  farmerPhone: text('farmer_phone').default(''),
+  district: text('district').notNull(),
+  epa: text('epa').default(''),
+  cropOrTopic: text('crop_or_topic').notNull(),
+  question: text('question').notNull(),
+  imageUrl: text('image_url').default(''),
+  urgency: text('urgency').notNull().default('normal'), // normal | high | critical
+  status: text('status').notNull().default('pending_expert_review'), // pending_expert_review | under_review | answered
+  aiInitialSummary: text('ai_initial_summary').default(''),
+  expertName: text('expert_name').default(''),
+  expertTitle: text('expert_title').default(''),
+  expertResponse: text('expert_response').default(''),
+  answeredAt: timestamp('answered_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+
 // Relationships
 export const usersRelations = relations(users, ({ many }) => ({
   commodities: many(commodities),
