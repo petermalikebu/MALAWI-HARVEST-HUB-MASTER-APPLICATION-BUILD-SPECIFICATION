@@ -576,16 +576,16 @@ export const AdminMarketPricesPanel: React.FC<AdminMarketPricesPanelProps> = ({ 
                 <div className="grid grid-cols-3 gap-2">
                   {COMMODITY_UNITS.map((u) => (
                     <button
-                      key={u.value}
+                      key={u}
                       type="button"
-                      onClick={() => setFormUnit(u.value)}
+                      onClick={() => setFormUnit(u)}
                       className={`py-2 px-3 rounded-xl border font-semibold text-center transition-all ${
-                        formUnit === u.value
+                        formUnit === u
                           ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
                           : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
                       }`}
                     >
-                      {u.label}
+                      {u}
                     </button>
                   ))}
                 </div>
