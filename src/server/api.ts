@@ -29,6 +29,7 @@ import {
   updateSmsGatewayConfig,
   formatMalawiPhoneNumber,
 } from './smsGateway.ts';
+import { africasTalkingService } from './africasTalkingService.ts';
 
 // Secure Password Hashing & Verification
 export function hashPassword(plainPassword: string): string {
@@ -5970,6 +5971,75 @@ router.post('/agent/sms/test-real', async (req, res) => {
   } catch (error: any) {
     console.error('Error in test-real SMS:', error);
     return res.status(500).json({ error: error.message || 'Failed to dispatch test SMS' });
+  }
+});
+
+// GET /api/agent/sms/africas-talking/logs: Get detailed AT delivery and error audit logs
+router.get('/agent/sms/africas-talking/logs', (req, res) => {
+  try {
+    const { recipient, status, carrier, limit } = req.query;
+    const logs = africasTalkingService.getDeliveryLogs({
+      recipient: recipient ? String(recipient) : undefined,
+      status: status ? String(status) : undefined,
+      carrier: carrier ? (String(carrier) as any) : undefined,
+      limit: limit ? parseInt(String(limit), 10) : 100,
+    });
+    return res.json({
+      success: true,
+      total: logs.length,
+      logs,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to retrieve delivery logs' });
+  }
+});
+
+// GET /api/agent/sms/africas-talking/balance: Check AT account balance
+router.get('/agent/sms/africas-talking/balance', async (req, res) => {
+  try {
+    const result = await africasTalkingService.getAccountBalance();
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch account balance' });
+  }
+});
+
+// POST /api/agent/sms/africas-talking/send: Send SMS directly via Africa's Talking service
+router.post('/agent/sms/africas-talking/send', async (req, res) => {
+  try {
+    const { to, message, from, enqueue } = req.body;
+    if (!to || !message) {
+      return res.status(400).json({ error: 'Recipient phone (to) and message text are required.' });
+    }
+
+    const result = await africasTalkingService.sendSms({
+      to,
+      message,
+      from,
+      enqueue: Boolean(enqueue),
+    });
+
+    return res.status(result.success ? 200 : 400).json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Failed to dispatch SMS via Africa's Talking" });
+  }
+});
+
+// POST /api/agent/sms/africas-talking/dlr: Africa's Talking Delivery Report webhook
+router.post('/agent/sms/africas-talking/dlr', (req, res) => {
+  try {
+    const { id, status, phoneNumber, failureReason, networkCode } = req.body;
+    const outcome = africasTalkingService.handleDeliveryReport({
+      id,
+      status,
+      phoneNumber,
+      failureReason,
+      networkCode,
+    });
+    return res.json({ success: true, outcome });
+  } catch (error: any) {
+    console.error('Error handling Africa Talking DLR:', error);
+    return res.status(500).json({ error: 'Failed to process DLR' });
   }
 });
 

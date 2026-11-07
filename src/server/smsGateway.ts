@@ -4,6 +4,8 @@
  * via Africa's Talking (Malawi/Pan-Africa), Twilio, or Malawian Telecom Webhook.
  */
 
+import { africasTalkingService } from './africasTalkingService';
+
 export interface SmsGatewayResult {
   success: boolean;
   provider: 'africas_talking' | 'textbee' | 'twilio' | 'webhook' | 'device_intent';
@@ -57,6 +59,11 @@ export function updateSmsGatewayConfig(newConfig: Partial<SmsGatewayConfig>) {
     ...cachedConfig,
     ...newConfig,
   };
+  africasTalkingService.configure({
+    apiKey: cachedConfig.africasTalkingApiKey,
+    username: cachedConfig.africasTalkingUsername,
+    senderId: cachedConfig.africasTalkingSenderId,
+  });
 }
 
 /**
@@ -102,41 +109,21 @@ export async function dispatchRealSms(params: {
   // 1. Try Africa's Talking (Premier Pan-African telecom gateway with Malawi coverage)
   if (config.africasTalkingApiKey && config.africasTalkingUsername) {
     try {
-      const isSandbox = config.africasTalkingUsername.toLowerCase() === 'sandbox';
-      const endpoint = isSandbox
-        ? 'https://api.sandbox.africastalking.com/version1/messaging'
-        : 'https://api.africastalking.com/version1/messaging';
-
-      const bodyData = new URLSearchParams({
-        username: config.africasTalkingUsername,
+      const atResult = await africasTalkingService.sendSms({
         to: formattedPhone,
         message: params.messageText,
+        from: config.africasTalkingSenderId,
       });
 
-      if (config.africasTalkingSenderId) {
-        bodyData.append('from', config.africasTalkingSenderId);
-      }
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          apiKey: config.africasTalkingApiKey,
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: bodyData.toString(),
-      });
-
-      const json = await response.json();
-      const recipients = json?.SMSMessageData?.Recipients || [];
-      const recipientStatus = recipients[0]?.status || 'Unknown';
+      const firstDelivery = atResult.deliveries[0];
+      const deliveryStatus = firstDelivery?.status || (atResult.success ? 'Sent' : 'Failed');
 
       return {
-        success: response.ok && (recipientStatus.toLowerCase().includes('success') || recipientStatus.toLowerCase().includes('sent')),
+        success: atResult.success,
         provider: 'africas_talking',
-        messageId: recipients[0]?.messageId || `AT-${Date.now()}`,
-        statusText: `Africa's Talking Gateway: ${recipientStatus} to ${formattedPhone}`,
-        rawResponse: json,
+        messageId: firstDelivery?.messageId || `AT-${Date.now()}`,
+        statusText: `Africa's Talking Gateway: ${deliveryStatus} to ${firstDelivery?.formattedNumber || formattedPhone} (${firstDelivery?.carrier || 'Malawi'})`,
+        rawResponse: atResult.rawResponse,
       };
     } catch (err: any) {
       console.error("Africa's Talking SMS dispatch failed:", err);

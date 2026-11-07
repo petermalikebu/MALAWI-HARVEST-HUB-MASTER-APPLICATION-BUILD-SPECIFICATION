@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+.in_memory_store.json
+data/
+.aistudio/
+

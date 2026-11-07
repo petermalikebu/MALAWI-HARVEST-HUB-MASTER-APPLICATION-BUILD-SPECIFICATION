@@ -588,59 +588,6 @@ export const SignInView: React.FC<SignInViewProps> = ({
               </svg>
               <span>Sign In with Google</span>
             </button>
-
-            {/* Quick Demo Credentials for Fast Testing */}
-            <div className="pt-3 border-t border-stone-100">
-              <p className="text-[11px] font-bold text-stone-500 mb-2">
-                Quick Demonstration Accounts:
-              </p>
-              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('petermalikebujr@gmail.com');
-                    setLoginPassword('P1qe2wt3ee4rr5t?');
-                  }}
-                  className="p-1.5 text-left rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 transition-colors"
-                >
-                  <div className="font-bold">Super Admin</div>
-                  <div className="text-[10px] text-purple-700 truncate">Peter Malikebu</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('hastings.banda@mberalink.mw');
-                    setLoginPassword('P1qe2wt3ee4rr5t?');
-                  }}
-                  className="p-1.5 text-left rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 transition-colors"
-                >
-                  <div className="font-bold">District Agent</div>
-                  <div className="text-[10px] text-emerald-700 truncate">Hastings (Zomba)</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('alinafe.phiri@farmer.mw');
-                    setLoginPassword('P1qe2wt3ee4rr5t?');
-                  }}
-                  className="p-1.5 text-left rounded-lg bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-800 transition-colors"
-                >
-                  <div className="font-bold">Smallholder Farmer</div>
-                  <div className="text-[10px] text-stone-500 truncate">Alinafe Phiri</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('mount.mulanje.haulage@transporter.mw');
-                    setLoginPassword('P1qe2wt3ee4rr5t?');
-                  }}
-                  className="p-1.5 text-left rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 transition-colors"
-                >
-                  <div className="font-bold">Transporter</div>
-                  <div className="text-[10px] text-blue-700 truncate">Mulanje Haulage</div>
-                </button>
-              </div>
-            </div>
           </form>
         )}
 
