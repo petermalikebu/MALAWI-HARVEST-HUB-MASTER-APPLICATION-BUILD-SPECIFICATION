@@ -4,7 +4,7 @@
  * via Africa's Talking (Malawi/Pan-Africa), Twilio, or Malawian Telecom Webhook.
  */
 
-import { africasTalkingService } from './africasTalkingService';
+import { africasTalkingService } from './africasTalkingService.ts';
 
 export interface SmsGatewayResult {
   success: boolean;
