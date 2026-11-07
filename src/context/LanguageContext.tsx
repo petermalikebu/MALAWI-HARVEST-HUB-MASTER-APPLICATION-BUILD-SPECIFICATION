@@ -96,6 +96,8 @@ export const translations: Record<Language, Record<string, string>> = {
     role_transporter: 'Freight Transporter',
     role_admin: 'Lead Administrator',
     role_finance_admin: 'Finance Administrator',
+    role_agent: 'District Agricultural Agent',
+    nav_agent_workspace: 'District Agent Workspace',
 
     // Marketplace & Orders
     market_search_placeholder: 'Search produce (e.g., White Maize, Soya, Chalimbana, Rice, Beans)...',
@@ -260,6 +262,8 @@ export const translations: Record<Language, Record<string, string>> = {
     role_transporter: 'Woyendetsa Galimoto ya Katundu',
     role_admin: 'Mtsogoleri Wamkulu wa Dongosolo',
     role_finance_admin: 'Mtsogoleri wa Zachuma',
+    role_agent: 'Wothandizira m’Boma (Agent)',
+    nav_agent_workspace: 'Ofesi ya Agent m’Boma',
 
     // Marketplace & Orders
     market_search_placeholder: 'Sakani zokolola (monga Chimanga, Soya, Chalimbana, Mpunga, Nyemba)...',

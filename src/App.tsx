@@ -19,6 +19,7 @@ import { SupportQueriesDesk } from './components/support/SupportQueriesDesk.tsx'
 import { AgriIntelligenceView } from './components/intelligence/AgriIntelligenceView.tsx';
 import { RulesAndRegulationsView } from './components/common/RulesAndRegulationsView.tsx';
 import { ContactDetailsView } from './components/common/ContactDetailsView.tsx';
+import { AgentDashboard } from './components/agent/AgentDashboard.tsx';
 import { LanguageProvider, useLanguage } from './context/LanguageContext.tsx';
 import { ShieldAlert } from 'lucide-react';
 
@@ -48,6 +49,9 @@ function MainContent() {
         break;
       case 'finance_admin':
         setActiveTab('finance_revenue');
+        break;
+      case 'agent':
+        setActiveTab('agent_workspace');
         break;
       default:
         setActiveTab('farmer_commodities');
@@ -213,11 +217,14 @@ function MainContent() {
         return <SupportQueriesDesk />;
       case 'agri_intelligence':
         return <AgriIntelligenceView />;
+      case 'agent_workspace':
+        return <AgentDashboard />;
       case 'rules_regulations':
         return <RulesAndRegulationsView onContactClick={() => setActiveTab('contact_details')} />;
       case 'contact_details':
         return <ContactDetailsView onNavigateToRules={() => setActiveTab('rules_regulations')} />;
       default:
+        if (currentUser?.role === 'agent') return <AgentDashboard />;
         return <FarmerDashboard />;
     }
   };

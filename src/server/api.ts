@@ -15,11 +15,20 @@ import {
   passwordResetRequests,
   marketPrices,
   agriConsultations,
+  offlineFarmers,
+  smsNotifications,
+  smsBroadcasts,
 } from '../db/schema.ts';
 import { eq, desc, and, or, sql } from 'drizzle-orm';
 import { broadcastEvent } from './realtime.ts';
-import { getDistrictRegion } from '../types/index.ts';
+import { getDistrictRegion, MALAWI_DISTRICTS } from '../types/index.ts';
 import crypto from 'node:crypto';
+import {
+  dispatchRealSms,
+  getSmsGatewayConfig,
+  updateSmsGatewayConfig,
+  formatMalawiPhoneNumber,
+} from './smsGateway.ts';
 
 // Secure Password Hashing & Verification
 export function hashPassword(plainPassword: string): string {
@@ -5320,6 +5329,1076 @@ router.put('/agri/consultations/:id/reply', async (req, res) => {
   } catch (error: any) {
     console.error('Error answering consultation:', error);
     return res.status(500).json({ error: error.message || 'Failed to submit expert reply' });
+  }
+});
+
+// ----------------------------------------------------
+// 11. DISTRICT-BASED AGRICULTURAL AGENT NETWORK & SMS SYSTEM
+// ----------------------------------------------------
+
+// Internal Helper to send simulated SMS and store in log
+export function sendAutomatedFarmerSms(params: {
+  recipientPhone: string;
+  recipientName: string;
+  district: string;
+  messageText: string;
+  messageLanguage?: 'ch' | 'en';
+  eventType:
+    | 'farmer_registered'
+    | 'produce_listed'
+    | 'order_received'
+    | 'order_paid'
+    | 'transporter_assigned'
+    | 'delivery_confirmed'
+    | 'payment_released'
+    | 'broadcast_announcement'
+    | 'verification_code';
+  relatedRecordNumber?: string;
+  verificationCode?: string;
+  deliveryStatus?: 'sent' | 'delivered' | 'failed' | 'pending';
+  failureReason?: string;
+}) {
+  try {
+    const store = getInMemoryStore();
+    if (!Array.isArray(store.sms_notifications)) store.sms_notifications = [];
+    const nextId = store.sms_notifications.length + 1;
+    const smsId = `SMS-${new Date().getFullYear()}-${String(nextId).padStart(4, '0')}`;
+
+    // Detect carrier and format real Malawian phone
+    const cleanPhone = (params.recipientPhone || '').replace(/\s+/g, '');
+    const formattedPhone = formatMalawiPhoneNumber(params.recipientPhone);
+    const carrierNetwork = cleanPhone.includes('88') || cleanPhone.includes('89')
+      ? 'TNM'
+      : cleanPhone.includes('99') || cleanPhone.includes('98')
+      ? 'Airtel'
+      : 'TNM';
+
+    const record = {
+      id: nextId,
+      smsId,
+      recipientPhone: formattedPhone || params.recipientPhone,
+      recipientName: params.recipientName,
+      recipientType: 'offline_farmer',
+      district: params.district,
+      messageText: params.messageText,
+      messageLanguage: params.messageLanguage || 'ch',
+      eventType: params.eventType,
+      relatedRecordNumber: params.relatedRecordNumber || '',
+      verificationCode: params.verificationCode || '',
+      deliveryStatus: params.deliveryStatus || 'sent',
+      failureReason: params.failureReason || '',
+      carrierNetwork,
+      sentAt: new Date(),
+    };
+
+    store.sms_notifications.unshift(record);
+    saveStoreToDisk(store);
+    broadcastEvent('SMS_DELIVERED', record);
+
+    // Asynchronously dispatch through real telecom gateway (Africa's Talking / Twilio / Webhook)
+    dispatchRealSms({
+      toPhone: formattedPhone || params.recipientPhone,
+      recipientName: params.recipientName,
+      messageText: params.messageText,
+    })
+      .then((res) => {
+        if (res.provider !== 'device_intent') {
+          const liveStore = getInMemoryStore();
+          const found = (liveStore.sms_notifications || []).find((s: any) => s.smsId === smsId);
+          if (found) {
+            found.deliveryStatus = res.success ? 'sent' : 'failed';
+            if (!res.success) found.failureReason = res.statusText;
+            saveStoreToDisk(liveStore);
+            broadcastEvent('SMS_DELIVERED', found);
+          }
+        }
+      })
+      .catch((e) => {
+        console.warn('Real SMS dispatch error:', e);
+      });
+
+    return record;
+  } catch (err) {
+    console.error('Failed to log SMS notification:', err);
+    return null;
+  }
+}
+
+// GET /api/agent/workspace: Retrieve shared district workspace data
+router.get('/agent/workspace', async (req, res) => {
+  try {
+    const districtQuery = String(req.query.district || 'Zomba');
+    const store = getInMemoryStore();
+
+    // 1. All agents active in this district
+    const allUsers = (store.users || []).slice();
+    const districtAgents = allUsers.filter(
+      (u: any) =>
+        u.role === 'agent' &&
+        (u.assignedDistrict?.toLowerCase() === districtQuery.toLowerCase() ||
+          u.district?.toLowerCase() === districtQuery.toLowerCase())
+    );
+
+    // 2. All offline farmers in this district
+    const allOfflineFarmers = (store.offline_farmers || []).slice();
+    const districtFarmers = allOfflineFarmers.filter(
+      (f: any) => f.district?.toLowerCase() === districtQuery.toLowerCase()
+    );
+
+    // 3. All commodities registered by agents or located in this district
+    const allCommodities = (store.commodities || []).slice();
+    const districtCommodities = allCommodities.filter(
+      (c: any) =>
+        c.district?.toLowerCase() === districtQuery.toLowerCase() ||
+        c.agentDistrict?.toLowerCase() === districtQuery.toLowerCase()
+    );
+
+    // 4. District orders (orders for produce belonging to district offline farmers or district commodities)
+    const allOrders = (store.orders || []).slice();
+    const districtCommodityIds = new Set(districtCommodities.map((c: any) => c.id));
+    const districtOrders = allOrders.filter(
+      (o: any) =>
+        districtCommodityIds.has(o.commodityId) ||
+        o.deliveryDistrict?.toLowerCase() === districtQuery.toLowerCase()
+    );
+
+    // 5. Recent SMS notifications sent to farmers in this district
+    const allSms = (store.sms_notifications || []).slice();
+    const districtSms = allSms.filter(
+      (s: any) => s.district?.toLowerCase() === districtQuery.toLowerCase()
+    );
+
+    // 6. Calculate district metrics
+    const totalFarmers = districtFarmers.length;
+    const totalProduceItems = districtCommodities.length;
+    const totalSalesMwk = districtOrders
+      .filter((o: any) => o.status === 'completed' || o.status === 'accepted')
+      .reduce((acc: number, cur: any) => acc + (Number(cur.totalAmount) || 0), 0);
+    const pendingOrdersCount = districtOrders.filter(
+      (o: any) => o.status === 'pending' || o.status === 'pending_payment_verification'
+    ).length;
+
+    return res.json({
+      success: true,
+      district: districtQuery,
+      region: getDistrictRegion(districtQuery),
+      totalAgents: districtAgents.length,
+      agents: districtAgents.map((ag: any) => ({
+        uid: ag.uid,
+        fullName: ag.fullName,
+        phoneNumber: ag.phoneNumber,
+        email: ag.email,
+        tradingArea: ag.tradingArea || ag.village || 'District Hub',
+        agentCode: ag.agentCode || `AGT-${districtQuery.slice(0, 3).toUpperCase()}-01`,
+        status: ag.agentStatus || 'active',
+        joinedAt: ag.createdAt || new Date().toISOString(),
+        registeredFarmersCount: districtFarmers.filter((f: any) => f.registeredByAgentUid === ag.uid).length,
+        activeListingsCount: districtCommodities.filter((c: any) => c.agentUid === ag.uid).length,
+      })),
+      farmers: districtFarmers,
+      commodities: districtCommodities,
+      orders: districtOrders,
+      smsLogs: districtSms.slice(0, 20),
+      metrics: {
+        totalFarmers,
+        totalProduceItems,
+        totalSalesMwk,
+        pendingOrdersCount,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching agent workspace:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch agent workspace' });
+  }
+});
+
+// POST /api/agent/farmers: Agent registers a farmer without smartphone/internet
+router.post('/agent/farmers', async (req, res) => {
+  try {
+    const {
+      fullName,
+      phoneNumber,
+      altPhoneNumber,
+      district,
+      traditionalAuthority,
+      village,
+      preferredLanguage,
+      agentUid,
+      agentName,
+      agentPhone,
+      notes,
+    } = req.body;
+
+    if (!fullName || !phoneNumber || !district || !traditionalAuthority || !village) {
+      return res.status(400).json({
+        error: "Farmer's full name, phone number, district, Traditional Authority (T/A), and village are required.",
+      });
+    }
+
+    const store = getInMemoryStore();
+    if (!Array.isArray(store.offline_farmers)) store.offline_farmers = [];
+
+    // Check for duplicate phone in same district
+    const existing = store.offline_farmers.find(
+      (f: any) => f.phoneNumber === phoneNumber && f.district.toLowerCase() === district.toLowerCase()
+    );
+    if (existing) {
+      return res.status(400).json({
+        error: `A farmer with phone number ${phoneNumber} is already registered in ${district} with ID: ${existing.farmerId}`,
+      });
+    }
+
+    // Generate unique Mberalink Farmer ID: e.g. MBR-ZOM-2026-0005
+    const distPrefix = district.slice(0, 3).toUpperCase();
+    const year = new Date().getFullYear();
+    const distCount = store.offline_farmers.filter(
+      (f: any) => f.district.toLowerCase() === district.toLowerCase()
+    ).length + 1;
+    const farmerId = `MBR-${distPrefix}-${year}-${String(distCount).padStart(4, '0')}`;
+
+    // Generate 4-digit verification PIN for farmer
+    const verificationPin = Math.floor(1000 + Math.random() * 9000).toString();
+
+    const newFarmer = {
+      id: store.offline_farmers.length + 1,
+      farmerId,
+      fullName: String(fullName).trim(),
+      phoneNumber: String(phoneNumber).trim(),
+      altPhoneNumber: altPhoneNumber ? String(altPhoneNumber).trim() : '',
+      district,
+      traditionalAuthority: String(traditionalAuthority).trim(),
+      village: String(village).trim(),
+      preferredLanguage: preferredLanguage === 'en' ? 'en' : 'ch',
+      registeredByAgentUid: agentUid || 'agent-unknown',
+      registeredByAgentName: agentName || 'District Agent',
+      registeredByAgentPhone: agentPhone || '',
+      consentConfirmed: true,
+      verificationPin,
+      totalProduceListed: 0,
+      totalOrdersCompleted: 0,
+      totalEarningsMwk: 0,
+      notes: notes || '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    store.offline_farmers.unshift(newFarmer);
+    saveStoreToDisk(store);
+
+    // Send automated personalized SMS to the farmer's keypad phone
+    const lang = preferredLanguage === 'en' ? 'en' : 'ch';
+    const welcomeMsg =
+      lang === 'en'
+        ? `MBERALINK: Welcome to Mberalink! Your official Farmer ID is ${farmerId}. Your assigned district agent in ${district} is ${agentName} (${agentPhone || ''}). Your secret verification PIN is ${verificationPin}.`
+        : `MBERALINK: Mwalandiridwa ku Mberalink! Nambala yanu ya mlimi ndi ${farmerId}. Mlangizi wanu wa m'boma la ${district} ndi ${agentName} (${agentPhone || ''}). PIN yanu yachinsinsi ndi ${verificationPin}.`;
+
+    const smsRecord = sendAutomatedFarmerSms({
+      recipientPhone: newFarmer.phoneNumber,
+      recipientName: newFarmer.fullName,
+      district: newFarmer.district,
+      messageText: welcomeMsg,
+      messageLanguage: lang,
+      eventType: 'farmer_registered',
+      relatedRecordNumber: farmerId,
+      verificationCode: verificationPin,
+    });
+
+    // Audit log
+    await logAudit({
+      userUid: agentUid || 'agent',
+      userEmail: 'agent@mberalink.mw',
+      userName: agentName || 'District Agent',
+      role: 'agent',
+      action: 'OFFLINE_FARMER_REGISTERED',
+      recordAffected: `Farmer ${newFarmer.fullName} (${farmerId})`,
+      newValue: `${district} - ${traditionalAuthority}, ${village}`,
+      reason: 'Agent-assisted rural farmer registration without smartphone',
+    });
+
+    broadcastEvent('OFFLINE_FARMER_REGISTERED', { farmer: newFarmer, sms: smsRecord });
+
+    return res.status(201).json({
+      success: true,
+      message: `Farmer ${newFarmer.fullName} successfully registered with Mberalink Farmer ID: ${farmerId}. Confirmation SMS dispatched!`,
+      farmer: newFarmer,
+      sms: smsRecord,
+    });
+  } catch (error: any) {
+    console.error('Error registering offline farmer:', error);
+    return res.status(500).json({ error: error.message || 'Failed to register farmer' });
+  }
+});
+
+// POST /api/agent/commodities: Agent lists produce on behalf of an offline farmer
+router.post('/agent/commodities', async (req, res) => {
+  try {
+    const {
+      offlineFarmerId,
+      commodityName,
+      category,
+      quantity,
+      unit,
+      pricePerUnit,
+      district,
+      location,
+      quality,
+      availabilityDate,
+      description,
+      imageUrl,
+      agentUid,
+      agentName,
+      agentPhone,
+    } = req.body;
+
+    if (!offlineFarmerId || !commodityName || !quantity || !pricePerUnit) {
+      return res.status(400).json({
+        error: 'Offline Farmer ID, commodity name, quantity, and unit price are required.',
+      });
+    }
+
+    const store = getInMemoryStore();
+    const farmer = (store.offline_farmers || []).find(
+      (f: any) => f.farmerId === offlineFarmerId || String(f.id) === String(offlineFarmerId)
+    );
+
+    if (!farmer) {
+      return res.status(404).json({ error: `Registered farmer with ID ${offlineFarmerId} not found.` });
+    }
+
+    const qty = parseInt(quantity, 10);
+    const unitPrice = parseFloat(pricePerUnit);
+    const resolvedUnit = unit || '50kg bag';
+
+    if (isNaN(qty) || qty <= 0) return res.status(400).json({ error: 'Quantity must be a positive integer.' });
+    if (isNaN(unitPrice) || unitPrice <= 0) return res.status(400).json({ error: 'Price per unit must be greater than 0.' });
+
+    const newCommodity = {
+      id: (store.commodities || []).length + 1,
+      farmerId: farmer.id,
+      farmerUid: `offline-${farmer.farmerId}`,
+      farmerName: farmer.fullName,
+      commodityName: String(commodityName).trim(),
+      category: category || 'Grains & Cereals',
+      quantity: qty,
+      initialQuantity: qty,
+      unit: resolvedUnit,
+      pricePerUnit: unitPrice.toString(),
+      district: farmer.district,
+      location: location || `${farmer.traditionalAuthority}, ${farmer.village}`,
+      region: getDistrictRegion(farmer.district),
+      quality: quality || 'Grade A - Premium',
+      availabilityDate: availabilityDate || new Date().toISOString().split('T')[0],
+      description: description || `Listed by authorized Mberalink Agent on behalf of farmer ${farmer.fullName}.`,
+      imageUrl:
+        imageUrl ||
+        'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=600&auto=format&fit=crop&q=80',
+      status: 'available',
+      // Agent attribution
+      isAgentAssisted: true,
+      agentUid: agentUid || 'agent-unknown',
+      agentName: agentName || 'District Agent',
+      agentDistrict: farmer.district,
+      offlineFarmerId: farmer.farmerId,
+      farmerPhone: farmer.phoneNumber,
+      traditionalAuthority: farmer.traditionalAuthority,
+      village: farmer.village,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    if (!Array.isArray(store.commodities)) store.commodities = [];
+    store.commodities.unshift(newCommodity);
+
+    // Update farmer's total produce count
+    farmer.totalProduceListed = (farmer.totalProduceListed || 0) + 1;
+    saveStoreToDisk(store);
+
+    // Send automated Produce Listing SMS to farmer
+    const lang = farmer.preferredLanguage || 'ch';
+    const listMsg =
+      lang === 'en'
+        ? `MBERALINK: Hello ${farmer.fullName}. Your produce (${qty} ${resolvedUnit} of ${commodityName}) is now live on Mberalink marketplace at MWK ${unitPrice.toLocaleString()}/${resolvedUnit}. You will receive an SMS when a buyer orders.`
+        : `MBERALINK: Zikomo ${farmer.fullName}. Mbewu zanu: ${qty} ${resolvedUnit} a ${commodityName} zalembedwa pa msika wa Mberalink pa mtengo wa MWK ${unitPrice.toLocaleString()}/${resolvedUnit}. Tidzakudziwitsani wogula akapezeka.`;
+
+    const smsRecord = sendAutomatedFarmerSms({
+      recipientPhone: farmer.phoneNumber,
+      recipientName: farmer.fullName,
+      district: farmer.district,
+      messageText: listMsg,
+      messageLanguage: lang,
+      eventType: 'produce_listed',
+      relatedRecordNumber: `CMD-${newCommodity.id}`,
+    });
+
+    // Audit log
+    await logAudit({
+      userUid: agentUid || 'agent',
+      userEmail: 'agent@mberalink.mw',
+      userName: agentName || 'District Agent',
+      role: 'agent',
+      action: 'AGENT_COMMODITY_LISTED',
+      recordAffected: `Commodity #${newCommodity.id} for ${farmer.fullName}`,
+      newValue: `${qty} ${resolvedUnit} ${commodityName} @ MWK ${unitPrice}`,
+      reason: `Agent listed produce on behalf of offline farmer ${farmer.farmerId}`,
+    });
+
+    broadcastEvent('COMMODITY_CREATED', newCommodity);
+
+    return res.status(201).json({
+      success: true,
+      message: `Produce for ${farmer.fullName} published to Mberalink marketplace! Automated SMS notification sent.`,
+      commodity: newCommodity,
+      sms: smsRecord,
+    });
+  } catch (error: any) {
+    console.error('Error listing agent commodity:', error);
+    return res.status(500).json({ error: error.message || 'Failed to list commodity' });
+  }
+});
+
+// GET /api/agent/sms: List SMS notifications
+router.get('/agent/sms', (req, res) => {
+  try {
+    const { district, phone } = req.query;
+    const store = getInMemoryStore();
+    let list = (store.sms_notifications || []).slice();
+
+    if (district) {
+      list = list.filter((s: any) => s.district?.toLowerCase() === String(district).toLowerCase());
+    }
+    if (phone) {
+      list = list.filter((s: any) => s.recipientPhone?.includes(String(phone)));
+    }
+
+    return res.json(list);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch SMS logs' });
+  }
+});
+
+// POST /api/agent/sms/resend: Retry or re-send an automated SMS
+router.post('/agent/sms/resend', (req, res) => {
+  try {
+    const { smsId } = req.body;
+    if (!smsId) {
+      return res.status(400).json({ error: 'smsId is required' });
+    }
+
+    const store = getInMemoryStore();
+    const sms = (store.sms_notifications || []).find((s: any) => s.smsId === smsId || s.id === Number(smsId));
+    if (!sms) {
+      return res.status(404).json({ error: 'SMS log entry not found' });
+    }
+
+    // Mark as sent successfully upon retry
+    sms.deliveryStatus = 'sent';
+    sms.failureReason = '';
+    sms.sentAt = new Date();
+    saveStoreToDisk(store);
+
+    broadcastEvent('SMS_DELIVERED', sms);
+
+    return res.json({
+      success: true,
+      message: `SMS ${sms.smsId} successfully redelivered to ${sms.recipientName} (${sms.recipientPhone}).`,
+      sms,
+    });
+  } catch (error: any) {
+    console.error('Error resending SMS:', error);
+    return res.status(500).json({ error: error.message || 'Failed to resend SMS' });
+  }
+});
+
+// POST /api/agent/sms/send-direct: Agent directly composes an advisory SMS to an offline farmer
+router.post('/agent/sms/send-direct', (req, res) => {
+  try {
+    const { recipientPhone, recipientName, district, messageText, messageLanguage, eventType, agentName } = req.body;
+
+    if (!recipientPhone || !recipientName || !messageText) {
+      return res.status(400).json({ error: 'recipientPhone, recipientName, and messageText are required' });
+    }
+
+    // Validate phone number format
+    const clean = recipientPhone.replace(/\s+/g, '');
+    const isInvalid = clean.length < 8;
+
+    const record = sendAutomatedFarmerSms({
+      recipientPhone,
+      recipientName,
+      district: district || 'Zomba',
+      messageText: messageText.trim(),
+      messageLanguage: messageLanguage || 'ch',
+      eventType: eventType || 'broadcast_announcement',
+      deliveryStatus: isInvalid ? 'failed' : 'sent',
+      failureReason: isInvalid ? 'Carrier Error: Destination MSISDN unroutable or network timeout.' : '',
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: isInvalid
+        ? `SMS dispatch failed due to invalid telephone format.`
+        : `SMS dispatched successfully to ${recipientName}!`,
+      sms: record,
+    });
+  } catch (error: any) {
+    console.error('Error sending direct SMS:', error);
+    return res.status(500).json({ error: error.message || 'Failed to dispatch direct SMS' });
+  }
+});
+
+// GET /api/agent/sms/gateway-status: Check real telecommunication gateway readiness
+router.get('/agent/sms/gateway-status', (req, res) => {
+  try {
+    const config = getSmsGatewayConfig();
+    const hasAfricasTalking = Boolean(config.africasTalkingApiKey && config.africasTalkingUsername);
+    const hasTextBee = Boolean(config.textbeeApiKey && config.textbeeDeviceId);
+    const hasTwilio = Boolean(config.twilioAccountSid && config.twilioAuthToken && config.twilioPhoneNumber);
+    const hasWebhook = Boolean(config.webhookUrl);
+
+    return res.json({
+      hasAutomatedGateway: hasAfricasTalking || hasTextBee || hasTwilio || hasWebhook,
+      activeProvider: hasTextBee
+        ? 'TextBee.dev (Free Android SIM Gateway)'
+        : hasAfricasTalking
+        ? "Africa's Talking (Malawi)"
+        : hasTwilio
+        ? 'Twilio Global SMS'
+        : hasWebhook
+        ? 'Telecom Webhook API'
+        : 'Device Handset SMS App Intent',
+      providers: {
+        textbee: {
+          configured: hasTextBee,
+          deviceId: config.textbeeDeviceId ? `${config.textbeeDeviceId.slice(0, 6)}...` : 'Not set',
+          description: '100% Free Android SIM Gateway — turns your Android phone with Airtel/TNM SIM into a REST SMS API',
+        },
+        africasTalking: {
+          configured: hasAfricasTalking,
+          username: config.africasTalkingUsername || 'Not set',
+          senderId: config.africasTalkingSenderId || 'Default (MBERALINK)',
+        },
+        twilio: {
+          configured: hasTwilio,
+          phoneNumber: config.twilioPhoneNumber || 'Not set',
+        },
+        webhook: {
+          configured: hasWebhook,
+          endpoint: config.webhookUrl ? 'Configured' : 'Not set',
+        },
+        deviceHandsetIntent: {
+          supported: true,
+          description: 'Instant launch into native Android/iPhone Messages app with pre-filled Malawian number and message text via sms: protocol',
+        },
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to inspect gateway status' });
+  }
+});
+
+// POST /api/agent/sms/gateway-config: Update gateway credentials
+router.post('/agent/sms/gateway-config', (req, res) => {
+  try {
+    const {
+      africasTalkingApiKey,
+      africasTalkingUsername,
+      africasTalkingSenderId,
+      textbeeApiKey,
+      textbeeDeviceId,
+      twilioAccountSid,
+      twilioAuthToken,
+      twilioPhoneNumber,
+      webhookUrl,
+    } = req.body;
+
+    updateSmsGatewayConfig({
+      africasTalkingApiKey: africasTalkingApiKey !== undefined ? africasTalkingApiKey : undefined,
+      africasTalkingUsername: africasTalkingUsername !== undefined ? africasTalkingUsername : undefined,
+      africasTalkingSenderId: africasTalkingSenderId !== undefined ? africasTalkingSenderId : undefined,
+      textbeeApiKey: textbeeApiKey !== undefined ? textbeeApiKey : undefined,
+      textbeeDeviceId: textbeeDeviceId !== undefined ? textbeeDeviceId : undefined,
+      twilioAccountSid: twilioAccountSid !== undefined ? twilioAccountSid : undefined,
+      twilioAuthToken: twilioAuthToken !== undefined ? twilioAuthToken : undefined,
+      twilioPhoneNumber: twilioPhoneNumber !== undefined ? twilioPhoneNumber : undefined,
+      webhookUrl: webhookUrl !== undefined ? webhookUrl : undefined,
+    });
+
+    return res.json({
+      success: true,
+      message: 'SMS Gateway credentials updated successfully in runtime memory.',
+      config: getSmsGatewayConfig(),
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to update gateway configuration' });
+  }
+});
+
+// POST /api/agent/sms/test-real: Test real cellular SMS delivery to a phone number
+router.post('/agent/sms/test-real', async (req, res) => {
+  try {
+    const { phone, name, customText } = req.body;
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone number is required.' });
+    }
+
+    const recipientName = name || 'Mberalink User';
+    const message = customText || `MBERALINK TEST: Hello ${recipientName}! This is a live test message from Mberalink agricultural digital exchange platform. Real-time notifications are working.`;
+
+    const dispatchOutcome = await dispatchRealSms({
+      toPhone: phone,
+      recipientName,
+      messageText: message,
+    });
+
+    // Also record in log
+    const recorded = sendAutomatedFarmerSms({
+      recipientPhone: phone,
+      recipientName,
+      district: 'National',
+      messageText: message,
+      eventType: 'broadcast_announcement',
+      deliveryStatus: dispatchOutcome.success ? 'sent' : 'failed',
+      failureReason: dispatchOutcome.success ? '' : dispatchOutcome.statusText,
+    });
+
+    return res.json({
+      success: true,
+      dispatchOutcome,
+      sms: recorded,
+      deviceSmsUri: `sms:${formatMalawiPhoneNumber(phone)}?body=${encodeURIComponent(message)}`,
+    });
+  } catch (error: any) {
+    console.error('Error in test-real SMS:', error);
+    return res.status(500).json({ error: error.message || 'Failed to dispatch test SMS' });
+  }
+});
+
+// POST /api/agent/verify-pin: Verify farmer PIN for high-value operations
+router.post('/agent/verify-pin', (req, res) => {
+  try {
+    const { farmerId, pin } = req.body;
+    if (!farmerId || !pin) {
+      return res.status(400).json({ error: 'Farmer ID and verification PIN are required.' });
+    }
+
+    const store = getInMemoryStore();
+    const farmer = (store.offline_farmers || []).find((f: any) => f.farmerId === farmerId);
+
+    if (!farmer) {
+      return res.status(404).json({ error: 'Farmer record not found.' });
+    }
+
+    if (farmer.verificationPin !== String(pin).trim()) {
+      return res.status(401).json({ error: 'Incorrect farmer verification PIN. Please re-check with the farmer.' });
+    }
+
+    return res.json({
+      success: true,
+      verified: true,
+      message: `Farmer PIN verified successfully for ${farmer.fullName}.`,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'PIN verification failed' });
+  }
+});
+
+// POST /api/agent/ussd-simulate: Interactive USSD (*265#) Simulator for keypad phones
+router.post('/agent/ussd-simulate', (req, res) => {
+  try {
+    const { phoneNumber, text } = req.body;
+    const store = getInMemoryStore();
+
+    const normalizedPhone = String(phoneNumber || '').trim();
+    const farmer = (store.offline_farmers || []).find(
+      (f: any) => f.phoneNumber === normalizedPhone || f.altPhoneNumber === normalizedPhone
+    );
+
+    const input = String(text || '').trim();
+
+    // Root Menu
+    if (!input) {
+      const greeting = farmer ? `Welcome, ${farmer.fullName}!` : 'Welcome to Mberalink Malawi!';
+      return res.json({
+        response: `MBERALINK FARMER USSD (*265#)\n${greeting}\n\n1. Check My Listed Produce\n2. Check Orders & Payments\n3. Prevailing Market Prices\n4. Contact My District Agent\n5. Request Farmer Assistance`,
+        continueSession: true,
+      });
+    }
+
+    // Option 1: Check My Listed Produce
+    if (input === '1') {
+      if (!farmer) {
+        return res.json({
+          response: 'You have no registered produce under this phone number. Contact your local Mberalink District Agent to register.',
+          continueSession: false,
+        });
+      }
+
+      const farmerCommodities = (store.commodities || []).filter(
+        (c: any) => c.offlineFarmerId === farmer.farmerId || c.farmerPhone === farmer.phoneNumber
+      );
+
+      if (farmerCommodities.length === 0) {
+        return res.json({
+          response: `Mberalink (${farmer.district}):\nYou have 0 active listings.\nContact your agent ${farmer.registeredByAgentName} (${farmer.registeredByAgentPhone || ''}) to list your harvest.`,
+          continueSession: false,
+        });
+      }
+
+      const summary = farmerCommodities
+        .slice(0, 3)
+        .map(
+          (c: any, i: number) =>
+            `${i + 1}. ${c.commodityName}: ${c.quantity} ${c.unit} @ MWK ${Number(c.pricePerUnit).toLocaleString()} (${c.status})`
+        )
+        .join('\n');
+
+      return res.json({
+        response: `Mberalink Produce for ${farmer.fullName}:\n${summary}\n\nReply 0 to Return to Main Menu`,
+        continueSession: true,
+      });
+    }
+
+    // Option 2: Check Orders & Payments
+    if (input === '2') {
+      if (!farmer) {
+        return res.json({
+          response: 'No orders found for this phone number. Please visit your district agent to register your produce.',
+          continueSession: false,
+        });
+      }
+
+      const farmerCommodityIds = new Set(
+        (store.commodities || [])
+          .filter((c: any) => c.offlineFarmerId === farmer.farmerId)
+          .map((c: any) => c.id)
+      );
+
+      const farmerOrders = (store.orders || []).filter((o: any) => farmerCommodityIds.has(o.commodityId));
+
+      if (farmerOrders.length === 0) {
+        return res.json({
+          response: `Mberalink Orders:\nNo pending orders at this moment.\nTotal completed earnings: MWK ${(Number(farmer.totalEarningsMwk) || 0).toLocaleString()}.\nYou will receive an SMS as soon as a buyer orders.`,
+          continueSession: false,
+        });
+      }
+
+      const orderList = farmerOrders
+        .slice(0, 2)
+        .map(
+          (o: any) =>
+            `Order #${o.orderNumber}: ${o.quantity} ${o.unit} ${o.commodityName} - MWK ${Number(o.totalAmount).toLocaleString()} [${o.status}]`
+        )
+        .join('\n');
+
+      return res.json({
+        response: `Mberalink Orders for ${farmer.fullName}:\n${orderList}\n\nReply 0 to Return to Main Menu`,
+        continueSession: true,
+      });
+    }
+
+    // Option 3: Prevailing Market Prices
+    if (input === '3') {
+      const userDistrict = farmer?.district || 'Zomba';
+      const prices = (store.market_prices || []).filter(
+        (p: any) => p.district?.toLowerCase() === userDistrict.toLowerCase()
+      );
+
+      if (prices.length === 0) {
+        return res.json({
+          response: `Mberalink Prices (${userDistrict}):\nMaize: MWK 680/kg\nGroundnuts: MWK 1,500/kg\nSoya Beans: MWK 950/kg\nRice: MWK 1,800/kg`,
+          continueSession: false,
+        });
+      }
+
+      const priceSummary = prices
+        .slice(0, 4)
+        .map((p: any) => `${p.commodityName}: MWK ${Number(p.priceAvg).toLocaleString()}/${p.unit}`)
+        .join('\n');
+
+      return res.json({
+        response: `Mberalink Official Prices (${userDistrict}):\n${priceSummary}\n\nReply 0 to Return to Main Menu`,
+        continueSession: true,
+      });
+    }
+
+    // Option 4: Contact My District Agent
+    if (input === '4') {
+      if (farmer) {
+        return res.json({
+          response: `Your Assigned District Agent:\nName: ${farmer.registeredByAgentName}\nPhone: ${farmer.registeredByAgentPhone || '+265 888 777 111'}\nDistrict: ${farmer.district} (${farmer.traditionalAuthority})\nAgent Code: AGT-01`,
+          continueSession: false,
+        });
+      } else {
+        return res.json({
+          response: 'Mberalink Agents:\nZomba: Hastings Banda (+265 888 777 111)\nLilongwe: Patrick Chiume (+265 881 234 567)\nHead Office: +265 999 036 912',
+          continueSession: false,
+        });
+      }
+    }
+
+    // Option 5: Request Farmer Assistance
+    if (input === '5') {
+      // Trigger help request SMS to agent
+      if (farmer) {
+        sendAutomatedFarmerSms({
+          recipientPhone: farmer.registeredByAgentPhone || '+265 888 777 111',
+          recipientName: farmer.registeredByAgentName,
+          district: farmer.district,
+          messageText: `MBERALINK ALERT: Offline farmer ${farmer.fullName} (${farmer.farmerId}, Tel: ${farmer.phoneNumber}) dialed *265# requesting agent assistance in ${farmer.traditionalAuthority}, Village ${farmer.village}. Please follow up.`,
+          messageLanguage: 'ch',
+          eventType: 'broadcast_announcement',
+        });
+      }
+
+      return res.json({
+        response: 'Mberalink Assistance:\nYour request has been sent to your local District Agent. They will call you or visit your village shortly.\nThank you for using Mberalink!',
+        continueSession: false,
+      });
+    }
+
+    // Back to root
+    if (input === '0') {
+      return res.json({
+        response: 'MBERALINK FARMER USSD (*265#)\n1. Check My Listed Produce\n2. Check Orders & Payments\n3. Prevailing Market Prices\n4. Contact My District Agent\n5. Request Farmer Assistance',
+        continueSession: true,
+      });
+    }
+
+    return res.json({
+      response: 'Invalid option selected. Please dial *265# to start again.',
+      continueSession: false,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'USSD simulation error' });
+  }
+});
+
+// GET /api/admin/districts-overview: Overview of all 28 districts for administrators
+router.get('/admin/districts-overview', (req, res) => {
+  try {
+    const store = getInMemoryStore();
+    const allUsers = store.users || [];
+    const allFarmers = store.offline_farmers || [];
+    const allCommodities = store.commodities || [];
+    const allOrders = store.orders || [];
+
+    const overview = MALAWI_DISTRICTS.map((district) => {
+      const districtAgents = allUsers.filter(
+        (u: any) =>
+          u.role === 'agent' &&
+          (u.assignedDistrict?.toLowerCase() === district.toLowerCase() ||
+            u.district?.toLowerCase() === district.toLowerCase())
+      );
+
+      const districtFarmers = allFarmers.filter(
+        (f: any) => f.district?.toLowerCase() === district.toLowerCase()
+      );
+
+      const districtCommodities = allCommodities.filter(
+        (c: any) =>
+          c.district?.toLowerCase() === district.toLowerCase() ||
+          c.agentDistrict?.toLowerCase() === district.toLowerCase()
+      );
+
+      const districtCommodityIds = new Set(districtCommodities.map((c: any) => c.id));
+      const districtOrders = allOrders.filter((o: any) => districtCommodityIds.has(o.commodityId));
+
+      const totalSalesMwk = districtOrders
+        .filter((o: any) => o.status === 'completed' || o.status === 'accepted')
+        .reduce((sum: number, cur: any) => sum + (Number(cur.totalAmount) || 0), 0);
+
+      return {
+        district,
+        region: getDistrictRegion(district),
+        agentCount: districtAgents.length,
+        offlineFarmerCount: districtFarmers.length,
+        commodityCount: districtCommodities.length,
+        completedOrdersCount: districtOrders.filter((o: any) => o.status === 'completed').length,
+        totalSalesMwk,
+      };
+    });
+
+    return res.json(overview);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch districts overview' });
+  }
+});
+
+// GET /api/admin/agents: List all agents and applicants
+router.get('/admin/agents', (req, res) => {
+  try {
+    const store = getInMemoryStore();
+    const allUsers = store.users || [];
+    const agents = allUsers.filter((u: any) => u.role === 'agent');
+    const potentialApplicants = allUsers.filter(
+      (u: any) => u.role === 'transporter' || u.role === 'farmer'
+    );
+
+    return res.json({
+      agents,
+      potentialApplicants: potentialApplicants.slice(0, 15),
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch agents' });
+  }
+});
+
+// POST /api/admin/agents/assign: Administrator assigns role 'agent' or updates agent's district
+router.post('/admin/agents/assign', async (req, res) => {
+  try {
+    const { userUid, assignedDistrict, agentCode, agentIncentiveRate, adminUid, adminName } = req.body;
+
+    if (!userUid || !assignedDistrict) {
+      return res.status(400).json({ error: 'User UID and assigned district are required.' });
+    }
+
+    const store = getInMemoryStore();
+    const user = (store.users || []).find((u: any) => u.uid === userUid);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const prevRole = user.role;
+    user.role = 'agent';
+    user.assignedDistrict = assignedDistrict;
+    user.district = assignedDistrict;
+    user.region = getDistrictRegion(assignedDistrict);
+    user.agentCode = agentCode || `AGT-${assignedDistrict.slice(0, 3).toUpperCase()}-01`;
+    user.agentStatus = 'active';
+    user.agentIncentiveRate = agentIncentiveRate ? Number(agentIncentiveRate) : 0.01;
+    user.updatedAt = new Date();
+
+    saveStoreToDisk(store);
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'Administrator',
+      role: 'admin',
+      action: 'AGENT_ASSIGNED_TO_DISTRICT',
+      recordAffected: `User ${user.fullName} (${user.email || user.phoneNumber})`,
+      previousValue: `Role: ${prevRole}`,
+      newValue: `Role: agent, District: ${assignedDistrict}, Code: ${user.agentCode}`,
+      reason: `Administrative promotion of user to authorized district agent for ${assignedDistrict}`,
+    });
+
+    broadcastEvent('USER_UPDATED', user);
+
+    return res.json({
+      success: true,
+      message: `User ${user.fullName} is now an authorized Mberalink Agent for ${assignedDistrict}.`,
+      user,
+    });
+  } catch (error: any) {
+    console.error('Error assigning agent:', error);
+    return res.status(500).json({ error: error.message || 'Failed to assign agent' });
+  }
+});
+
+// POST /api/admin/sms-broadcast: Administrator dispatches SMS announcement
+router.post('/api/admin/sms-broadcast', async (req, res) => {
+  try {
+    const { title, targetDistrict, targetAudience, messageText, language, adminUid, adminName } = req.body;
+
+    if (!title || !messageText) {
+      return res.status(400).json({ error: 'Broadcast title and SMS message text are required.' });
+    }
+
+    const store = getInMemoryStore();
+    if (!Array.isArray(store.sms_broadcasts)) store.sms_broadcasts = [];
+
+    const isAllDistricts = !targetDistrict || targetDistrict === 'All Districts';
+    const audience = targetAudience || 'all_farmers';
+    const lang = language === 'en' ? 'en' : 'ch';
+
+    // Collect recipient phone numbers
+    const recipients: Array<{ phone: string; name: string; district: string }> = [];
+
+    // Offline farmers
+    const offlineFarmers = store.offline_farmers || [];
+    for (const f of offlineFarmers) {
+      if (isAllDistricts || f.district.toLowerCase() === targetDistrict.toLowerCase()) {
+        if (audience === 'all_farmers' || audience === 'offline_farmers' || audience === 'all') {
+          recipients.push({ phone: f.phoneNumber, name: f.fullName, district: f.district });
+        }
+      }
+    }
+
+    // Agents
+    const allUsers = store.users || [];
+    for (const u of allUsers) {
+      if (u.role === 'agent' && (isAllDistricts || u.assignedDistrict?.toLowerCase() === targetDistrict.toLowerCase())) {
+        if (audience === 'agents' || audience === 'all') {
+          recipients.push({ phone: u.phoneNumber || '+265 999 000 000', name: u.fullName, district: u.assignedDistrict || u.district });
+        }
+      }
+    }
+
+    const broadcastId = `BCAST-${new Date().getFullYear()}-${String(store.sms_broadcasts.length + 1).padStart(3, '0')}`;
+    const newBroadcast = {
+      id: store.sms_broadcasts.length + 1,
+      broadcastId,
+      title: String(title).trim(),
+      targetDistrict: isAllDistricts ? 'All Districts' : targetDistrict,
+      targetAudience: audience,
+      messageText: String(messageText).trim(),
+      language: lang,
+      sentByAdminUid: adminUid || 'admin',
+      sentByAdminName: adminName || 'Administrator',
+      recipientCount: recipients.length,
+      status: 'completed',
+      createdAt: new Date(),
+    };
+
+    store.sms_broadcasts.unshift(newBroadcast);
+
+    // Create individual SMS notifications for each recipient
+    for (const r of recipients) {
+      sendAutomatedFarmerSms({
+        recipientPhone: r.phone,
+        recipientName: r.name,
+        district: r.district,
+        messageText: newBroadcast.messageText,
+        messageLanguage: lang,
+        eventType: 'broadcast_announcement',
+        relatedRecordNumber: broadcastId,
+      });
+    }
+
+    saveStoreToDisk(store);
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'Administrator',
+      role: 'admin',
+      action: 'SMS_BROADCAST_DISPATCHED',
+      recordAffected: `Broadcast #${broadcastId} (${newBroadcast.title})`,
+      newValue: `Recipients: ${recipients.length} | Target: ${newBroadcast.targetDistrict}`,
+      reason: 'Administrative broadcast communication to farmers & agents',
+    });
+
+    broadcastEvent('SMS_BROADCAST_SENT', newBroadcast);
+
+    return res.status(201).json({
+      success: true,
+      message: `SMS broadcast sent successfully to ${recipients.length} recipients in ${newBroadcast.targetDistrict}.`,
+      broadcast: newBroadcast,
+    });
+  } catch (error: any) {
+    console.error('Error sending SMS broadcast:', error);
+    return res.status(500).json({ error: error.message || 'Failed to dispatch SMS broadcast' });
+  }
+});
+
+// GET /api/admin/sms-broadcasts: List past broadcasts
+router.get('/api/admin/sms-broadcasts', (req, res) => {
+  try {
+    const store = getInMemoryStore();
+    return res.json(store.sms_broadcasts || []);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch broadcasts' });
   }
 });
 

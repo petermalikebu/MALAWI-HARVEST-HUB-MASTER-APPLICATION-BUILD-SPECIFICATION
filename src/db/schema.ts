@@ -60,6 +60,15 @@ export const commodities = pgTable('commodities', {
   description: text('description').default(''),
   imageUrl: text('image_url').default(''),
   status: text('status').notNull().default('available'), // available | reserved | sold_out | cancelled
+  // District Agent Assisted Farmer Fields
+  isAgentAssisted: boolean('is_agent_assisted').notNull().default(false),
+  agentUid: text('agent_uid'),
+  agentName: text('agent_name'),
+  agentDistrict: text('agent_district'),
+  offlineFarmerId: text('offline_farmer_id'),
+  farmerPhone: text('farmer_phone'),
+  traditionalAuthority: text('traditional_authority'),
+  village: text('village'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -333,6 +342,63 @@ export const agriConsultations = pgTable('agri_consultations', {
   answeredAt: timestamp('answered_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// District-Based Offline Farmers (Farmers without smartphones or internet)
+export const offlineFarmers = pgTable('offline_farmers', {
+  id: serial('id').primaryKey(),
+  farmerId: text('farmer_id').notNull().unique(), // e.g. MBR-ZOM-2026-0001
+  fullName: text('full_name').notNull(),
+  phoneNumber: text('phone_number').notNull(),
+  altPhoneNumber: text('alt_phone_number').default(''),
+  district: text('district').notNull(),
+  traditionalAuthority: text('traditional_authority').notNull(), // T/A e.g. T/A Mwambo
+  village: text('village').notNull(),
+  preferredLanguage: text('preferred_language').notNull().default('ch'),
+  registeredByAgentUid: text('registered_by_agent_uid').notNull(),
+  registeredByAgentName: text('registered_by_agent_name').notNull(),
+  registeredByAgentPhone: text('registered_by_agent_phone').default(''),
+  consentConfirmed: boolean('consent_confirmed').notNull().default(true),
+  verificationPin: text('verification_pin').notNull().default('1234'),
+  totalProduceListed: integer('total_produce_listed').default(0),
+  totalOrdersCompleted: integer('total_orders_completed').default(0),
+  totalEarningsMwk: numeric('total_earnings_mwk').default('0'),
+  notes: text('notes').default(''),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Automated Personalized SMS Logs (Delivered to basic keypad phones)
+export const smsNotifications = pgTable('sms_notifications', {
+  id: serial('id').primaryKey(),
+  smsId: text('sms_id').notNull().unique(), // SMS-2026-0001
+  recipientPhone: text('recipient_phone').notNull(),
+  recipientName: text('recipient_name').notNull(),
+  recipientType: text('recipient_type').notNull().default('offline_farmer'), // offline_farmer | agent | all
+  district: text('district').notNull(),
+  messageText: text('message_text').notNull(),
+  messageLanguage: text('message_language').notNull().default('ch'),
+  eventType: text('event_type').notNull(), // farmer_registered | produce_listed | order_received | order_paid | transporter_assigned | delivery_confirmed | payment_released | broadcast_announcement | verification_code
+  relatedRecordNumber: text('related_record_number').default(''),
+  verificationCode: text('verification_code').default(''),
+  deliveryStatus: text('delivery_status').notNull().default('delivered'),
+  sentAt: timestamp('sent_at').defaultNow(),
+});
+
+// Administrator-Controlled SMS Broadcasts
+export const smsBroadcasts = pgTable('sms_broadcasts', {
+  id: serial('id').primaryKey(),
+  broadcastId: text('broadcast_id').notNull().unique(), // BCAST-2026-001
+  title: text('title').notNull(),
+  targetDistrict: text('target_district').notNull().default('All Districts'),
+  targetAudience: text('target_audience').notNull().default('all_farmers'),
+  messageText: text('message_text').notNull(),
+  language: text('language').notNull().default('ch'),
+  sentByAdminUid: text('sent_by_admin_uid').notNull(),
+  sentByAdminName: text('sent_by_admin_name').notNull(),
+  recipientCount: integer('recipient_count').notNull().default(0),
+  status: text('status').notNull().default('completed'),
+  createdAt: timestamp('created_at').defaultNow(),
 });
 
 

@@ -1,4 +1,4 @@
-export type UserRole = 'farmer' | 'buyer' | 'transporter' | 'admin' | 'finance_admin';
+export type UserRole = 'farmer' | 'buyer' | 'transporter' | 'admin' | 'finance_admin' | 'agent';
 
 export interface User {
   id: number;
@@ -13,6 +13,10 @@ export interface User {
   region: string;
   tradingArea?: string;
   village?: string;
+  assignedDistrict?: string; // For Agent: the specific district they operate in
+  agentCode?: string; // e.g. AGT-ZOM-01
+  agentStatus?: 'active' | 'suspended' | 'pending_verification';
+  agentIncentiveRate?: number; // e.g. 0.01 (1%)
   vehicleType?: string;
   vehicleRegistration?: string;
   plateNumber?: string;
@@ -54,6 +58,15 @@ export interface Commodity {
   description?: string;
   imageUrl?: string;
   status: 'available' | 'reserved' | 'sold_out' | 'cancelled';
+  // Agent-Assisted Farmer Fields
+  isAgentAssisted?: boolean;
+  agentUid?: string;
+  agentName?: string;
+  agentDistrict?: string;
+  offlineFarmerId?: string; // e.g. MBR-ZOM-2026-0001
+  farmerPhone?: string; // Phone of keypad farmer for SMS
+  traditionalAuthority?: string;
+  village?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -527,4 +540,95 @@ export interface AgriChatMessage {
   canEscalateToExpert?: boolean;
   timestamp: string;
 }
+
+// ----------------------------------------------------
+// DISTRICT-BASED AGRICULTURAL AGENT NETWORK TYPES
+// ----------------------------------------------------
+
+export interface OfflineFarmer {
+  id: number;
+  farmerId: string; // Unique Mberalink Farmer ID: e.g. MBR-ZOM-2026-0001
+  fullName: string;
+  phoneNumber: string; // For automated SMS notifications
+  altPhoneNumber?: string;
+  district: string;
+  traditionalAuthority: string; // T/A (e.g. T/A Malemia, T/A Mwambo)
+  village: string;
+  preferredLanguage: 'ch' | 'en';
+  registeredByAgentUid: string;
+  registeredByAgentName: string;
+  registeredByAgentPhone?: string;
+  consentConfirmed: boolean;
+  verificationPin: string; // 4-digit code e.g. "4829"
+  totalProduceListed?: number;
+  totalOrdersCompleted?: number;
+  totalEarningsMwk?: number;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SmsNotification {
+  id: number;
+  smsId: string; // SMS-2026-0001
+  recipientPhone: string;
+  recipientName: string;
+  recipientType: 'offline_farmer' | 'agent' | 'all';
+  district: string;
+  messageText: string;
+  messageLanguage: 'ch' | 'en';
+  eventType:
+    | 'farmer_registered'
+    | 'produce_listed'
+    | 'order_received'
+    | 'order_paid'
+    | 'transporter_assigned'
+    | 'delivery_confirmed'
+    | 'payment_released'
+    | 'broadcast_announcement'
+    | 'verification_code';
+  relatedRecordNumber?: string;
+  verificationCode?: string;
+  deliveryStatus: 'sent' | 'delivered' | 'failed' | 'pending';
+  failureReason?: string;
+  carrierNetwork?: 'TNM' | 'Airtel' | 'Other';
+  sentAt: string;
+}
+
+export interface SmsBroadcast {
+  id: number;
+  broadcastId: string;
+  title: string;
+  targetDistrict: string; // 'All Districts' or specific district name
+  targetAudience: 'all_farmers' | 'offline_farmers' | 'agents' | 'all';
+  messageText: string;
+  language: 'ch' | 'en';
+  sentByAdminUid: string;
+  sentByAdminName: string;
+  recipientCount: number;
+  status: 'completed' | 'queued';
+  createdAt: string;
+}
+
+export interface AgentDistrictWorkspace {
+  district: string;
+  region: string;
+  totalAgents: number;
+  agents: Array<{
+    uid: string;
+    fullName: string;
+    phoneNumber?: string;
+    email: string;
+    status: 'active' | 'suspended';
+    joinedAt: string;
+    registeredFarmersCount: number;
+    activeListingsCount: number;
+    completedOrdersCount: number;
+  }>;
+  totalOfflineFarmers: number;
+  totalActiveListings: number;
+  totalSalesVolumeMwk: number;
+  pendingOrdersCount: number;
+}
+
 

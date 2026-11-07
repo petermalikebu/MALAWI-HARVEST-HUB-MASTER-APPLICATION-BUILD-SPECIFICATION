@@ -29,6 +29,7 @@ import {
   Calculator,
   User as UserIcon,
   Phone,
+  Users,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -161,6 +162,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       icon: Coins,
       color: 'text-rose-700 bg-rose-50 border-rose-200',
     },
+    agent: {
+      label: language === 'ch' ? 'Wothandizira m’Boma (Agent)' : 'District Agricultural Agent',
+      icon: Users,
+      color: 'text-emerald-800 bg-emerald-50 border-emerald-300',
+    },
   };
 
   const currentRoleConfig = currentUser?.role ? roleDisplayConfig[currentUser.role] || roleDisplayConfig.farmer : roleDisplayConfig.farmer;
@@ -232,6 +238,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (currentUser.role === 'admin') {
       return [
         { id: 'admin_overview', label: t('nav_control_center'), icon: ShieldCheck, color: 'text-purple-700' },
+        { id: 'agent_workspace', label: language === 'ch' ? 'Ofesi ya Ma-Agent' : 'Agent Workspace', icon: Users, color: 'text-emerald-700' },
         { id: 'finance_revenue', label: t('nav_finance'), icon: Coins, color: 'text-rose-700' },
         { id: 'transactions_table', label: t('nav_transactions'), icon: Package },
         { id: 'rules_regulations', label: language === 'ch' ? 'Malamulo' : 'Rules & Standards', icon: ShieldCheck },
@@ -240,6 +247,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'agri_intelligence', label: t('nav_agri_intel'), icon: Sparkles, badge: 'AI' },
         { id: 'impact_dashboard', label: t('nav_impact'), icon: BarChart3 },
         { id: 'fee_simulator', label: t('nav_fee_simulator'), icon: Calculator },
+      ];
+    }
+
+    if (currentUser.role === 'agent') {
+      return [
+        { id: 'agent_workspace', label: language === 'ch' ? 'Ofesi ya Boma' : 'District Workspace', icon: Users, color: 'text-emerald-800' },
+        { id: 'marketplace', label: t('nav_marketplace'), icon: ShoppingCart },
+        { id: 'transporter_jobs', label: t('nav_hire_transport'), icon: Truck },
+        { id: 'rules_regulations', label: language === 'ch' ? 'Malamulo' : 'Rules & Standards', icon: ShieldCheck },
+        { id: 'contact_details', label: language === 'ch' ? 'Malumikizidwe' : 'Contact Administration', icon: Phone },
+        { id: 'support_queries', label: t('nav_queries_help'), icon: HelpCircle },
+        { id: 'agri_intelligence', label: t('nav_agri_intel'), icon: Sparkles, badge: 'AI' },
       ];
     }
 
@@ -532,6 +551,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span className="text-stone-400">{t('auth_district')}:</span>
                             <span className="font-medium text-stone-800">{currentUser.district}</span>
                           </div>
+                          {currentUser.role === 'agent' && (
+                            <>
+                              <div className="flex justify-between">
+                                <span className="text-emerald-700 font-bold">District Hub:</span>
+                                <span className="font-bold text-emerald-800">{currentUser.assignedDistrict || currentUser.district}</span>
+                              </div>
+                              {currentUser.agentCode && (
+                                <div className="flex justify-between">
+                                  <span className="text-emerald-700 font-bold">Agent ID:</span>
+                                  <span className="font-mono font-bold text-emerald-800">{currentUser.agentCode}</span>
+                                </div>
+                              )}
+                            </>
+                          )}
                         </div>
 
                         {/* Photo Upload Hint */}

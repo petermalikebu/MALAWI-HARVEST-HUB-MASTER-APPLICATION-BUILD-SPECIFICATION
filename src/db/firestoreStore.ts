@@ -41,6 +41,9 @@ export const COLLECTIONS = [
   'password_reset_requests',
   'market_prices',
   'agri_consultations',
+  'offline_farmers',
+  'sms_notifications',
+  'sms_broadcasts',
 ] as const;
 
 export type CollectionName = (typeof COLLECTIONS)[number];

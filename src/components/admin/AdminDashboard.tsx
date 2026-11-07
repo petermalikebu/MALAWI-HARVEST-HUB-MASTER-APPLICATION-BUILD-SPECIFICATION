@@ -34,12 +34,13 @@ import {
 } from 'lucide-react';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 import { MarketPriceAdmin } from './MarketPriceAdmin.tsx';
+import { AdminAgentNetworkPanel } from './AdminAgentNetworkPanel.tsx';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const { subscribe } = useRealtime();
 
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'commission' | 'market_prices' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'commission' | 'market_prices' | 'agent_network' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
   const [usersList, setUsersList] = useState<User[]>([]);
   const [commoditiesList, setCommoditiesList] = useState<Commodity[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>([]);
@@ -608,6 +609,20 @@ export const AdminDashboard: React.FC = () => {
         >
           <TrendingUp className="w-3.5 h-3.5 text-emerald-700" />
           <span>Market Prices</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('agent_network')}
+          className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
+            activeSubTab === 'agent_network'
+              ? 'bg-emerald-800 text-white font-extrabold ring-1 ring-emerald-900 shadow-2xs'
+              : 'text-stone-700 bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200/80'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5 text-emerald-700" />
+          <span>Agent Network &amp; SMS Desk</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black">
+            28 Districts
+          </span>
         </button>
         <button
           onClick={() => setActiveSubTab('categories')}
@@ -1333,6 +1348,11 @@ export const AdminDashboard: React.FC = () => {
       {/* SUB TAB 6.5: MARKET PRICE MANAGEMENT */}
       {activeSubTab === 'market_prices' && (
         <MarketPriceAdmin categoriesList={categoriesList} />
+      )}
+
+      {/* SUB TAB 6.6: DISTRICT AGENT NETWORK & SMS DESK */}
+      {activeSubTab === 'agent_network' && (
+        <AdminAgentNetworkPanel />
       )}
 
       {/* SUB TAB 7: QUERIES & HELP DESK */}
