@@ -1,7 +1,19 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+// Firebase client configuration matching firebase-applet-config.json
+export const firebaseConfig = {
+  projectId: 'chromatic-flame-t83d0',
+  appId: '1:1098287344957:web:544ebecfe9a240ed0d2954',
+  apiKey: 'AIzaSyAfCVQNKUo8lHzG-OTySgPuDPqplOdGpqI',
+  authDomain: 'chromatic-flame-t83d0.firebaseapp.com',
+  firestoreDatabaseId: 'ai-studio-malawiharvesthub-99d5446a-4240-4f63-bfb7-0fc2ac59896f',
+  storageBucket: 'chromatic-flame-t83d0.firebasestorage.app',
+  messagingSenderId: '1098287344957',
+  measurementId: '',
+  oAuthClientId: '1098287344957-eu717i9ukc7glr49b5uhs57nilfiiuri.apps.googleusercontent.com',
+  recaptchaSiteKey: '',
+};
 
 // Initialize Firebase App instance
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);

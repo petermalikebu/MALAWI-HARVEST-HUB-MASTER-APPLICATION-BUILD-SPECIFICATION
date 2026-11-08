@@ -44,6 +44,8 @@ export const COLLECTIONS = [
   'offline_farmers',
   'sms_notifications',
   'sms_broadcasts',
+  'email_notifications',
+  'fcm_tokens',
 ] as const;
 
 export type CollectionName = (typeof COLLECTIONS)[number];

@@ -401,6 +401,22 @@ export const smsBroadcasts = pgTable('sms_broadcasts', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+// Registered Email Notification Deliveries (Order, Payment, Transport, and System dispatches)
+export const emailNotifications = pgTable('email_notifications', {
+  id: serial('id').primaryKey(),
+  emailId: text('email_id').notNull().unique(), // e.g. EML-2026-0001
+  recipientEmail: text('recipient_email').notNull(),
+  recipientName: text('recipient_name').notNull(),
+  recipientUid: text('recipient_uid').default(''),
+  userRole: text('user_role').notNull().default('farmer'),
+  subject: text('subject').notNull(),
+  messageText: text('message_text').notNull(),
+  htmlBody: text('html_body').default(''),
+  eventType: text('event_type').notNull().default('order_notification'),
+  relatedOrderId: integer('related_order_id'),
+  deliveryStatus: text('delivery_status').notNull().default('delivered'), // delivered | queued | simulated
+  sentAt: timestamp('sent_at').defaultNow(),
+});
 
 // Relationships
 export const usersRelations = relations(users, ({ many }) => ({

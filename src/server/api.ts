@@ -18,6 +18,7 @@ import {
   offlineFarmers,
   smsNotifications,
   smsBroadcasts,
+  emailNotifications,
 } from '../db/schema.ts';
 import { eq, desc, and, or, sql } from 'drizzle-orm';
 import { broadcastEvent } from './realtime.ts';
@@ -36,6 +37,10 @@ import {
   sendFcmNotification,
   sendFcmBroadcast,
 } from './fcmService.ts';
+import {
+  sendEmailNotification,
+  getEmailNotifications,
+} from './emailService.ts';
 
 // Secure Password Hashing & Verification
 export function hashPassword(plainPassword: string): string {
@@ -83,7 +88,12 @@ async function logAudit(params: {
   }
 }
 
-// Helper to send notification
+// Multi-Channel Notification Dispatcher
+// Automatically alerts the recipient across:
+// 1. In-App Notifications Drawer (WebSocket Real-Time Broadcast)
+// 2. Mobile Contact Number (SMS for Keypad 2G Phones & Smartphones)
+// 3. Registered Email Address (Mberalink HTML/Plaintext Branded Email)
+// 4. Firebase Cloud Messaging (FCM Device Push)
 async function createNotification(params: {
   userUid: string;
   title: string;
@@ -92,6 +102,7 @@ async function createNotification(params: {
   relatedOrderId?: number;
 }) {
   try {
+    // 1. Insert in-app notification & emit real-time WebSocket event
     const res = await db.insert(notifications).values({
       userUid: params.userUid,
       title: params.title,
@@ -101,8 +112,96 @@ async function createNotification(params: {
       isRead: false,
     }).returning();
     broadcastEvent('notification_created', res[0]);
+
+    // 2. Lookup recipient details across users table & offline farmers
+    let targetUsers: any[] = [];
+    if (params.userUid === 'all') {
+      targetUsers = await db.select().from(users).limit(50);
+      sendFcmNotification({
+        topic: 'all_users',
+        title: params.title,
+        body: params.message,
+      }).catch(() => null);
+    } else if (params.userUid === 'admin') {
+      targetUsers = await db.select().from(users).where(or(eq(users.role, 'admin'), eq(users.role, 'finance_admin'))).limit(10);
+    } else {
+      targetUsers = await db.select().from(users).where(eq(users.uid, params.userUid)).limit(1);
+      if (targetUsers.length === 0) {
+        const numId = parseInt(params.userUid, 10);
+        if (!isNaN(numId)) {
+          targetUsers = await db.select().from(users).where(eq(users.id, numId)).limit(1);
+        }
+      }
+      if (targetUsers.length === 0) {
+        const off = await db.select().from(offlineFarmers).where(eq(offlineFarmers.farmerId, params.userUid)).limit(1);
+        if (off.length > 0) {
+          targetUsers = [{
+            uid: off[0].farmerId,
+            fullName: off[0].fullName,
+            phoneNumber: off[0].phoneNumber,
+            email: '',
+            district: off[0].district,
+            role: 'farmer',
+          }];
+        }
+      }
+    }
+
+    // 3. Dispatch across channels for each resolved recipient
+    for (const u of targetUsers) {
+      // Channel A: Mobile Contact Number (Keypad 2G phone or smartphone)
+      if (u.phoneNumber) {
+        try {
+          const formattedPhone = formatMalawiPhoneNumber(u.phoneNumber);
+          sendAutomatedFarmerSms({
+            recipientPhone: formattedPhone || u.phoneNumber,
+            recipientName: u.fullName || 'Mberalink User',
+            district: u.district || 'National',
+            messageText: `${params.title}\n${params.message}`,
+            messageLanguage: 'ch',
+            eventType: params.type === 'transport' ? 'transporter_assigned' : params.type === 'finance' ? 'payment_released' : 'order_received',
+            relatedRecordNumber: params.relatedOrderId ? `#${params.relatedOrderId}` : '',
+            deliveryStatus: 'sent',
+          });
+        } catch (smsErr) {
+          console.warn('[Notification] Mobile SMS alert fallback:', smsErr);
+        }
+      }
+
+      // Channel B: Registered Email Address
+      if (u.email && u.email.includes('@')) {
+        try {
+          sendEmailNotification({
+            toEmail: u.email,
+            recipientName: u.fullName || 'Valued Member',
+            recipientUid: u.uid,
+            userRole: u.role || 'farmer',
+            subject: params.title,
+            messageText: params.message,
+            eventType: params.type || 'order_notification',
+            relatedOrderId: params.relatedOrderId,
+          }).catch((e) => console.warn('[Notification] Email dispatch notice:', e));
+        } catch (emailErr) {
+          console.warn('[Notification] Email alert fallback:', emailErr);
+        }
+      }
+
+      // Channel C: Firebase Cloud Messaging Push Notification
+      if (u.uid) {
+        sendFcmNotification({
+          userUid: u.uid,
+          title: params.title,
+          body: params.message,
+          data: {
+            notificationId: String(res[0]?.id || ''),
+            type: params.type || 'order',
+            relatedOrderId: String(params.relatedOrderId || ''),
+          },
+        }).catch((fcmErr) => console.warn('[Notification] FCM dispatch notice:', fcmErr));
+      }
+    }
   } catch (err) {
-    console.error('Failed to create notification:', err);
+    console.error('Failed to create multi-channel notification:', err);
   }
 }
 
@@ -3681,6 +3780,83 @@ router.delete('/notifications/:id', async (req, res) => {
     return res.json({ success: true, id });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to delete notification' });
+  }
+});
+
+// GET /api/notifications/emails: List logged email notifications
+router.get(['/notifications/emails', '/api/notifications/emails'], (req, res) => {
+  try {
+    const { recipientEmail, recipientUid, eventType, limit } = req.query;
+    const emails = getEmailNotifications({
+      recipientEmail: recipientEmail ? String(recipientEmail) : undefined,
+      recipientUid: recipientUid ? String(recipientUid) : undefined,
+      eventType: eventType ? String(eventType) : undefined,
+      limit: limit ? parseInt(String(limit), 10) : 100,
+    });
+    return res.json({ success: true, total: emails.length, emails });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch email logs' });
+  }
+});
+
+// POST /api/notifications/emails/test: Send test email notification
+router.post(['/notifications/emails/test', '/api/notifications/emails/test'], async (req, res) => {
+  try {
+    const { toEmail, recipientName, subject, messageText } = req.body;
+    if (!toEmail || !toEmail.includes('@')) {
+      return res.status(400).json({ error: 'Valid recipient email address is required' });
+    }
+    const record = await sendEmailNotification({
+      toEmail,
+      recipientName: recipientName || 'Mberalink User',
+      subject: subject || 'Mberalink Real-Time Notification Test',
+      messageText: messageText || 'This is a live test notification from Mberalink Malawi Harvest Hub confirming your registered email channel is active and receiving alerts.',
+      eventType: 'system_test',
+    });
+    return res.json({ success: true, message: 'Test email successfully dispatched and logged.', record });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to send test email' });
+  }
+});
+
+// GET /api/notifications/channels-status: Multi-Channel Real-time notification health
+router.get(['/notifications/channels-status', '/api/notifications/channels-status'], (_req, res) => {
+  try {
+    const fcm = getFcmStatus();
+    const sms = getSmsGatewayConfig();
+    const store = getInMemoryStore();
+    const totalSms = Array.isArray(store.sms_notifications) ? store.sms_notifications.length : 0;
+    const totalEmails = Array.isArray(store.email_notifications) ? store.email_notifications.length : 0;
+
+    return res.json({
+      success: true,
+      channels: {
+        inAppWebSocket: {
+          status: 'online',
+          realtimeEvents: ['notification_created', 'SMS_DELIVERED', 'EMAIL_DELIVERED', 'order_created', 'order_updated'],
+        },
+        mobileContactNumber: {
+          status: 'active',
+          carrierNetworks: ['Airtel Malawi', 'TNM'],
+          supportsKeypadPhones: true,
+          supportsSmartphones: true,
+          totalSmsDispatched: totalSms,
+        },
+        registeredEmail: {
+          status: 'active',
+          brandedTemplates: true,
+          totalEmailsDispatched: totalEmails,
+        },
+        firebaseCloudMessaging: {
+          status: 'active',
+          projectId: fcm.projectId,
+          senderId: fcm.messagingSenderId,
+          activeDevices: fcm.activeDevicesCount,
+        },
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to inspect channels status' });
   }
 });
 

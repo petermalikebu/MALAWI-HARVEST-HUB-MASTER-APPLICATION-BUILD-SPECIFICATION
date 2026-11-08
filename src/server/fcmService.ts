@@ -7,8 +7,27 @@
 
 import { adminMessaging } from '../lib/firebase-admin.ts';
 import { getInMemoryStore, saveStoreToDisk } from '../db/index.ts';
-import firebaseConfig from '../../firebase-applet-config.json';
 import { persistDocToFirestore } from '../db/firestoreStore.ts';
+import fs from 'node:fs';
+import path from 'node:path';
+
+function getFirebaseConfig() {
+  try {
+    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+  } catch (err) {
+    console.warn('[FCM] Fallback reading config:', err);
+  }
+  return {
+    projectId: 'chromatic-flame-t83d0',
+    messagingSenderId: '1098287344957',
+    appId: '1:1098287344957:web:544ebecfe9a240ed0d2954',
+  };
+}
+
+const firebaseConfig = getFirebaseConfig();
 
 export interface FcmTokenRecord {
   token: string;

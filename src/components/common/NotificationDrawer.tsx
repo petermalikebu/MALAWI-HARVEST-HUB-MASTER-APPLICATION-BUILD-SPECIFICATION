@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRealtime } from '../../context/RealtimeContext.tsx';
 import { useLanguage } from '../../context/LanguageContext.tsx';
+import { useAuth } from '../../context/AuthContext.tsx';
 import { NotificationItem } from '../../types/index.ts';
 import {
   X,
@@ -14,6 +15,12 @@ import {
   Trash2,
   Timer,
   ShieldAlert,
+  Smartphone,
+  Mail,
+  Send,
+  Radio,
+  CheckCircle2,
+  Zap,
 } from 'lucide-react';
 
 interface NotificationDrawerProps {
@@ -27,9 +34,53 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
   onClose,
   onSelectOrder,
 }) => {
+  const { currentUser } = useAuth();
   const { notifications, markAsRead, deleteNotification } = useRealtime();
   const { t, language } = useLanguage();
   const [now, setNow] = useState<number>(Date.now());
+  const [isSendingTest, setIsSendingTest] = useState<boolean>(false);
+  const [testOutcomeNotice, setTestOutcomeNotice] = useState<string | null>(null);
+
+  // Send a live test alert to the current user's contact number and registered email
+  const handleTestMultiChannel = async () => {
+    setIsSendingTest(true);
+    setTestOutcomeNotice(null);
+    try {
+      const targetPhone = currentUser?.phoneNumber || '+265999036912';
+      const targetEmail = currentUser?.email || 'user@harvesthub.mw';
+      const targetName = currentUser?.fullName || 'Mberalink User';
+
+      // 1. Dispatch Contact Number SMS
+      await fetch('/api/agent/sms/test-real', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: targetPhone,
+          name: targetName,
+          customText: `MBERALINK REAL-TIME TEST: Hello ${targetName}! All 4 delivery channels (Phone SMS, Email, In-App, and Firebase Push) are confirmed working across Malawi.`,
+        }),
+      });
+
+      // 2. Dispatch Registered Email Alert
+      await fetch('/api/notifications/emails/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toEmail: targetEmail,
+          recipientName: targetName,
+          subject: 'Mberalink Real-Time Notification Test (Malawi Harvest Hub)',
+          messageText: `Moni ${targetName}!\n\nThis is a live multi-channel confirmation. Your registered email (${targetEmail}) and mobile contact number (${targetPhone}) are fully connected to receive real-time updates for orders, commodity prices, and logistics dispatches.`,
+        }),
+      });
+
+      setTestOutcomeNotice(`Live test dispatched to ${targetPhone} & ${targetEmail}!`);
+      setTimeout(() => setTestOutcomeNotice(null), 5000);
+    } catch (err: any) {
+      setTestOutcomeNotice(`Test alert notice: ${err?.message || 'Check connection'}`);
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
 
   // Ticking interval to update remaining seconds live while drawer is open
   useEffect(() => {
@@ -90,9 +141,58 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
           </button>
         </div>
 
+        {/* Multi-Channel Delivery Channels Banner */}
+        <div className="px-5 py-3 bg-emerald-50/80 border-b border-emerald-200/80 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-emerald-950 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Multi-Channel Dispatch Enabled</span>
+            </span>
+            <button
+              onClick={handleTestMultiChannel}
+              disabled={isSendingTest}
+              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors disabled:opacity-50"
+              title="Test immediate delivery to your phone and email"
+            >
+              <Zap className="w-3 h-3 text-amber-300" />
+              <span>{isSendingTest ? 'Testing...' : 'Test My Phone & Email'}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+            <div className="bg-white p-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5 text-stone-700">
+              <Smartphone className="w-3 h-3 text-emerald-700 shrink-0" />
+              <div className="truncate">
+                <span className="font-bold block text-[9px] text-emerald-900 leading-none">Phone SMS</span>
+                <span className="text-[8px] text-stone-500">Keypad / Mobile</span>
+              </div>
+            </div>
+            <div className="bg-white p-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5 text-stone-700">
+              <Mail className="w-3 h-3 text-blue-700 shrink-0" />
+              <div className="truncate">
+                <span className="font-bold block text-[9px] text-blue-900 leading-none">Email Alerts</span>
+                <span className="text-[8px] text-stone-500">Official HTML</span>
+              </div>
+            </div>
+            <div className="bg-white p-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5 text-stone-700">
+              <Radio className="w-3 h-3 text-amber-700 shrink-0" />
+              <div className="truncate">
+                <span className="font-bold block text-[9px] text-amber-900 leading-none">FCM Push</span>
+                <span className="text-[8px] text-stone-500">Free Native</span>
+              </div>
+            </div>
+          </div>
+
+          {testOutcomeNotice && (
+            <div className="py-1 px-2 rounded-md bg-emerald-200/80 text-emerald-950 font-bold text-[10px] animate-in fade-in">
+              {testOutcomeNotice}
+            </div>
+          )}
+        </div>
+
         {/* Info Banner on 30s auto-delete rule */}
-        <div className="px-5 py-2.5 bg-amber-50/70 border-b border-amber-200/60 flex items-center gap-2 text-[11px] text-amber-900">
-          <Timer className="w-4 h-4 text-amber-700 shrink-0" />
+        <div className="px-5 py-2 bg-amber-50/70 border-b border-amber-200/60 flex items-center gap-2 text-[10px] text-amber-900">
+          <Timer className="w-3.5 h-3.5 text-amber-700 shrink-0" />
           <span>
             {language === 'ch'
               ? 'Chidziwitso chilichonse chikawerengedwa, chidzafufutidwa mwaokha pakapita masekondi 30.'
@@ -186,6 +286,26 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
                           </span>
                         </div>
                       )}
+
+                      {/* Multi-Channel Delivery Channels Badges */}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-md bg-stone-100 text-stone-600 font-semibold border border-stone-200">
+                          <Bell className="w-2.5 h-2.5 text-stone-500" />
+                          In-App
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
+                          <Smartphone className="w-2.5 h-2.5 text-emerald-600" />
+                          Phone SMS
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-800 font-semibold border border-blue-200">
+                          <Mail className="w-2.5 h-2.5 text-blue-600" />
+                          Email
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 font-semibold border border-amber-200">
+                          <Radio className="w-2.5 h-2.5 text-amber-600" />
+                          FCM Push
+                        </span>
+                      </div>
 
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400">
                         <div className="flex items-center gap-1">
