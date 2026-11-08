@@ -84,3 +84,105 @@ export async function testConnection(): Promise<void> {
 
 // Perform boot connection check
 testConnection().catch(() => {});
+
+// --- Firebase Cloud Messaging (FCM) Client Integration ---
+import { getMessaging, getToken, onMessage, isSupported, type Messaging } from 'firebase/messaging';
+
+let messagingPromise: Promise<Messaging | null> | null = null;
+
+export async function getClientMessaging(): Promise<Messaging | null> {
+  if (typeof window === 'undefined') return null;
+  if (!messagingPromise) {
+    messagingPromise = (async () => {
+      try {
+        const supported = await isSupported();
+        if (!supported) {
+          console.info('[FCM] Firebase Messaging is not supported in this browser environment.');
+          return null;
+        }
+        return getMessaging(app);
+      } catch (err) {
+        console.warn('[FCM] Error checking Firebase Messaging support:', err);
+        return null;
+      }
+    })();
+  }
+  return messagingPromise;
+}
+
+export async function requestFcmToken(userInfo?: {
+  uid?: string;
+  name?: string;
+  role?: string;
+  district?: string;
+}): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const messaging = await getClientMessaging();
+    if (!messaging) return null;
+
+    if (!('Notification' in window)) {
+      console.warn('[FCM] Notifications not supported in this browser.');
+      return null;
+    }
+
+    let permission = Notification.permission;
+    if (permission !== 'granted') {
+      permission = await Notification.requestPermission();
+    }
+
+    if (permission !== 'granted') {
+      console.warn('[FCM] Push notification permission not granted by user.');
+      return null;
+    }
+
+    let serviceWorkerRegistration: ServiceWorkerRegistration | undefined;
+    if ('serviceWorker' in navigator) {
+      try {
+        serviceWorkerRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      } catch (swErr) {
+        console.warn('[FCM] SW registration fallback:', swErr);
+      }
+    }
+
+    const token = await getToken(messaging, {
+      serviceWorkerRegistration,
+    }).catch(async (getTokenErr) => {
+      console.warn('[FCM] Standard getToken error, attempting fallback:', getTokenErr?.message || getTokenErr);
+      return null;
+    });
+
+    if (token) {
+      fetch('/api/messaging/register-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          userUid: userInfo?.uid,
+          userName: userInfo?.name,
+          userRole: userInfo?.role,
+          district: userInfo?.district,
+          deviceType: /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
+          userAgent: navigator.userAgent,
+        }),
+      }).catch((e) => console.warn('[FCM] Error syncing token to server:', e));
+    }
+
+    return token;
+  } catch (err: any) {
+    console.warn('[FCM] Could not obtain device token:', err?.message || err);
+    return null;
+  }
+}
+
+export async function onForegroundMessage(callback: (payload: any) => void): Promise<(() => void) | null> {
+  try {
+    const messaging = await getClientMessaging();
+    if (!messaging) return null;
+    return onMessage(messaging, (payload) => {
+      callback(payload);
+    });
+  } catch {
+    return null;
+  }
+}

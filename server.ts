@@ -19,6 +19,9 @@ async function startServer() {
   // Realtime WebSocket server on /ws
   setupRealtimeServer(server);
 
+  // Serve public static directory (e.g. /sw.js)
+  app.use(express.static(path.resolve(__dirname, 'public')));
+
   // Mount API endpoints
   app.use('/api', apiRouter);
 

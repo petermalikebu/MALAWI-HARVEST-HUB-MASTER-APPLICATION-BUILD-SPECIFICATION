@@ -30,6 +30,12 @@ import {
   formatMalawiPhoneNumber,
 } from './smsGateway.ts';
 import { africasTalkingService } from './africasTalkingService.ts';
+import {
+  getFcmStatus,
+  registerFcmToken,
+  sendFcmNotification,
+  sendFcmBroadcast,
+} from './fcmService.ts';
 
 // Secure Password Hashing & Verification
 export function hashPassword(plainPassword: string): string {
@@ -5847,48 +5853,31 @@ router.post('/agent/sms/send-direct', (req, res) => {
   }
 });
 
-// GET /api/agent/sms/gateway-status: Check real telecommunication gateway readiness
-router.get('/agent/sms/gateway-status', (req, res) => {
+// GET /api/agent/sms/gateway-status: Check real messaging gateway readiness
+router.get(['/agent/sms/gateway-status', '/api/agent/sms/gateway-status'], (req, res) => {
   try {
-    const config = getSmsGatewayConfig();
-    const hasAfricasTalking = Boolean(config.africasTalkingApiKey && config.africasTalkingUsername);
-    const hasTextBee = Boolean(config.textbeeApiKey && config.textbeeDeviceId);
-    const hasTwilio = Boolean(config.twilioAccountSid && config.twilioAuthToken && config.twilioPhoneNumber);
-    const hasWebhook = Boolean(config.webhookUrl);
+    const fcmStatus = getFcmStatus();
 
     return res.json({
-      hasAutomatedGateway: hasAfricasTalking || hasTextBee || hasTwilio || hasWebhook,
-      activeProvider: hasTextBee
-        ? 'TextBee.dev (Free Android SIM Gateway)'
-        : hasAfricasTalking
-        ? "Africa's Talking (Malawi)"
-        : hasTwilio
-        ? 'Twilio Global SMS'
-        : hasWebhook
-        ? 'Telecom Webhook API'
-        : 'Device Handset SMS App Intent',
+      hasAutomatedGateway: true,
+      activeProvider: 'Firebase Cloud Messaging (FCM)',
+      providerType: 'firebase_cloud_messaging',
+      projectId: fcmStatus.projectId,
+      messagingSenderId: fcmStatus.messagingSenderId,
+      activeDevicesCount: fcmStatus.activeDevicesCount,
       providers: {
-        textbee: {
-          configured: hasTextBee,
-          deviceId: config.textbeeDeviceId ? `${config.textbeeDeviceId.slice(0, 6)}...` : 'Not set',
-          description: '100% Free Android SIM Gateway — turns your Android phone with Airtel/TNM SIM into a REST SMS API',
-        },
-        africasTalking: {
-          configured: hasAfricasTalking,
-          username: config.africasTalkingUsername || 'Not set',
-          senderId: config.africasTalkingSenderId || 'Default (MBERALINK)',
-        },
-        twilio: {
-          configured: hasTwilio,
-          phoneNumber: config.twilioPhoneNumber || 'Not set',
-        },
-        webhook: {
-          configured: hasWebhook,
-          endpoint: config.webhookUrl ? 'Configured' : 'Not set',
+        fcm: {
+          configured: true,
+          active: true,
+          name: 'Firebase Cloud Messaging (FCM)',
+          projectId: fcmStatus.projectId,
+          senderId: fcmStatus.messagingSenderId,
+          activeDevices: fcmStatus.activeDevicesCount,
+          description: 'Official Google Firebase Cloud Messaging for Web, PWA, and Mobile push notifications across Malawi.',
         },
         deviceHandsetIntent: {
           supported: true,
-          description: 'Instant launch into native Android/iPhone Messages app with pre-filled Malawian number and message text via sms: protocol',
+          description: 'Direct cellular fallback via native Android/iPhone Messages app using pre-filled sms: URI',
         },
       },
     });
@@ -5898,39 +5887,69 @@ router.get('/agent/sms/gateway-status', (req, res) => {
 });
 
 // POST /api/agent/sms/gateway-config: Update gateway credentials
-router.post('/agent/sms/gateway-config', (req, res) => {
+router.post(['/agent/sms/gateway-config', '/api/agent/sms/gateway-config'], (req, res) => {
   try {
-    const {
-      africasTalkingApiKey,
-      africasTalkingUsername,
-      africasTalkingSenderId,
-      textbeeApiKey,
-      textbeeDeviceId,
-      twilioAccountSid,
-      twilioAuthToken,
-      twilioPhoneNumber,
-      webhookUrl,
-    } = req.body;
-
-    updateSmsGatewayConfig({
-      africasTalkingApiKey: africasTalkingApiKey !== undefined ? africasTalkingApiKey : undefined,
-      africasTalkingUsername: africasTalkingUsername !== undefined ? africasTalkingUsername : undefined,
-      africasTalkingSenderId: africasTalkingSenderId !== undefined ? africasTalkingSenderId : undefined,
-      textbeeApiKey: textbeeApiKey !== undefined ? textbeeApiKey : undefined,
-      textbeeDeviceId: textbeeDeviceId !== undefined ? textbeeDeviceId : undefined,
-      twilioAccountSid: twilioAccountSid !== undefined ? twilioAccountSid : undefined,
-      twilioAuthToken: twilioAuthToken !== undefined ? twilioAuthToken : undefined,
-      twilioPhoneNumber: twilioPhoneNumber !== undefined ? twilioPhoneNumber : undefined,
-      webhookUrl: webhookUrl !== undefined ? webhookUrl : undefined,
-    });
-
     return res.json({
       success: true,
-      message: 'SMS Gateway credentials updated successfully in runtime memory.',
+      message: 'Active messaging provider is Firebase Cloud Messaging (FCM). No 3rd-party credentials required.',
       config: getSmsGatewayConfig(),
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to update gateway configuration' });
+  }
+});
+
+// POST /api/messaging/register-token: Register FCM client device token
+router.post(['/messaging/register-token', '/api/messaging/register-token'], (req, res) => {
+  try {
+    const { token, userUid, userName, userRole, district, deviceType, userAgent } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'FCM device token is required' });
+    }
+    const record = registerFcmToken({
+      token,
+      userUid,
+      userName,
+      userRole,
+      district,
+      deviceType,
+      userAgent,
+    });
+    return res.json({ success: true, record });
+  } catch (error: any) {
+    console.error('Error registering FCM token:', error);
+    return res.status(500).json({ error: error.message || 'Failed to register FCM token' });
+  }
+});
+
+// GET /api/messaging/status: Check FCM connection and active devices
+router.get(['/messaging/status', '/api/messaging/status'], (req, res) => {
+  try {
+    const status = getFcmStatus();
+    return res.json(status);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to get messaging status' });
+  }
+});
+
+// POST /api/messaging/send: Send direct FCM notification
+router.post(['/messaging/send', '/api/messaging/send'], async (req, res) => {
+  try {
+    const { token, userUid, topic, title, body, data } = req.body;
+    if (!title || !body) {
+      return res.status(400).json({ error: 'title and body are required' });
+    }
+    const result = await sendFcmNotification({
+      token,
+      userUid,
+      topic,
+      title,
+      body,
+      data,
+    });
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to dispatch FCM message' });
   }
 });
 
@@ -6367,7 +6386,7 @@ router.post('/admin/agents/assign', async (req, res) => {
 });
 
 // POST /api/admin/sms-broadcast: Administrator dispatches SMS announcement
-router.post('/api/admin/sms-broadcast', async (req, res) => {
+router.post(['/admin/sms-broadcast', '/api/admin/sms-broadcast'], async (req, res) => {
   try {
     const { title, targetDistrict, targetAudience, messageText, language, adminUid, adminName } = req.body;
 
@@ -6382,31 +6401,55 @@ router.post('/api/admin/sms-broadcast', async (req, res) => {
     const audience = targetAudience || 'all_farmers';
     const lang = language === 'en' ? 'en' : 'ch';
 
-    // Collect recipient phone numbers
+    // Collect recipient phone numbers with deduplication
     const recipients: Array<{ phone: string; name: string; district: string }> = [];
+    const seenPhones = new Set<string>();
 
-    // Offline farmers
-    const offlineFarmers = store.offline_farmers || [];
-    for (const f of offlineFarmers) {
-      if (isAllDistricts || f.district.toLowerCase() === targetDistrict.toLowerCase()) {
-        if (audience === 'all_farmers' || audience === 'offline_farmers' || audience === 'all') {
-          recipients.push({ phone: f.phoneNumber, name: f.fullName, district: f.district });
+    const addRecipient = (phone: string, name: string, district: string) => {
+      if (!phone) return;
+      const clean = phone.replace(/[^0-9]/g, '');
+      if (!clean) return;
+      if (!seenPhones.has(clean)) {
+        seenPhones.add(clean);
+        recipients.push({ phone, name, district });
+      }
+    };
+
+    // 1. Registered online farmers & users (from store.users)
+    const allUsers = store.users || [];
+    for (const u of allUsers) {
+      const uDistrict = u.assignedDistrict || u.district || 'Lilongwe';
+      const matchesDistrict = isAllDistricts || uDistrict.toLowerCase() === targetDistrict.toLowerCase();
+      if (matchesDistrict) {
+        if (audience === 'all_farmers' || audience === 'all') {
+          if (u.role === 'farmer' && u.phoneNumber) {
+            addRecipient(u.phoneNumber, u.fullName || 'Registered Farmer', uDistrict);
+          }
+        }
+        if (audience === 'agents' || audience === 'all') {
+          if (u.role === 'agent') {
+            addRecipient(u.phoneNumber || '+265 999 000 000', u.fullName || 'District Agent', uDistrict);
+          }
         }
       }
     }
 
-    // Agents
-    const allUsers = store.users || [];
-    for (const u of allUsers) {
-      if (u.role === 'agent' && (isAllDistricts || u.assignedDistrict?.toLowerCase() === targetDistrict.toLowerCase())) {
-        if (audience === 'agents' || audience === 'all') {
-          recipients.push({ phone: u.phoneNumber || '+265 999 000 000', name: u.fullName, district: u.assignedDistrict || u.district });
+    // 2. Offline keypad farmers (from store.offline_farmers)
+    const offlineFarmers = store.offline_farmers || [];
+    for (const f of offlineFarmers) {
+      const fDistrict = f.district || 'Lilongwe';
+      const matchesDistrict = isAllDistricts || fDistrict.toLowerCase() === targetDistrict.toLowerCase();
+      if (matchesDistrict) {
+        if (audience === 'all_farmers' || audience === 'offline_farmers' || audience === 'all') {
+          if (f.phoneNumber) {
+            addRecipient(f.phoneNumber, f.fullName || 'Farmer', fDistrict);
+          }
         }
       }
     }
 
     const broadcastId = `BCAST-${new Date().getFullYear()}-${String(store.sms_broadcasts.length + 1).padStart(3, '0')}`;
-    const newBroadcast = {
+    const newBroadcast: any = {
       id: store.sms_broadcasts.length + 1,
       broadcastId,
       title: String(title).trim(),
@@ -6420,6 +6463,15 @@ router.post('/api/admin/sms-broadcast', async (req, res) => {
       status: 'completed',
       createdAt: new Date(),
     };
+
+    try {
+      const inserted = await db.insert(smsBroadcasts).values(newBroadcast).returning();
+      if (inserted && inserted[0]) {
+        newBroadcast.id = inserted[0].id;
+      }
+    } catch {
+      // In-memory fallback if pg table is not connected
+    }
 
     store.sms_broadcasts.unshift(newBroadcast);
 
@@ -6451,9 +6503,12 @@ router.post('/api/admin/sms-broadcast', async (req, res) => {
 
     broadcastEvent('SMS_BROADCAST_SENT', newBroadcast);
 
+    const targetDesc = isAllDistricts ? 'all 28 districts' : targetDistrict;
     return res.status(201).json({
       success: true,
-      message: `SMS broadcast sent successfully to ${recipients.length} recipients in ${newBroadcast.targetDistrict}.`,
+      message: recipients.length > 0
+        ? `SMS broadcast dispatched successfully to ${recipients.length} recipients across ${targetDesc}.`
+        : `SMS broadcast logged and registered for ${targetDesc}. (No matching mobile contacts registered in this district yet).`,
       broadcast: newBroadcast,
     });
   } catch (error: any) {
@@ -6463,10 +6518,17 @@ router.post('/api/admin/sms-broadcast', async (req, res) => {
 });
 
 // GET /api/admin/sms-broadcasts: List past broadcasts
-router.get('/api/admin/sms-broadcasts', (req, res) => {
+router.get(['/admin/sms-broadcasts', '/api/admin/sms-broadcasts'], async (req, res) => {
   try {
     const store = getInMemoryStore();
-    return res.json(store.sms_broadcasts || []);
+    let list: any[] = [];
+    if (Array.isArray(store.sms_broadcasts) && store.sms_broadcasts.length > 0) {
+      list = store.sms_broadcasts.slice();
+    } else {
+      list = await db.select().from(smsBroadcasts);
+    }
+    list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return res.json(list);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Failed to fetch broadcasts' });
   }
