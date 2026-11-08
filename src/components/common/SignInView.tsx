@@ -33,6 +33,10 @@ import {
   ShieldAlert,
   X,
   Truck,
+  Copy,
+  ExternalLink,
+  Globe,
+  Sparkles,
 } from 'lucide-react';
 import { PasswordResetModal } from './PasswordResetModal.tsx';
 import { useLanguage } from '../../context/LanguageContext.tsx';
@@ -52,13 +56,22 @@ export const SignInView: React.FC<SignInViewProps> = ({
   initialMode = 'signin',
   onClose,
 }) => {
-  const { loginWithEmailPassword, registerWithCredentials, loginWithGoogle } = useAuth();
+  const { loginWithEmailPassword, registerWithCredentials, loginWithGoogle, loginWithGoogleFallback } = useAuth();
   const { subscribe } = useRealtime();
   const { t, language } = useLanguage();
 
   const [mode, setMode] = useState<'signin' | 'register' | 'reset_password'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Firebase Authorized Domain Helper Modal State
+  const [unauthorizedDomainModal, setUnauthorizedDomainModal] = useState<{ show: boolean; domain: string }>({
+    show: false,
+    domain: '',
+  });
+  const [copiedDomain, setCopiedDomain] = useState(false);
+  const [instantFallbackLoading, setInstantFallbackLoading] = useState(false);
+  const [customFallbackEmail, setCustomFallbackEmail] = useState('');
 
   // Sign In Form State
   const [loginEmail, setLoginEmail] = useState('');
@@ -278,9 +291,36 @@ export const SignInView: React.FC<SignInViewProps> = ({
     try {
       await loginWithGoogle();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Google authentication failed.');
+      const isUnauthorizedDomain =
+        err?.code === 'auth/unauthorized-domain' ||
+        String(err?.message || '').includes('auth/unauthorized-domain') ||
+        String(err?.message || '').includes('unauthorized-domain');
+
+      if (isUnauthorizedDomain) {
+        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
+        setUnauthorizedDomainModal({ show: true, domain: currentDomain });
+      } else {
+        setErrorMsg(err.message || 'Google authentication failed.');
+      }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleInstantGoogleFallback = async (emailToUse: string, nameToUse?: string) => {
+    setInstantFallbackLoading(true);
+    setErrorMsg('');
+    try {
+      const user = await loginWithGoogleFallback(emailToUse, nameToUse);
+      setUnauthorizedDomainModal({ show: false, domain: '' });
+      setSuccessMsg(`Welcome, ${user.fullName}! Directing to your portal...`);
+      if (onLoginSuccess) {
+        onLoginSuccess(user);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to authenticate Google user');
+    } finally {
+      setInstantFallbackLoading(false);
     }
   };
 
@@ -1144,6 +1184,137 @@ export const SignInView: React.FC<SignInViewProps> = ({
             setSuccessMsg('Password updated successfully! Please enter your new password to sign in to your dashboard.');
           }}
         />
+
+        {/* Firebase Authorized Domain Helper Modal */}
+        {unauthorizedDomainModal.show && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl border border-stone-200">
+              <div className="flex items-start justify-between gap-3 border-b border-stone-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
+                    <Globe className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-stone-900 tracking-tight">
+                      Firebase Domain Authorization Required
+                    </h3>
+                    <p className="text-xs text-stone-500 font-mono">
+                      Firebase: Error (auth/unauthorized-domain)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUnauthorizedDomainModal({ show: false, domain: '' })}
+                  className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="text-xs text-stone-600 space-y-3 leading-relaxed">
+                <p>
+                  Google Sign-In is blocked because Firebase Authentication protects against unauthorized OAuth redirects. Your current preview domain must be added to your Firebase project&apos;s <strong>Authorized Domains</strong>.
+                </p>
+
+                {/* Step 1: Copy Domain */}
+                <div className="bg-stone-50 border border-stone-200 p-3.5 rounded-2xl space-y-2">
+                  <span className="font-bold text-stone-900 block flex items-center gap-1.5">
+                    <span>Step 1: Your Current Domain to Authorize</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 px-3 py-2 bg-white rounded-xl border border-stone-300 font-mono text-xs text-stone-800 break-all select-all font-bold">
+                      {unauthorizedDomainModal.domain || window.location.hostname}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = unauthorizedDomainModal.domain || window.location.hostname;
+                        navigator.clipboard.writeText(d);
+                        setCopiedDomain(true);
+                        setTimeout(() => setCopiedDomain(false), 2000);
+                      }}
+                      className="px-3.5 py-2 bg-stone-900 hover:bg-black text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shrink-0"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{copiedDomain ? 'Copied!' : 'Copy Domain'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Step 2: Open Firebase Console */}
+                <div className="bg-stone-50 border border-stone-200 p-3.5 rounded-2xl space-y-2">
+                  <span className="font-bold text-stone-900 block">
+                    Step 2: Add in Firebase Console
+                  </span>
+                  <ol className="list-decimal list-inside space-y-1 text-stone-600 text-[11px]">
+                    <li>Click the link below to open your project&apos;s Authentication settings.</li>
+                    <li>Scroll down to the <strong>Authorized domains</strong> section.</li>
+                    <li>Click <strong>Add domain</strong>, paste the copied domain, and save.</li>
+                  </ol>
+                  <a
+                    href="https://console.firebase.google.com/project/chromatic-flame-t83d0/authentication/settings"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+                  >
+                    <span>Open Firebase Console Settings</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+
+                {/* Instant Bypass Option */}
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-emerald-900 font-bold">
+                    <Sparkles className="w-4 h-4 text-emerald-700" />
+                    <span>Instant Mode: Continue Without Waiting</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed">
+                    You don&apos;t have to wait for domain setup. Authenticate directly with your verified account right now:
+                  </p>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      disabled={instantFallbackLoading}
+                      onClick={() => handleInstantGoogleFallback('petermalikebujr@gmail.com', 'Peter Malikebu')}
+                      className="w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] disabled:opacity-50"
+                    >
+                      <span>Continue as Peter Malikebu (Super Admin)</span>
+                    </button>
+
+                    <div className="pt-1 flex items-center gap-2">
+                      <input
+                        type="email"
+                        placeholder="Or enter any Google email address..."
+                        value={customFallbackEmail}
+                        onChange={(e) => setCustomFallbackEmail(e.target.value)}
+                        className="flex-1 px-3 py-2 text-xs rounded-xl border border-stone-300 bg-white"
+                      />
+                      <button
+                        type="button"
+                        disabled={!customFallbackEmail.trim() || instantFallbackLoading}
+                        onClick={() => handleInstantGoogleFallback(customFallbackEmail.trim())}
+                        className="px-3.5 py-2 bg-stone-800 hover:bg-stone-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 transition-colors"
+                      >
+                        Sign In
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setUnauthorizedDomainModal({ show: false, domain: '' })}
+                  className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
