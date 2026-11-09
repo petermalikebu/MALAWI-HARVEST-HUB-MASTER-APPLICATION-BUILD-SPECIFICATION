@@ -30,7 +30,11 @@ import {
   Package,
   X,
   Phone,
+  AlertTriangle,
+  FileText,
+  Trash2,
 } from 'lucide-react';
+import { UserActivityReviewModal } from './UserActivityReviewModal.tsx';
 
 interface DistrictStat {
   district: string;
@@ -71,6 +75,20 @@ export const AdminAgentNetworkPanel: React.FC = () => {
   const [assignIncentiveRate, setAssignIncentiveRate] = useState<number>(0.01);
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+
+  // Modal: Add New Agent Directly
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addPhone, setAddPhone] = useState('+265 999 ');
+  const [addDistrict, setAddDistrict] = useState('Zomba');
+  const [addAgentCode, setAddAgentCode] = useState('AGT-ZOM-01');
+  const [addIncentiveRate, setAddIncentiveRate] = useState<number>(0.01);
+  const [addingAgent, setAddingAgent] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  // Activity Review modal for agent
+  const [inspectAgentUser, setInspectAgentUser] = useState<User | null>(null);
 
   // Modal / Form: Dispatch SMS Broadcast
   const [broadcastTitle, setBroadcastTitle] = useState('Market Price & Seasonal Harvesting Update');
@@ -173,6 +191,125 @@ export const AdminAgentNetworkPanel: React.FC = () => {
       setAssignError(err.message || 'Error assigning agent');
     } finally {
       setAssigning(false);
+    }
+  };
+
+  // Handle Add New Agent Directly
+  const handleAddNewAgent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError(null);
+    if (!addName.trim()) {
+      setAddError('Agent full name is required');
+      return;
+    }
+    setAddingAgent(true);
+    try {
+      const res = await fetch('/api/admin/agents/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: addName.trim(),
+          email: addEmail.trim(),
+          phoneNumber: addPhone.trim(),
+          assignedDistrict: addDistrict,
+          agentCode: addAgentCode.trim(),
+          incentiveRate: addIncentiveRate,
+          adminUid: currentUser?.uid,
+          adminName: currentUser?.fullName,
+        }),
+      });
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        setShowAddModal(false);
+        setAddName('');
+        setAddEmail('');
+        setFeedback({ type: 'success', message: parsed.data.message || 'Agent registered successfully!' });
+        setTimeout(() => setFeedback(null), 5000);
+        fetchData();
+      } else {
+        setAddError(parsed.error || 'Failed to add agent');
+      }
+    } catch (err: any) {
+      setAddError(err.message || 'Error adding agent');
+    } finally {
+      setAddingAgent(false);
+    }
+  };
+
+  // Suspend Agent
+  const handleSuspendAgent = async (agent: any) => {
+    const reason = window.prompt(`Enter reason for suspending Agent ${agent.fullName}:`, 'Operational non-compliance or district irregularity.');
+    if (reason === null) return;
+    try {
+      const res = await fetch(`/api/admin/agents/${agent.id || agent.uid}/suspend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: reason.trim() || 'Suspended by administration',
+          adminUid: currentUser?.uid,
+          adminName: currentUser?.fullName,
+        }),
+      });
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        setFeedback({ type: 'success', message: parsed.data.message || `Agent ${agent.fullName} suspended.` });
+        setTimeout(() => setFeedback(null), 5000);
+        fetchData();
+      } else {
+        alert(parsed.error || 'Failed to suspend agent');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error suspending agent');
+    }
+  };
+
+  // Reinstate Agent
+  const handleReinstateAgent = async (agent: any) => {
+    try {
+      const res = await fetch(`/api/admin/agents/${agent.id || agent.uid}/reinstate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminUid: currentUser?.uid,
+          adminName: currentUser?.fullName,
+        }),
+      });
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        setFeedback({ type: 'success', message: parsed.data.message || `Agent ${agent.fullName} reinstated.` });
+        setTimeout(() => setFeedback(null), 5000);
+        fetchData();
+      } else {
+        alert(parsed.error || 'Failed to reinstate agent');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error reinstating agent');
+    }
+  };
+
+  // Revoke Agent Role
+  const handleRevokeAgentRole = async (agent: any) => {
+    const confirmRevoke = window.confirm(`Are you sure you want to revoke agent authority from ${agent.fullName}? User role will be reverted to regular farmer.`);
+    if (!confirmRevoke) return;
+    try {
+      const res = await fetch(`/api/admin/agents/${agent.id || agent.uid}/remove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminUid: currentUser?.uid,
+          adminName: currentUser?.fullName,
+        }),
+      });
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        setFeedback({ type: 'success', message: parsed.data.message || `Agent role revoked for ${agent.fullName}.` });
+        setTimeout(() => setFeedback(null), 5000);
+        fetchData();
+      } else {
+        alert(parsed.error || 'Failed to revoke agent role');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error revoking agent role');
     }
   };
 
@@ -443,62 +580,135 @@ export const AdminAgentNetworkPanel: React.FC = () => {
       {/* SUB-TAB 2: APPOINTED AGENTS DIRECTORY */}
       {activeTab === 'agents' && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs flex items-center justify-between text-xs">
+          <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
             <span className="text-stone-600">
               Authorized Mberalink District Agents assisting rural farmers without smartphones across Malawi.
             </span>
-            <button
-              onClick={() => setShowAssignModal(true)}
-              className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-2 shadow-xs shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Assign New Agent</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Add Agent Directly</span>
+              </button>
+              <button
+                onClick={() => setShowAssignModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs flex items-center gap-1.5 border border-stone-200"
+              >
+                <Users className="w-4 h-4 text-stone-600" />
+                <span>Assign Existing User</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {agentsList.map((ag) => (
-              <div
-                key={ag.uid}
-                className="bg-white rounded-2xl border border-stone-200 p-4.5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between space-y-3"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="font-mono text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
-                        {ag.agentCode || 'AGT'}
-                      </span>
-                      <h3 className="text-base font-bold text-stone-900 mt-1">{ag.fullName}</h3>
-                      <p className="text-xs text-stone-500">{ag.email}</p>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      ACTIVE
-                    </span>
-                  </div>
-
-                  <div className="mt-3 space-y-1.5 text-xs text-stone-600">
-                    <div className="flex items-center gap-1.5 font-bold text-stone-800">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>
-                        Assigned District: <strong>{ag.assignedDistrict || ag.district}</strong>
-                      </span>
-                    </div>
-
-                    {ag.phoneNumber && (
-                      <div className="flex items-center gap-1.5 font-mono text-stone-700">
-                        <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                        <span>{ag.phoneNumber}</span>
+            {agentsList.map((ag) => {
+              const isSuspended = ag.agentStatus === 'suspended' || ag.status === 'suspended';
+              return (
+                <div
+                  key={ag.uid || ag.id}
+                  className={`bg-white rounded-2xl border p-4.5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between space-y-3 ${
+                    isSuspended ? 'border-rose-300 bg-rose-50/20' : 'border-stone-200'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-mono text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                          {ag.agentCode || 'AGT'}
+                        </span>
+                        <h3 className="text-base font-bold text-stone-900 mt-1">{ag.fullName}</h3>
+                        <p className="text-xs text-stone-500">{ag.email}</p>
                       </div>
-                    )}
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          isSuspended
+                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
+                        {isSuspended ? 'SUSPENDED' : 'ACTIVE'}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-1.5 text-xs text-stone-600">
+                      <div className="flex items-center gap-1.5 font-bold text-stone-800">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>
+                          Assigned District: <strong>{ag.assignedDistrict || ag.district}</strong>
+                        </span>
+                      </div>
+
+                      {ag.phoneNumber && (
+                        <div className="flex items-center gap-1.5 font-mono text-stone-700">
+                          <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                          <span>{ag.phoneNumber}</span>
+                        </div>
+                      )}
+
+                      {isSuspended && ag.suspensionReason && (
+                        <div className="text-[11px] text-rose-700 bg-rose-50 p-2 rounded-lg border border-rose-100 mt-1 font-medium">
+                          Reason: {ag.suspensionReason}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-stone-100">
+                    <div className="flex items-center justify-between text-[11px] text-stone-500">
+                      <span>Incentive: {(Number(ag.agentIncentiveRate || 0.01) * 100).toFixed(1)}%</span>
+                      <span className="font-semibold text-emerald-800">Field Extension Agent</span>
+                    </div>
+
+                    {/* Agent Lifecycle Action Buttons */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setInspectAgentUser(ag)}
+                        className="flex-1 px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                        title="Review agent field activities and transactions"
+                      >
+                        <FileText className="w-3 h-3 text-stone-500" />
+                        <span>Review</span>
+                      </button>
+
+                      {isSuspended ? (
+                        <button
+                          type="button"
+                          onClick={() => handleReinstateAgent(ag)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs"
+                          title="Reinstate agent"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Reinstate</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSuspendAgent(ag)}
+                          className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[11px] flex items-center gap-1 transition-colors"
+                          title="Suspend agent for performance issues"
+                        >
+                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          <span>Suspend</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleRevokeAgentRole(ag)}
+                        className="px-2 py-1 rounded-lg bg-stone-50 hover:bg-rose-50 text-stone-600 hover:text-rose-700 border border-stone-200 font-bold text-[11px] flex items-center gap-1 transition-colors"
+                        title="Revoke agent credentials"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Revoke</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <div className="pt-3 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
-                  <span>Incentive: {(Number(ag.agentIncentiveRate || 0.01) * 100).toFixed(1)}%</span>
-                  <span className="font-semibold text-emerald-700">Authorized Agent</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -809,6 +1019,143 @@ export const AdminAgentNetworkPanel: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* MODAL: ADD NEW AGENT DIRECTLY */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-lg w-full border border-stone-200 p-6 shadow-2xl animate-in zoom-in-95 duration-150 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-150">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-stone-900">Add New District Extension Agent</h3>
+                  <p className="text-[11px] text-stone-500">Register and onboard a field agent directly for a district</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="text-stone-400 hover:text-stone-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {addError && (
+              <div className="mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{addError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAddNewAgent} className="mt-4 space-y-3.5">
+              <div>
+                <label className="block text-stone-700 font-bold mb-1">Agent Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  placeholder="e.g. Kondwani Chirwa"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-white font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-stone-700 font-bold mb-1">Mobile Phone (Malawi) *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={addPhone}
+                    onChange={(e) => setAddPhone(e.target.value)}
+                    placeholder="+265 999 000 000"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 font-mono bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-stone-700 font-bold mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={addEmail}
+                    onChange={(e) => setAddEmail(e.target.value)}
+                    placeholder="agent@mberalink.mw"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-stone-700 font-bold mb-1">Assigned District *</label>
+                  <select
+                    value={addDistrict}
+                    onChange={(e) => {
+                      setAddDistrict(e.target.value);
+                      setAddAgentCode(`AGT-${e.target.value.slice(0, 3).toUpperCase()}-01`);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-white font-semibold"
+                  >
+                    {MALAWI_DISTRICTS.map((d) => (
+                      <option key={d} value={d}>
+                        {d} ({getDistrictRegion(d)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-stone-700 font-bold mb-1">Agent Code</label>
+                  <input
+                    type="text"
+                    value={addAgentCode}
+                    onChange={(e) => setAddAgentCode(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 font-mono font-bold bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-stone-700 font-bold mb-1">Incentive Rate</label>
+                  <select
+                    value={addIncentiveRate}
+                    onChange={(e) => setAddIncentiveRate(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-white font-semibold"
+                  >
+                    <option value={0.01}>1.0% per sale</option>
+                    <option value={0.015}>1.5% per sale</option>
+                    <option value={0.02}>2.0% per sale</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-stone-150 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingAgent}
+                  className="px-5 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold shadow-xs disabled:opacity-50"
+                >
+                  {addingAgent ? 'Registering Agent...' : 'Register & Appoint Agent'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AGENT ACTIVITY REVIEW */}
+      {inspectAgentUser && (
+        <UserActivityReviewModal
+          isOpen={Boolean(inspectAgentUser)}
+          onClose={() => setInspectAgentUser(null)}
+          user={inspectAgentUser}
+          onUserUpdated={() => {
+            fetchData();
+          }}
+        />
       )}
     </div>
   );

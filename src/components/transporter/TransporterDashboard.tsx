@@ -36,6 +36,7 @@ import {
   Gauge,
 } from 'lucide-react';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
+import { DirectChatModal } from '../common/DirectChatModal.tsx';
 
 export const TransporterDashboard: React.FC = () => {
   const { currentUser, refreshUser } = useAuth();
@@ -43,6 +44,7 @@ export const TransporterDashboard: React.FC = () => {
 
   const [jobs, setJobs] = useState<TransportJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chatConfig, setChatConfig] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'quotes' | 'available' | 'active' | 'completed' | 'profile' | 'queries'>('quotes');
 
   // Location update modal
@@ -955,6 +957,47 @@ export const TransporterDashboard: React.FC = () => {
                       </button>
                     )}
 
+                    {/* Direct Audited Chat with Buyer & Farmer */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setChatConfig({
+                          orderId: job.orderId,
+                          orderNumber: job.orderNumber,
+                          recipientUid: job.buyerUid || 'buyer-1',
+                          recipientName: job.buyerName || 'Buyer',
+                          recipientRole: 'buyer',
+                          relationship: 'buyer_transporter',
+                          commodityName: job.commodityName,
+                        })
+                      }
+                      className="px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs flex items-center gap-1.5 border border-blue-200 transition-colors"
+                      title="Direct audited chat with Buyer"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Chat Buyer</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setChatConfig({
+                          orderId: job.orderId,
+                          orderNumber: job.orderNumber,
+                          recipientUid: job.farmerUid || 'farmer-1',
+                          recipientName: job.farmerName || 'Farmer',
+                          recipientRole: 'farmer',
+                          relationship: 'farmer_transporter',
+                          commodityName: job.commodityName,
+                        })
+                      }
+                      className="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-1.5 border border-emerald-200 transition-colors"
+                      title="Direct audited chat with Farmer"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Chat Farmer</span>
+                    </button>
+
                     <button
                       onClick={() => {
                         setUpdatingJobId(job.id);
@@ -1533,6 +1576,21 @@ export const TransporterDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* DIRECT AUDITED MESSAGING MODAL */}
+      {chatConfig && (
+        <DirectChatModal
+          isOpen={Boolean(chatConfig)}
+          onClose={() => setChatConfig(null)}
+          orderId={chatConfig.orderId}
+          orderNumber={chatConfig.orderNumber}
+          recipientUid={chatConfig.recipientUid}
+          recipientName={chatConfig.recipientName}
+          recipientRole={chatConfig.recipientRole}
+          relationship={chatConfig.relationship}
+          commodityName={chatConfig.commodityName}
+        />
       )}
     </div>
   );

@@ -29,6 +29,7 @@ import { compressImageFile } from '../../lib/imageCompressor.ts';
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 import { AgriIntelligenceView } from '../intelligence/AgriIntelligenceView.tsx';
 import { useLanguage } from '../../context/LanguageContext.tsx';
+import { DirectChatModal } from '../common/DirectChatModal.tsx';
 
 export const FarmerDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -42,6 +43,7 @@ export const FarmerDashboard: React.FC = () => {
   const [marketPriceFilterDistrict, setMarketPriceFilterDistrict] = useState<string>(currentUser?.district || 'all');
   const [platformCommissionRate, setPlatformCommissionRate] = useState<number>(0.04);
   const [loading, setLoading] = useState(true);
+  const [chatConfig, setChatConfig] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'commodities' | 'orders' | 'market_prices' | 'earnings' | 'hire_transport' | 'queries' | 'agri_advisor'>('commodities');
 
   // Modal states
@@ -812,6 +814,49 @@ export const FarmerDashboard: React.FC = () => {
                           <span>Request Transporter</span>
                         </button>
                       )}
+
+                      {/* Direct Audited Messaging with Buyer & Transporter */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setChatConfig({
+                              orderId: o.id,
+                              orderNumber: o.orderNumber,
+                              recipientUid: o.buyerUid || String(o.buyerId),
+                              recipientName: o.buyerName,
+                              recipientRole: 'buyer',
+                              relationship: 'farmer_buyer',
+                              commodityName: o.commodityName,
+                            })
+                          }
+                          className="flex-1 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 border border-emerald-200 transition-colors"
+                          title="Direct audited chat with Buyer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Chat Buyer</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setChatConfig({
+                              orderId: o.id,
+                              orderNumber: o.orderNumber,
+                              recipientUid: (o as any).transporterUid || 'transporter-kondwani-01',
+                              recipientName: (o as any).transporterName || 'Transporter Kondwani',
+                              recipientRole: 'transporter',
+                              relationship: 'farmer_transporter',
+                              commodityName: o.commodityName,
+                            })
+                          }
+                          className="flex-1 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs flex items-center justify-center gap-1.5 border border-blue-200 transition-colors"
+                          title="Direct audited chat with Transporter"
+                        >
+                          <Truck className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Chat Transporter</span>
+                        </button>
+                      </div>
 
                       {o.paymentStatus === 'disbursed_to_farmer' && (
                         <div className="text-xs font-bold text-emerald-800 bg-emerald-100/70 p-2.5 rounded-xl border border-emerald-300 text-center flex flex-col items-center justify-center">
@@ -1684,6 +1729,21 @@ export const FarmerDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* DIRECT AUDITED MESSAGING MODAL */}
+      {chatConfig && (
+        <DirectChatModal
+          isOpen={Boolean(chatConfig)}
+          onClose={() => setChatConfig(null)}
+          orderId={chatConfig.orderId}
+          orderNumber={chatConfig.orderNumber}
+          recipientUid={chatConfig.recipientUid}
+          recipientName={chatConfig.recipientName}
+          recipientRole={chatConfig.recipientRole}
+          relationship={chatConfig.relationship}
+          commodityName={chatConfig.commodityName}
+        />
       )}
     </div>
   );

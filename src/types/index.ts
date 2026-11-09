@@ -17,6 +17,11 @@ export interface User {
   agentCode?: string; // e.g. AGT-ZOM-01
   agentStatus?: 'active' | 'suspended' | 'pending_verification';
   agentIncentiveRate?: number; // e.g. 0.01 (1%)
+  status?: 'active' | 'suspended' | 'under_review';
+  suspensionReason?: string;
+  suspendedAt?: string;
+  suspendedBy?: string;
+  assessmentNotes?: string;
   vehicleType?: string;
   vehicleRegistration?: string;
   plateNumber?: string;
@@ -147,6 +152,10 @@ export interface TransportJob {
   farmerUid?: string;
   farmerName?: string;
   farmerPhone?: string;
+  buyerId?: number;
+  buyerUid?: string;
+  buyerName?: string;
+  buyerPhone?: string;
   transporterId?: number;
   transporterUid?: string;
   transporterName?: string;
@@ -629,6 +638,81 @@ export interface AgentDistrictWorkspace {
   totalActiveListings: number;
   totalSalesVolumeMwk: number;
   pendingOrdersCount: number;
+}
+
+export type MessageParticipantRole = 'buyer' | 'transporter' | 'farmer' | 'admin';
+export type DirectMessageRelationship = 'buyer_transporter' | 'farmer_buyer' | 'farmer_transporter';
+
+export interface DirectMessage {
+  id: number;
+  messageId: string;
+  orderId: number;
+  orderNumber?: string;
+  senderUid: string;
+  senderName: string;
+  senderRole: MessageParticipantRole;
+  recipientUid: string;
+  recipientName: string;
+  recipientRole: MessageParticipantRole;
+  relationship: DirectMessageRelationship;
+  messageText: string;
+  createdAt: string;
+  isRead: boolean;
+  flaggedForReview?: boolean;
+  flagReason?: string;
+}
+
+export interface DirectMessageThread {
+  threadId: string;
+  orderId: number;
+  orderNumber: string;
+  commodityName?: string;
+  relationship: DirectMessageRelationship;
+  participant1: {
+    uid: string;
+    name: string;
+    role: MessageParticipantRole;
+  };
+  participant2: {
+    uid: string;
+    name: string;
+    role: MessageParticipantRole;
+  };
+  lastMessage: DirectMessage;
+  totalMessages: number;
+  unreadCount: number;
+  flaggedCount: number;
+  updatedAt: string;
+}
+
+export interface UserActivityReview {
+  user: User;
+  stats: {
+    commoditiesCount: number;
+    activeCommoditiesCount: number;
+    totalCommoditiesValueMwk: number;
+    ordersAsBuyerCount: number;
+    ordersAsFarmerCount: number;
+    totalOrdersValueMwk: number;
+    completedOrdersCount: number;
+    cancelledOrdersCount: number;
+    transportJobsCount: number;
+    directMessagesCount: number;
+    smsReceivedCount: number;
+    auditLogsCount: number;
+    flagsCount: number;
+  };
+  commodities: Commodity[];
+  orders: Order[];
+  transportJobs: any[];
+  directMessages: DirectMessage[];
+  smsNotifications: SmsNotification[];
+  auditLogs: AuditLogItem[];
+  riskAssessment: {
+    riskLevel: 'low' | 'medium' | 'high' | 'critical';
+    suspiciousFlags: string[];
+    recommendation: 'pardon' | 'warn' | 'suspend' | 'remove';
+  };
 }
 
 

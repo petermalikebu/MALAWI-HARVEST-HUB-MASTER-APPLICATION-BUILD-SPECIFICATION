@@ -35,12 +35,14 @@ import {
 import { SupportQueriesDesk } from '../support/SupportQueriesDesk.tsx';
 import { MarketPriceAdmin } from './MarketPriceAdmin.tsx';
 import { AdminAgentNetworkPanel } from './AdminAgentNetworkPanel.tsx';
+import { AdminDirectMessagesAuditPanel } from './AdminDirectMessagesAuditPanel.tsx';
+import { UserActivityReviewModal } from './UserActivityReviewModal.tsx';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const { subscribe } = useRealtime();
 
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'commission' | 'market_prices' | 'agent_network' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'commodities' | 'orders' | 'categories' | 'commission' | 'market_prices' | 'agent_network' | 'audited_messages' | 'audit' | 'settings' | 'queries' | 'password_resets'>('users');
   const [usersList, setUsersList] = useState<User[]>([]);
   const [commoditiesList, setCommoditiesList] = useState<Commodity[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>([]);
@@ -57,6 +59,61 @@ export const AdminDashboard: React.FC = () => {
   // User deletion state
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // User activity review & suspension state
+  const [reviewingUser, setReviewingUser] = useState<User | null>(null);
+  const [suspendingUser, setSuspendingUser] = useState<User | null>(null);
+  const [suspensionInputReason, setSuspensionInputReason] = useState<string>('Account misuse detected during administrative review.');
+  const [isSuspending, setIsSuspending] = useState<boolean>(false);
+
+  const handleExecuteSuspend = async () => {
+    if (!suspendingUser || !currentUser) return;
+    setIsSuspending(true);
+    try {
+      const res = await fetch(`/api/admin/users/${suspendingUser.id}/suspend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: suspensionInputReason,
+          adminUid: currentUser.uid,
+          adminName: currentUser.fullName,
+        }),
+      });
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        setSuspendingUser(null);
+        fetchAll();
+      } else {
+        alert(parsed.error || 'Failed to suspend user');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error suspending user');
+    } finally {
+      setIsSuspending(false);
+    }
+  };
+
+  const handleExecuteReinstate = async (u: User) => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/reinstate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminUid: currentUser.uid,
+          adminName: currentUser.fullName,
+        }),
+      });
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        fetchAll();
+      } else {
+        alert(parsed.error || 'Failed to reinstate user');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error reinstating user');
+    }
+  };
 
   // New category modal
   const [newCatName, setNewCatName] = useState('');
@@ -625,6 +682,20 @@ export const AdminDashboard: React.FC = () => {
           </span>
         </button>
         <button
+          onClick={() => setActiveSubTab('audited_messages')}
+          className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
+            activeSubTab === 'audited_messages'
+              ? 'bg-blue-800 text-white font-extrabold ring-1 ring-blue-900 shadow-2xs'
+              : 'text-stone-700 bg-blue-50/70 hover:bg-blue-100/80 border border-blue-200/80'
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-blue-700" />
+          <span>Audited Direct Messages</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black">
+            3-Way Live
+          </span>
+        </button>
+        <button
           onClick={() => setActiveSubTab('categories')}
           className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 ${
             activeSubTab === 'categories' ? 'bg-purple-100 text-purple-900' : 'text-stone-600 hover:bg-stone-100'
@@ -722,6 +793,7 @@ export const AdminDashboard: React.FC = () => {
                   <th className="p-3">Email & Phone</th>
                   <th className="p-3">District / Region</th>
                   <th className="p-3">Role</th>
+                  <th className="p-3">Standing</th>
                   <th className="p-3 text-right">Role & User Actions</th>
                 </tr>
               </thead>
@@ -771,8 +843,24 @@ export const AdminDashboard: React.FC = () => {
                           {u.role.replace('_', ' ')}
                         </span>
                       </td>
+                      <td className="p-3">
+                        {u.status === 'suspended' ? (
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1 w-max"
+                            title={u.suspensionReason || 'Account suspended by administrator'}
+                          >
+                            <AlertTriangle className="w-3 h-3 text-rose-600" />
+                            <span>Suspended</span>
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1 w-max">
+                            <CheckCircle className="w-3 h-3 text-emerald-600" />
+                            <span>Active</span>
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           <select
                             value={u.role}
                             onChange={(e) => handleChangeRole(u.id, e.target.value)}
@@ -781,38 +869,62 @@ export const AdminDashboard: React.FC = () => {
                             <option value="farmer">Farmer</option>
                             <option value="buyer">Buyer</option>
                             <option value="transporter">Transporter</option>
+                            <option value="agent">District Agent</option>
                             <option value="admin">Admin</option>
                             <option value="finance_admin">Finance Admin</option>
                           </select>
 
+                          {/* Review Dossier Button */}
                           <button
-                            onClick={() => setDeletingUser(u)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                              isCurrentSelf
-                                ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-2xs'
-                                : isFellowAdmin
-                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
-                                : 'bg-stone-50 hover:bg-rose-50 text-stone-600 hover:text-rose-700 border border-stone-200 hover:border-rose-200'
-                            }`}
-                            title={
-                              isCurrentSelf
-                                ? 'Remove yourself from the system database'
-                                : isFellowAdmin
-                                ? 'Remove fellow administrator'
-                                : 'Remove user'
-                            }
+                            type="button"
+                            onClick={() => setReviewingUser(u)}
+                            className="px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors border border-stone-200"
+                            title="Review full activity dossier, transactions, and audit trail"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>
-                              {isCurrentSelf
-                                ? 'Remove Myself (Lead Admin)'
-                                : isLeadAdminUser
-                                ? 'Remove Fellow Lead Admin'
-                                : isFellowAdmin
-                                ? 'Remove Fellow Admin'
-                                : 'Remove'}
-                            </span>
+                            <FileText className="w-3.5 h-3.5 text-stone-600" />
+                            <span>Review</span>
                           </button>
+
+                          {/* Suspend / Reinstate Button */}
+                          {!isLeadAdminUser && (
+                            u.status === 'suspended' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleExecuteReinstate(u)}
+                                className="px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors"
+                                title="Reinstate user account to active status"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Reinstate</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSuspendingUser(u);
+                                  setSuspensionInputReason('Account misuse detected during administrative audit.');
+                                }}
+                                className="px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors"
+                                title="Suspend user account for investigation"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Suspend</span>
+                              </button>
+                            )
+                          )}
+
+                          {/* Controlled Removal */}
+                          {!isLeadAdminUser && (
+                            <button
+                              type="button"
+                              onClick={() => setDeletingUser(u)}
+                              className="px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all bg-stone-50 hover:bg-rose-50 text-stone-600 hover:text-rose-700 border border-stone-200 hover:border-rose-200"
+                              title="Remove user"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1355,6 +1467,11 @@ export const AdminDashboard: React.FC = () => {
         <AdminAgentNetworkPanel />
       )}
 
+      {/* SUB TAB 6.7: AUDITED DIRECT MESSAGES (3-WAY) */}
+      {activeSubTab === 'audited_messages' && (
+        <AdminDirectMessagesAuditPanel />
+      )}
+
       {/* SUB TAB 7: QUERIES & HELP DESK */}
       {activeSubTab === 'queries' && (
         <SupportQueriesDesk />
@@ -1749,6 +1866,75 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: SUSPEND USER ACCOUNT */}
+      {suspendingUser && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-stone-200 p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-extrabold text-stone-900 text-base">
+                Suspend User Account
+              </h3>
+              <p className="text-xs text-stone-500">
+                Are you sure you want to suspend <strong>{suspendingUser.fullName}</strong> ({suspendingUser.role})?
+              </p>
+            </div>
+
+            <div className="bg-amber-50 rounded-2xl p-3.5 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+              Suspended users are restricted from listing commodities, accepting transport jobs, or initiating trades. An official SMS notification will be automatically dispatched to their mobile number explaining the suspension.
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                Reason for Administrative Suspension *
+              </label>
+              <textarea
+                rows={3}
+                value={suspensionInputReason}
+                onChange={(e) => setSuspensionInputReason(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-amber-600 bg-white"
+                placeholder="State the observed platform misuse or policy violation..."
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSuspendingUser(null)}
+                disabled={isSuspending}
+                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteSuspend}
+                disabled={isSuspending || !suspensionInputReason.trim()}
+                className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs disabled:opacity-50 flex items-center gap-1.5 transition-all active:scale-95"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{isSuspending ? 'Suspending...' : 'Confirm Suspension'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: COMPREHENSIVE ACTIVITY REVIEW DOSSIER */}
+      {reviewingUser && (
+        <UserActivityReviewModal
+          isOpen={Boolean(reviewingUser)}
+          onClose={() => setReviewingUser(null)}
+          user={reviewingUser}
+          onUserUpdated={() => {
+            fetchAll();
+          }}
+        />
       )}
     </div>
   );

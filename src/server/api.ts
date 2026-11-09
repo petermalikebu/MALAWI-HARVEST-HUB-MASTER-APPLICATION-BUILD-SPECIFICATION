@@ -30,6 +30,11 @@ import {
   updateSmsGatewayConfig,
   formatMalawiPhoneNumber,
 } from './smsGateway.ts';
+import {
+  simulateBroadcastAnnouncement,
+  getMockSmsGatewayStatus,
+  dispatchSingleMockSms,
+} from './mockSmsGateway.ts';
 import { africasTalkingService } from './africasTalkingService.ts';
 import {
   getFcmStatus,
@@ -6561,6 +6566,10 @@ router.post('/admin/agents/assign', async (req, res) => {
   }
 });
 
+// ============================================================================
+// 1. DISPATCH ADMINISTRATOR SMS ANNOUNCEMENT (Mock Cellular Gateway Integration)
+// ============================================================================
+
 // POST /api/admin/sms-broadcast: Administrator dispatches SMS announcement
 router.post(['/admin/sms-broadcast', '/api/admin/sms-broadcast'], async (req, res) => {
   try {
@@ -6570,122 +6579,33 @@ router.post(['/admin/sms-broadcast', '/api/admin/sms-broadcast'], async (req, re
       return res.status(400).json({ error: 'Broadcast title and SMS message text are required.' });
     }
 
-    const store = getInMemoryStore();
-    if (!Array.isArray(store.sms_broadcasts)) store.sms_broadcasts = [];
-
-    const isAllDistricts = !targetDistrict || targetDistrict === 'All Districts';
-    const audience = targetAudience || 'all_farmers';
-    const lang = language === 'en' ? 'en' : 'ch';
-
-    // Collect recipient phone numbers with deduplication
-    const recipients: Array<{ phone: string; name: string; district: string }> = [];
-    const seenPhones = new Set<string>();
-
-    const addRecipient = (phone: string, name: string, district: string) => {
-      if (!phone) return;
-      const clean = phone.replace(/[^0-9]/g, '');
-      if (!clean) return;
-      if (!seenPhones.has(clean)) {
-        seenPhones.add(clean);
-        recipients.push({ phone, name, district });
-      }
-    };
-
-    // 1. Registered online farmers & users (from store.users)
-    const allUsers = store.users || [];
-    for (const u of allUsers) {
-      const uDistrict = u.assignedDistrict || u.district || 'Lilongwe';
-      const matchesDistrict = isAllDistricts || uDistrict.toLowerCase() === targetDistrict.toLowerCase();
-      if (matchesDistrict) {
-        if (audience === 'all_farmers' || audience === 'all') {
-          if (u.role === 'farmer' && u.phoneNumber) {
-            addRecipient(u.phoneNumber, u.fullName || 'Registered Farmer', uDistrict);
-          }
-        }
-        if (audience === 'agents' || audience === 'all') {
-          if (u.role === 'agent') {
-            addRecipient(u.phoneNumber || '+265 999 000 000', u.fullName || 'District Agent', uDistrict);
-          }
-        }
-      }
-    }
-
-    // 2. Offline keypad farmers (from store.offline_farmers)
-    const offlineFarmers = store.offline_farmers || [];
-    for (const f of offlineFarmers) {
-      const fDistrict = f.district || 'Lilongwe';
-      const matchesDistrict = isAllDistricts || fDistrict.toLowerCase() === targetDistrict.toLowerCase();
-      if (matchesDistrict) {
-        if (audience === 'all_farmers' || audience === 'offline_farmers' || audience === 'all') {
-          if (f.phoneNumber) {
-            addRecipient(f.phoneNumber, f.fullName || 'Farmer', fDistrict);
-          }
-        }
-      }
-    }
-
-    const broadcastId = `BCAST-${new Date().getFullYear()}-${String(store.sms_broadcasts.length + 1).padStart(3, '0')}`;
-    const newBroadcast: any = {
-      id: store.sms_broadcasts.length + 1,
-      broadcastId,
+    const result = simulateBroadcastAnnouncement({
       title: String(title).trim(),
-      targetDistrict: isAllDistricts ? 'All Districts' : targetDistrict,
-      targetAudience: audience,
       messageText: String(messageText).trim(),
-      language: lang,
-      sentByAdminUid: adminUid || 'admin',
-      sentByAdminName: adminName || 'Administrator',
-      recipientCount: recipients.length,
-      status: 'completed',
-      createdAt: new Date(),
-    };
-
-    try {
-      const inserted = await db.insert(smsBroadcasts).values(newBroadcast).returning();
-      if (inserted && inserted[0]) {
-        newBroadcast.id = inserted[0].id;
-      }
-    } catch {
-      // In-memory fallback if pg table is not connected
-    }
-
-    store.sms_broadcasts.unshift(newBroadcast);
-
-    // Create individual SMS notifications for each recipient
-    for (const r of recipients) {
-      sendAutomatedFarmerSms({
-        recipientPhone: r.phone,
-        recipientName: r.name,
-        district: r.district,
-        messageText: newBroadcast.messageText,
-        messageLanguage: lang,
-        eventType: 'broadcast_announcement',
-        relatedRecordNumber: broadcastId,
-      });
-    }
-
-    saveStoreToDisk(store);
+      targetDistrict: targetDistrict || 'All Districts',
+      targetAudience: targetAudience || 'all_farmers',
+      language: language === 'en' ? 'en' : 'ch',
+      adminUid: adminUid || 'admin',
+      adminName: adminName || 'System Administrator',
+    });
 
     await logAudit({
       userUid: adminUid || 'admin',
       userEmail: 'admin@mberalink.mw',
-      userName: adminName || 'Administrator',
+      userName: adminName || 'System Administrator',
       role: 'admin',
       action: 'SMS_BROADCAST_DISPATCHED',
-      recordAffected: `Broadcast #${broadcastId} (${newBroadcast.title})`,
-      newValue: `Recipients: ${recipients.length} | Target: ${newBroadcast.targetDistrict}`,
-      reason: 'Administrative broadcast communication to farmers & agents',
+      recordAffected: `Broadcast #${result.broadcast.broadcastId} (${result.broadcast.title})`,
+      newValue: `Recipients: ${result.recipientCount} (TNM: ${result.stats.tnmCount}, Airtel: ${result.stats.airtelCount}) | Target: ${result.broadcast.targetDistrict}`,
+      reason: 'Official Administrative SMS announcement to farmers and district agents',
     });
 
-    broadcastEvent('SMS_BROADCAST_SENT', newBroadcast);
-
-    const targetDesc = isAllDistricts ? 'all 28 districts' : targetDistrict;
     return res.status(201).json({
       success: true,
-      message: recipients.length > 0
-        ? `SMS broadcast dispatched successfully to ${recipients.length} recipients across ${targetDesc}.`
-        : `SMS broadcast logged and registered for ${targetDesc}. (No matching mobile contacts registered in this district yet).`,
-      broadcast: newBroadcast,
+      message: result.message,
+      broadcast: result.broadcast,
+      recipientCount: result.recipientCount,
+      stats: result.stats,
     });
   } catch (error: any) {
     console.error('Error sending SMS broadcast:', error);
@@ -6694,7 +6614,7 @@ router.post(['/admin/sms-broadcast', '/api/admin/sms-broadcast'], async (req, re
 });
 
 // GET /api/admin/sms-broadcasts: List past broadcasts
-router.get(['/admin/sms-broadcasts', '/api/admin/sms-broadcasts'], async (req, res) => {
+router.get(['/admin/sms-broadcasts', '/api/admin/sms-broadcasts'], async (_req, res) => {
   try {
     const store = getInMemoryStore();
     let list: any[] = [];
@@ -6710,4 +6630,901 @@ router.get(['/admin/sms-broadcasts', '/api/admin/sms-broadcasts'], async (req, r
   }
 });
 
+// GET /api/admin/sms-gateway/status: Live cellular gateway statistics
+router.get(['/admin/sms-gateway/status', '/api/admin/sms-gateway/status'], async (_req, res) => {
+  try {
+    const status = getMockSmsGatewayStatus();
+    return res.json(status);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to get gateway status' });
+  }
+});
+
+// ============================================================================
+// 2. ADMIN AGENT MANAGEMENT (Assign, Add, Suspend, Reinstate, Remove)
+// ============================================================================
+
+// POST /api/admin/agents/add: Create and onboard a new district agent directly
+router.post(['/admin/agents/add', '/api/admin/agents/add'], async (req, res) => {
+  try {
+    const { fullName, email, phoneNumber, assignedDistrict, agentCode, incentiveRate, adminUid, adminName } = req.body;
+
+    if (!fullName || !assignedDistrict) {
+      return res.status(400).json({ error: 'Full name and assigned district are required.' });
+    }
+
+    const store = getInMemoryStore();
+    if (!Array.isArray(store.users)) store.users = [];
+
+    const region = getDistrictRegion(assignedDistrict);
+    const existing = store.users.find(
+      (u: any) =>
+        (email && u.email && u.email.toLowerCase() === email.toLowerCase()) ||
+        (phoneNumber && u.phoneNumber && u.phoneNumber.replace(/[^0-9]/g, '') === phoneNumber.replace(/[^0-9]/g, ''))
+    );
+
+    let targetUser: any;
+    if (existing) {
+      existing.role = 'agent';
+      existing.assignedDistrict = assignedDistrict;
+      existing.district = assignedDistrict;
+      existing.region = region;
+      existing.agentCode = agentCode || existing.agentCode || `AGT-${assignedDistrict.slice(0, 3).toUpperCase()}-01`;
+      existing.agentStatus = 'active';
+      existing.status = 'active';
+      existing.agentIncentiveRate = Number(incentiveRate) || 0.01;
+      targetUser = existing;
+    } else {
+      const nextId = store.users.length + 1;
+      const genUid = `agent-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      targetUser = {
+        id: nextId,
+        uid: genUid,
+        email: email || `agent.${fullName.toLowerCase().replace(/\s+/g, '')}@mberalink.mw`,
+        fullName,
+        role: 'agent',
+        phoneNumber: phoneNumber || '+265 999 000 000',
+        district: assignedDistrict,
+        region,
+        assignedDistrict,
+        agentCode: agentCode || `AGT-${assignedDistrict.slice(0, 3).toUpperCase()}-01`,
+        agentStatus: 'active',
+        status: 'active',
+        agentIncentiveRate: Number(incentiveRate) || 0.01,
+        createdAt: new Date().toISOString(),
+      };
+      store.users.unshift(targetUser);
+    }
+
+    saveStoreToDisk(store);
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'System Administrator',
+      role: 'admin',
+      action: 'AGENT_ONBOARDED',
+      recordAffected: `Agent ${targetUser.fullName} (${targetUser.assignedDistrict})`,
+      newValue: `Code: ${targetUser.agentCode} | Rate: ${(targetUser.agentIncentiveRate * 100).toFixed(1)}%`,
+      reason: 'Administrator directly added new district agent',
+    });
+
+    broadcastEvent('USER_UPDATED', targetUser);
+
+    return res.status(201).json({
+      success: true,
+      message: `District agent ${targetUser.fullName} has been successfully registered for ${assignedDistrict}.`,
+      agent: targetUser,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to add agent' });
+  }
+});
+
+// POST /api/admin/agents/:id/suspend: Suspend an agent for underperformance or misconduct
+router.post(['/admin/agents/:id/suspend', '/api/admin/agents/:id/suspend'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { reason, adminUid, adminName } = req.body;
+
+    const store = getInMemoryStore();
+    const user = (store.users || []).find((u: any) => u.id === id || u.uid === req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    user.agentStatus = 'suspended';
+    user.status = 'suspended';
+    user.suspensionReason = reason || 'Suspended by administration for review of district operations';
+    user.suspendedAt = new Date().toISOString();
+    user.suspendedBy = adminName || 'System Administrator';
+
+    saveStoreToDisk(store);
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'System Administrator',
+      role: 'admin',
+      action: 'AGENT_SUSPENDED',
+      recordAffected: `Agent ${user.fullName} (${user.assignedDistrict || user.district})`,
+      newValue: `Suspended | Reason: ${user.suspensionReason}`,
+      reason: user.suspensionReason,
+    });
+
+    broadcastEvent('USER_UPDATED', user);
+
+    // Alert agent via SMS
+    if (user.phoneNumber) {
+      dispatchSingleMockSms({
+        recipientPhone: user.phoneNumber,
+        recipientName: user.fullName,
+        district: user.assignedDistrict || user.district,
+        messageText: `MBERALINK: Udindo wanu wa District Agent wayimitsidwa kwakanthawi kamba ka: ${user.suspensionReason}. Lumikizanani ndi a Head Office.`,
+        eventType: 'agent_status_change',
+        recipientType: 'agent',
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `Agent ${user.fullName} has been suspended from district field duties.`,
+      agent: user,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to suspend agent' });
+  }
+});
+
+// POST /api/admin/agents/:id/reinstate: Reinstate suspended agent
+router.post(['/admin/agents/:id/reinstate', '/api/admin/agents/:id/reinstate'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { adminUid, adminName } = req.body;
+
+    const store = getInMemoryStore();
+    const user = (store.users || []).find((u: any) => u.id === id || u.uid === req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    user.agentStatus = 'active';
+    user.status = 'active';
+    user.suspensionReason = '';
+    user.suspendedAt = undefined;
+    user.suspendedBy = undefined;
+
+    saveStoreToDisk(store);
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'System Administrator',
+      role: 'admin',
+      action: 'AGENT_REINSTATED',
+      recordAffected: `Agent ${user.fullName} (${user.assignedDistrict || user.district})`,
+      newValue: 'Active',
+      reason: 'Administrator cleared review and restored agent credentials',
+    });
+
+    broadcastEvent('USER_UPDATED', user);
+
+    return res.json({
+      success: true,
+      message: `Agent ${user.fullName} has been reinstated to active field status.`,
+      agent: user,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to reinstate agent' });
+  }
+});
+
+// POST /api/admin/agents/:id/remove: Revoke agent role / remove assignment
+router.post(['/admin/agents/:id/remove', '/api/admin/agents/:id/remove'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { adminUid, adminName, newRole } = req.body;
+
+    const store = getInMemoryStore();
+    const user = (store.users || []).find((u: any) => u.id === id || u.uid === req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const prevDistrict = user.assignedDistrict;
+    user.role = newRole || 'farmer';
+    user.agentStatus = undefined;
+    user.assignedDistrict = undefined;
+    user.agentCode = undefined;
+    user.agentIncentiveRate = undefined;
+
+    saveStoreToDisk(store);
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'System Administrator',
+      role: 'admin',
+      action: 'AGENT_ROLE_REVOKED',
+      recordAffected: `User ${user.fullName}`,
+      previousValue: `Agent for ${prevDistrict}`,
+      newValue: `Role reverted to ${user.role}`,
+      reason: 'Administrator revoked agent authorization and district assignment',
+    });
+
+    broadcastEvent('USER_UPDATED', user);
+
+    return res.json({
+      success: true,
+      message: `Agent privileges removed for ${user.fullName}. User role reverted to ${user.role}.`,
+      user,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to revoke agent role' });
+  }
+});
+
+// ============================================================================
+// 3. USER SUSPENSION, ACTIVITY REVIEW & ASSESSMENT REMOVAL
+// ============================================================================
+
+// Helper to identify protected Lead Admins (cannot be suspended or removed)
+function isLeadAdmin(user: any): boolean {
+  if (!user) return false;
+  const uid = user.uid || '';
+  const email = (user.email || '').toLowerCase().trim();
+  const name = (user.fullName || '').toLowerCase().trim();
+
+  return (
+    uid === 'frF3xukObzdA8AhCBYIBPYV0UK13' ||
+    uid === '9DXK6Cfy4FaODmqyVm7q8yrKup82' ||
+    email === 'petermalikebujr@gmail.com' ||
+    email === 'joshuamalikebu927@gmail.com' ||
+    name.includes('peter malikebu') ||
+    name.includes('joshua malikebu')
+  );
+}
+
+// POST /api/admin/users/:id/suspend: Suspend user account for misconduct / policy violation
+router.post(['/admin/users/:id/suspend', '/api/admin/users/:id/suspend'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { reason, adminUid, adminName } = req.body;
+
+    const store = getInMemoryStore();
+    const user = (store.users || []).find((u: any) => u.id === id || u.uid === req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found in system database' });
+    }
+
+    if (isLeadAdmin(user)) {
+      return res.status(403).json({ error: 'Forbidden: Lead Administrator accounts cannot be suspended.' });
+    }
+
+    const suspensionReason = reason?.trim() || 'Account suspended for administrative review and suspected platform misuse.';
+
+    user.status = 'suspended';
+    user.suspensionReason = suspensionReason;
+    user.suspendedAt = new Date().toISOString();
+    user.suspendedBy = adminName || 'System Administrator';
+
+    if (user.role === 'agent') {
+      user.agentStatus = 'suspended';
+    }
+    if (user.role === 'transporter') {
+      user.isAvailable = false;
+    }
+
+    saveStoreToDisk(store);
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'System Administrator',
+      role: 'admin',
+      action: 'USER_SUSPENDED',
+      recordAffected: `User ${user.fullName} (${user.email || user.phoneNumber})`,
+      newValue: `Status: SUSPENDED | Reason: ${suspensionReason}`,
+      reason: suspensionReason,
+    });
+
+    broadcastEvent('USER_UPDATED', user);
+
+    // Send SMS alert to suspended user
+    if (user.phoneNumber) {
+      dispatchSingleMockSms({
+        recipientPhone: user.phoneNumber,
+        recipientName: user.fullName,
+        district: user.district || 'Lilongwe',
+        messageText: `MBERALINK: Akaunti yanu yayimitsidwa kwakanthawi kamba ka: ${suspensionReason}. Kuti mudziwe zambiri, funsani chithandizo pa admin@mberalink.mw`,
+        eventType: 'account_suspended',
+        recipientType: 'user',
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `User ${user.fullName} (${user.role}) has been suspended.`,
+      user,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to suspend user' });
+  }
+});
+
+// POST /api/admin/users/:id/reinstate: Re-activate suspended user account
+router.post(['/admin/users/:id/reinstate', '/api/admin/users/:id/reinstate'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { adminUid, adminName } = req.body;
+
+    const store = getInMemoryStore();
+    const user = (store.users || []).find((u: any) => u.id === id || u.uid === req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.status = 'active';
+    user.suspensionReason = '';
+    user.suspendedAt = undefined;
+    user.suspendedBy = undefined;
+
+    if (user.role === 'agent') {
+      user.agentStatus = 'active';
+    }
+    if (user.role === 'transporter') {
+      user.isAvailable = true;
+    }
+
+    saveStoreToDisk(store);
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'System Administrator',
+      role: 'admin',
+      action: 'USER_REINSTATED',
+      recordAffected: `User ${user.fullName} (${user.email || user.phoneNumber})`,
+      newValue: 'Status: ACTIVE',
+      reason: 'Administrator cleared suspension and restored user account privileges',
+    });
+
+    broadcastEvent('USER_UPDATED', user);
+
+    if (user.phoneNumber) {
+      dispatchSingleMockSms({
+        recipientPhone: user.phoneNumber,
+        recipientName: user.fullName,
+        district: user.district || 'Lilongwe',
+        messageText: `MBERALINK: Akaunti yanu yayambiranso kugwira ntchito mokwanira. Takulandiraninso pa Mberalink!`,
+        eventType: 'account_reinstated',
+        recipientType: 'user',
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `User ${user.fullName} has been reinstated to active standing.`,
+      user,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to reinstate user' });
+  }
+});
+
+// GET /api/admin/users/:id/activity-review: Comprehensive activity review dossier for assessing user
+router.get(['/admin/users/:id/activity-review', '/api/admin/users/:id/activity-review'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const store = getInMemoryStore();
+
+    const user = (store.users || []).find((u: any) => u.id === id || u.uid === req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found in system database' });
+    }
+
+    const targetUid = user.uid;
+
+    // 1. Commodities listed by this user
+    const userCommodities = (store.commodities || []).filter(
+      (c: any) => c.farmerId === id || c.farmerUid === targetUid
+    );
+
+    // 2. Orders placed or received by this user
+    const userOrders = (store.orders || []).filter(
+      (o: any) =>
+        o.buyerId === id ||
+        o.buyerUid === targetUid ||
+        o.farmerId === id ||
+        o.farmerUid === targetUid
+    );
+
+    // 3. Transport jobs accepted or requested
+    const userTransport = (store.transport_jobs || []).filter(
+      (t: any) =>
+        t.transporterId === id ||
+        t.transporterUid === targetUid ||
+        t.farmerId === id ||
+        t.farmerUid === targetUid
+    );
+
+    // 4. Direct messages sent or received
+    const directMessagesList = (store.direct_messages || []).filter(
+      (m: any) => m.senderUid === targetUid || m.recipientUid === targetUid
+    );
+
+    // 5. SMS notifications received
+    const cleanUserPhone = (user.phoneNumber || '').replace(/[^0-9]/g, '');
+    const userSms = (store.sms_notifications || []).filter((s: any) => {
+      const cleanSmsPhone = (s.recipientPhone || '').replace(/[^0-9]/g, '');
+      return (
+        (cleanUserPhone && cleanSmsPhone && cleanSmsPhone.includes(cleanUserPhone.slice(-8))) ||
+        (s.recipientName && user.fullName && s.recipientName.toLowerCase().includes(user.fullName.toLowerCase()))
+      );
+    });
+
+    // 6. Audit logs affecting or initiated by this user
+    const userAudit = (store.audit_logs || []).filter(
+      (a: any) =>
+        a.userUid === targetUid ||
+        (a.recordAffected && a.recordAffected.includes(user.fullName)) ||
+        (a.userEmail && user.email && a.userEmail.toLowerCase() === user.email.toLowerCase())
+    );
+
+    // Calculate metrics & risk assessment
+    const completedOrders = userOrders.filter((o: any) => o.status === 'delivered' || o.status === 'confirmed');
+    const cancelledOrders = userOrders.filter((o: any) => o.status === 'cancelled');
+    const flaggedMessages = directMessagesList.filter((m: any) => m.flaggedForReview);
+
+    const totalCommoditiesValue = userCommodities.reduce(
+      (acc: number, c: any) => acc + (Number(c.pricePerUnit) || 0) * (Number(c.initialQuantity) || 0),
+      0
+    );
+    const totalOrdersValue = userOrders.reduce((acc: number, o: any) => acc + (Number(o.totalAmount) || 0), 0);
+
+    const suspiciousFlags: string[] = [];
+    if (cancelledOrders.length >= 2) {
+      suspiciousFlags.push(`High order cancellation frequency (${cancelledOrders.length} cancelled transactions)`);
+    }
+    if (flaggedMessages.length > 0) {
+      suspiciousFlags.push(`Detected ${flaggedMessages.length} flagged direct messages with off-platform settlement keywords`);
+    }
+    if (userCommodities.some((c: any) => Number(c.pricePerUnit) > 100000)) {
+      suspiciousFlags.push('Contains unusually priced commodity listings deviating from official Ministry market benchmarks');
+    }
+
+    let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
+    let recommendation: 'pardon' | 'warn' | 'suspend' | 'remove' = 'pardon';
+
+    if (suspiciousFlags.length >= 2 || user.status === 'suspended') {
+      riskLevel = suspiciousFlags.length >= 3 ? 'critical' : 'high';
+      recommendation = user.status === 'suspended' ? 'remove' : 'suspend';
+    } else if (suspiciousFlags.length === 1) {
+      riskLevel = 'medium';
+      recommendation = 'warn';
+    }
+
+    const reviewData = {
+      user,
+      stats: {
+        commoditiesCount: userCommodities.length,
+        activeCommoditiesCount: userCommodities.filter((c: any) => c.status === 'available').length,
+        totalCommoditiesValueMwk: totalCommoditiesValue,
+        ordersAsBuyerCount: userOrders.filter((o: any) => o.buyerUid === targetUid || o.buyerId === id).length,
+        ordersAsFarmerCount: userOrders.filter((o: any) => o.farmerUid === targetUid || o.farmerId === id).length,
+        totalOrdersValueMwk: totalOrdersValue,
+        completedOrdersCount: completedOrders.length,
+        cancelledOrdersCount: cancelledOrders.length,
+        transportJobsCount: userTransport.length,
+        directMessagesCount: directMessagesList.length,
+        smsReceivedCount: userSms.length,
+        auditLogsCount: userAudit.length,
+        flagsCount: suspiciousFlags.length,
+      },
+      commodities: userCommodities,
+      orders: userOrders,
+      transportJobs: userTransport,
+      directMessages: directMessagesList,
+      smsNotifications: userSms.slice(0, 50),
+      auditLogs: userAudit.slice(0, 50),
+      riskAssessment: {
+        riskLevel,
+        suspiciousFlags,
+        recommendation,
+      },
+    };
+
+    return res.json(reviewData);
+  } catch (error: any) {
+    console.error('Error generating user activity review:', error);
+    return res.status(500).json({ error: error.message || 'Failed to compile activity review' });
+  }
+});
+
+// POST /api/admin/users/:id/assess-remove: Remove user after assessment when found guilty
+router.post(['/admin/users/:id/assess-remove', '/api/admin/users/:id/assess-remove'], async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { assessmentFindings, adminUid, adminName } = req.body;
+
+    const store = getInMemoryStore();
+    const userIndex = (store.users || []).findIndex((u: any) => u.id === id || u.uid === req.params.id);
+    if (userIndex === -1) {
+      return res.status(404).json({ error: 'User not found in system database' });
+    }
+
+    const targetUser = store.users[userIndex];
+
+    if (isLeadAdmin(targetUser)) {
+      return res.status(403).json({ error: 'Forbidden: Lead Administrator accounts cannot be removed or expelled.' });
+    }
+
+    const findings = assessmentFindings?.trim() || 'Found guilty of platform misuse following administrative activity assessment.';
+
+    // 1. Remove user from store.users
+    store.users.splice(userIndex, 1);
+
+    // 2. Cancel or clean active listings
+    if (Array.isArray(store.commodities)) {
+      store.commodities = store.commodities.filter(
+        (c: any) => c.farmerId !== id && c.farmerUid !== targetUser.uid
+      );
+    }
+
+    // 3. Cancel open pending orders
+    if (Array.isArray(store.orders)) {
+      for (const ord of store.orders) {
+        if (
+          (ord.buyerId === id || ord.buyerUid === targetUser.uid || ord.farmerId === id || ord.farmerUid === targetUser.uid) &&
+          ord.status === 'pending'
+        ) {
+          ord.status = 'cancelled';
+          ord.notes = `Cancelled automatically due to administrative expulsion of user: ${findings}`;
+        }
+      }
+    }
+
+    // 4. Update transport jobs
+    if (Array.isArray(store.transport_jobs)) {
+      for (const tj of store.transport_jobs) {
+        if (tj.transporterId === id || tj.transporterUid === targetUser.uid) {
+          if (tj.status === 'requested' || tj.status === 'assigned') {
+            tj.status = 'cancelled';
+            tj.notes = `Driver expelled after administrative assessment: ${findings}`;
+          }
+        }
+      }
+    }
+
+    saveStoreToDisk(store);
+
+    // Try PostgreSQL removal if connected
+    try {
+      await db.delete(users).where(eq(users.id, id));
+    } catch {
+      // In-memory fallback
+    }
+
+    await logAudit({
+      userUid: adminUid || 'admin',
+      userEmail: 'admin@mberalink.mw',
+      userName: adminName || 'System Administrator',
+      role: 'admin',
+      action: 'USER_EXPELLED_AFTER_ASSESSMENT',
+      recordAffected: `User ${targetUser.fullName} (${targetUser.role} - ${targetUser.email || targetUser.phoneNumber})`,
+      newValue: 'Permanently Removed / Expelled',
+      reason: findings,
+    });
+
+    broadcastEvent('USER_DELETED', { id, uid: targetUser.uid, fullName: targetUser.fullName });
+
+    // Send final expulsion SMS
+    if (targetUser.phoneNumber) {
+      dispatchSingleMockSms({
+        recipientPhone: targetUser.phoneNumber,
+        recipientName: targetUser.fullName,
+        district: targetUser.district || 'Lilongwe',
+        messageText: `MBERALINK: Pambuyo pofufuza ndi kuwunika zochita zanu, akaunti yanu yachotsedwa pa Mberalink kamba ka: ${findings}. Chigamulo ichi ndi chotsiriza.`,
+        eventType: 'account_expelled',
+        recipientType: 'user',
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `User ${targetUser.fullName} has been found guilty and permanently expelled after administrative assessment.`,
+      user: targetUser,
+    });
+  } catch (error: any) {
+    console.error('Error in assess-remove user:', error);
+    return res.status(500).json({ error: error.message || 'Failed to remove user after assessment' });
+  }
+});
+
+// ============================================================================
+// 4. DIRECT AUDITED MESSAGING (Buyer <-> Transporter, Farmer <-> Buyer, Farmer <-> Transporter)
+// ============================================================================
+
+// High-risk compliance keywords for automatic audit flagging
+const AUDIT_FLAG_KEYWORDS = [
+  'whatsapp',
+  'airtel money direct',
+  'mpamba direct',
+  'pay outside',
+  'pay me direct',
+  'call me outside',
+  'private number',
+  'bank transfer direct',
+  'bypass',
+  'cancel order and pay cash',
+  'off platform',
+  'off-app',
+];
+
+// POST /api/messages/send: Send a direct message between order participants
+router.post(['/messages/send', '/api/messages/send'], async (req, res) => {
+  try {
+    const {
+      orderId,
+      orderNumber,
+      senderUid,
+      senderName,
+      senderRole,
+      recipientUid,
+      recipientName,
+      recipientRole,
+      relationship,
+      messageText,
+    } = req.body;
+
+    if (!messageText || !String(messageText).trim()) {
+      return res.status(400).json({ error: 'Message text cannot be empty.' });
+    }
+
+    if (!senderUid || !recipientUid) {
+      return res.status(400).json({ error: 'Sender and recipient identifiers are required.' });
+    }
+
+    const store = getInMemoryStore();
+    if (!Array.isArray(store.direct_messages)) {
+      store.direct_messages = [];
+    }
+
+    // Check if sender is suspended
+    const sender = (store.users || []).find((u: any) => u.uid === senderUid);
+    if (sender && sender.status === 'suspended') {
+      return res.status(403).json({
+        error: 'Your account is currently under administrative suspension. Direct messaging privileges are restricted.',
+      });
+    }
+
+    // Determine relationship if not explicitly provided
+    let rel = relationship;
+    if (!rel) {
+      const roles = [senderRole, recipientRole];
+      if (roles.includes('buyer') && roles.includes('transporter')) {
+        rel = 'buyer_transporter';
+      } else if (roles.includes('farmer') && roles.includes('buyer')) {
+        rel = 'farmer_buyer';
+      } else if (roles.includes('farmer') && roles.includes('transporter')) {
+        rel = 'farmer_transporter';
+      } else {
+        rel = 'farmer_buyer';
+      }
+    }
+
+    // Compliance & audit flag check
+    const lowerText = String(messageText).toLowerCase();
+    const matchedFlag = AUDIT_FLAG_KEYWORDS.find((keyword) => lowerText.includes(keyword));
+    const flaggedForReview = Boolean(matchedFlag);
+    const flagReason = matchedFlag ? `Contains prohibited off-platform arrangement phrase: "${matchedFlag}"` : '';
+
+    const nextId = store.direct_messages.length + 1;
+    const messageId = `MSG-${Date.now()}-${String(nextId).padStart(3, '0')}`;
+
+    const newMessage: any = {
+      id: nextId,
+      messageId,
+      orderId: Number(orderId) || 0,
+      orderNumber: orderNumber || `ORD-${orderId || 'DIRECT'}`,
+      senderUid,
+      senderName: senderName || 'Mberalink User',
+      senderRole: senderRole || 'farmer',
+      recipientUid,
+      recipientName: recipientName || 'Participant',
+      recipientRole: recipientRole || 'buyer',
+      relationship: rel,
+      messageText: String(messageText).trim(),
+      createdAt: new Date().toISOString(),
+      isRead: false,
+      flaggedForReview,
+      flagReason,
+    };
+
+    store.direct_messages.push(newMessage);
+    saveStoreToDisk(store);
+
+    // If flagged for review, log directly into platform audit logs for administrative attention
+    if (flaggedForReview) {
+      await logAudit({
+        userUid: senderUid,
+        userEmail: sender?.email || 'user@mberalink.mw',
+        userName: senderName,
+        role: senderRole,
+        action: 'DIRECT_MESSAGE_FLAGGED',
+        recordAffected: `Order #${newMessage.orderNumber} (${senderRole} -> ${recipientRole})`,
+        newValue: flagReason,
+        reason: `Automated compliance filter detected potential policy violation in direct message`,
+      });
+    }
+
+    // Emit real-time WebSocket event
+    broadcastEvent('DIRECT_MESSAGE_SENT', newMessage);
+
+    // In-app notification for recipient
+    createNotification({
+      userUid: recipientUid,
+      title: `New Message from ${senderName} (${senderRole})`,
+      message: newMessage.messageText.length > 80 ? `${newMessage.messageText.slice(0, 80)}...` : newMessage.messageText,
+      type: 'order',
+      relatedOrderId: Number(orderId) || undefined,
+    }).catch(() => null);
+
+    return res.status(201).json({
+      success: true,
+      message: newMessage,
+    });
+  } catch (error: any) {
+    console.error('Error sending direct message:', error);
+    return res.status(500).json({ error: error.message || 'Failed to send direct message' });
+  }
+});
+
+// GET /api/messages/order/:orderId: Retrieve conversation for a specific order
+router.get(['/messages/order/:orderId', '/api/messages/order/:orderId'], async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.orderId, 10);
+    const store = getInMemoryStore();
+    const allMessages = store.direct_messages || [];
+
+    const orderMessages = allMessages.filter((m: any) => m.orderId === orderId);
+    orderMessages.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    return res.json(orderMessages);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch messages' });
+  }
+});
+
+// GET /api/messages/conversation: Retrieve thread between two users
+router.get(['/messages/conversation', '/api/messages/conversation'], async (req, res) => {
+  try {
+    const { user1, user2, orderId } = req.query;
+    if (!user1 || !user2) {
+      return res.status(400).json({ error: 'Both user1 and user2 query parameters are required.' });
+    }
+
+    const store = getInMemoryStore();
+    const allMessages = store.direct_messages || [];
+
+    const thread = allMessages.filter((m: any) => {
+      const matchUsers =
+        (m.senderUid === user1 && m.recipientUid === user2) ||
+        (m.senderUid === user2 && m.recipientUid === user1);
+      if (!matchUsers) return false;
+      if (orderId && Number(orderId) > 0) {
+        return m.orderId === Number(orderId);
+      }
+      return true;
+    });
+
+    thread.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return res.json(thread);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch conversation' });
+  }
+});
+
+// GET /api/admin/messages/audit: Administrative audit view across all direct message conversations
+router.get(['/admin/messages/audit', '/api/admin/messages/audit'], async (req, res) => {
+  try {
+    const store = getInMemoryStore();
+    const allMessages = (store.direct_messages || []).slice();
+    const { relationship, search, flaggedOnly } = req.query;
+
+    // Filter by relationship if requested
+    let filtered = allMessages;
+    if (relationship && relationship !== 'all') {
+      filtered = filtered.filter((m: any) => m.relationship === relationship);
+    }
+
+    // Filter by flagged only
+    if (flaggedOnly === 'true') {
+      filtered = filtered.filter((m: any) => m.flaggedForReview);
+    }
+
+    // Filter by search keyword
+    if (search && String(search).trim()) {
+      const term = String(search).toLowerCase().trim();
+      filtered = filtered.filter(
+        (m: any) =>
+          (m.messageText && m.messageText.toLowerCase().includes(term)) ||
+          (m.senderName && m.senderName.toLowerCase().includes(term)) ||
+          (m.recipientName && m.recipientName.toLowerCase().includes(term)) ||
+          (m.orderNumber && m.orderNumber.toLowerCase().includes(term)) ||
+          (m.flagReason && m.flagReason.toLowerCase().includes(term))
+      );
+    }
+
+    // Group into conversation threads
+    const threadsMap = new Map<string, any>();
+    for (const msg of filtered) {
+      const uids = [msg.senderUid, msg.recipientUid].sort();
+      const threadKey = `${msg.orderId || 0}_${uids.join('_')}`;
+
+      if (!threadsMap.has(threadKey)) {
+        threadsMap.set(threadKey, {
+          threadId: threadKey,
+          orderId: msg.orderId,
+          orderNumber: msg.orderNumber,
+          relationship: msg.relationship,
+          participant1: {
+            uid: msg.senderUid,
+            name: msg.senderName,
+            role: msg.senderRole,
+          },
+          participant2: {
+            uid: msg.recipientUid,
+            name: msg.recipientName,
+            role: msg.recipientRole,
+          },
+          messages: [],
+          totalMessages: 0,
+          flaggedCount: 0,
+          updatedAt: msg.createdAt,
+        });
+      }
+
+      const thread = threadsMap.get(threadKey);
+      thread.messages.push(msg);
+      thread.totalMessages++;
+      if (msg.flaggedForReview) {
+        thread.flaggedCount++;
+      }
+      if (new Date(msg.createdAt).getTime() > new Date(thread.updatedAt).getTime()) {
+        thread.updatedAt = msg.createdAt;
+      }
+    }
+
+    const threads = Array.from(threadsMap.values()).map((t) => {
+      t.messages.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      t.lastMessage = t.messages[t.messages.length - 1];
+      return t;
+    });
+
+    threads.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    const totalMessagesCount = allMessages.length;
+    const totalFlaggedCount = allMessages.filter((m: any) => m.flaggedForReview).length;
+    const buyerTransporterCount = allMessages.filter((m: any) => m.relationship === 'buyer_transporter').length;
+    const farmerBuyerCount = allMessages.filter((m: any) => m.relationship === 'farmer_buyer').length;
+    const farmerTransporterCount = allMessages.filter((m: any) => m.relationship === 'farmer_transporter').length;
+
+    return res.json({
+      threads,
+      stats: {
+        totalMessages: totalMessagesCount,
+        totalFlagged: totalFlaggedCount,
+        buyerTransporterMessages: buyerTransporterCount,
+        farmerBuyerMessages: farmerBuyerCount,
+        farmerTransporterMessages: farmerTransporterCount,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching admin messages audit:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch messages audit' });
+  }
+});
+
 export default router;
+
