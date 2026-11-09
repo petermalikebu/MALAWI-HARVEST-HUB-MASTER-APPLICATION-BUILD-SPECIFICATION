@@ -1,7 +1,7 @@
 /**
  * Mberalink Firebase Cloud Messaging & Notification Dispatch Engine
  * Replaces 3rd-party SMS providers with Firebase Cloud Messaging (FCM).
- * Fully integrated with Firebase (`chromatic-flame-t83d0`) with zero external API key requirements.
+ * Fully integrated with Firebase (`malawi-harvest-hub`) with zero external API key requirements.
  */
 
 import { sendFcmNotification, getFcmStatus } from './fcmService.ts';

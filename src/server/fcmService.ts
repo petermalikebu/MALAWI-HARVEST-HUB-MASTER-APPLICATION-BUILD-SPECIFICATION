@@ -12,22 +12,29 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 function getFirebaseConfig() {
+  const envProjectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'malawi-harvest-hub';
+  const envSenderId = process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '';
+  const envAppId = process.env.VITE_FIREBASE_APP_ID || '';
+
   try {
     const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
     if (fs.existsSync(configPath)) {
-      return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      return {
+        projectId: parsed.projectId || envProjectId,
+        messagingSenderId: envSenderId || parsed.messagingSenderId || '',
+        appId: envAppId || parsed.appId || '',
+      };
     }
   } catch (err) {
     console.warn('[FCM] Fallback reading config:', err);
   }
   return {
-    projectId: 'chromatic-flame-t83d0',
-    messagingSenderId: '1098287344957',
-    appId: '1:1098287344957:web:544ebecfe9a240ed0d2954',
+    projectId: envProjectId,
+    messagingSenderId: envSenderId,
+    appId: envAppId,
   };
 }
-
-const firebaseConfig = getFirebaseConfig();
 
 export interface FcmTokenRecord {
   token: string;
@@ -52,6 +59,8 @@ export interface FcmDispatchResult {
 
 // In-memory token cache for ultra-fast lookup
 const tokenCache = new Map<string, FcmTokenRecord>();
+
+import { createPool } from '../db/index.ts';
 
 /**
  * Register or update an FCM device token
@@ -81,7 +90,51 @@ export function registerFcmToken(record: {
 
   tokenCache.set(record.token, tokenRecord);
 
-  // Sync to in-memory store
+  // 1. Sync to backend SQL database if connected
+  try {
+    const pool = createPool();
+    if (pool) {
+      pool.query(`
+        CREATE TABLE IF NOT EXISTS fcm_device_tokens (
+          id SERIAL PRIMARY KEY,
+          token TEXT UNIQUE NOT NULL,
+          user_uid TEXT NOT NULL DEFAULT 'anonymous',
+          user_name TEXT DEFAULT 'User',
+          user_role TEXT DEFAULT 'farmer',
+          district TEXT DEFAULT 'Lilongwe',
+          device_type TEXT DEFAULT 'web',
+          user_agent TEXT DEFAULT '',
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          last_used_at TIMESTAMP DEFAULT NOW()
+        );
+        INSERT INTO fcm_device_tokens (token, user_uid, user_name, user_role, district, device_type, user_agent, is_active, updated_at, last_used_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
+        ON CONFLICT (token) DO UPDATE SET
+          user_uid = EXCLUDED.user_uid,
+          user_name = EXCLUDED.user_name,
+          user_role = EXCLUDED.user_role,
+          district = EXCLUDED.district,
+          is_active = true,
+          last_used_at = NOW();
+      `, [
+        tokenRecord.token,
+        tokenRecord.userUid,
+        tokenRecord.userName,
+        tokenRecord.userRole,
+        tokenRecord.district,
+        tokenRecord.deviceType,
+        tokenRecord.userAgent,
+      ]).catch((pgErr) => {
+        // Non-fatal if SQL pool not configured in current dev container
+      });
+    }
+  } catch (dbErr) {
+    // Non-fatal fallback to in-memory store
+  }
+
+  // 2. Sync to in-memory store
   const store = getInMemoryStore();
   if (!Array.isArray(store.fcm_tokens)) {
     store.fcm_tokens = [];
@@ -94,7 +147,7 @@ export function registerFcmToken(record: {
   }
   saveStoreToDisk(store);
 
-  // Best effort Firestore sync
+  // 3. Best effort Firestore sync
   persistDocToFirestore('fcm_tokens', {
     ...tokenRecord,
     id: record.token.slice(0, 32),
@@ -103,6 +156,31 @@ export function registerFcmToken(record: {
   });
 
   return tokenRecord;
+}
+
+/**
+ * Unregister or deactivate an FCM device token
+ */
+export function unregisterFcmToken(token: string): boolean {
+  if (!token) return false;
+  tokenCache.delete(token);
+
+  // Sync to PostgreSQL if available
+  try {
+    const pool = createPool();
+    if (pool) {
+      pool.query(`UPDATE fcm_device_tokens SET is_active = false, updated_at = NOW() WHERE token = $1`, [token]).catch(() => {});
+    }
+  } catch {}
+
+  // Sync to in-memory store
+  const store = getInMemoryStore();
+  if (Array.isArray(store.fcm_tokens)) {
+    store.fcm_tokens = store.fcm_tokens.filter((t: any) => t.token !== token);
+    saveStoreToDisk(store);
+  }
+
+  return true;
 }
 
 /**
@@ -120,17 +198,46 @@ export function getRegisteredFcmTokens(): FcmTokenRecord[] {
 }
 
 /**
+ * High-level helper to dispatch push notifications for core account activities:
+ * registration, orders, payments, order status changes, and security events.
+ */
+export async function sendFcmAccountActivityNotification(params: {
+  activityType: 'registration' | 'order_created' | 'payment_escrowed' | 'payment_released' | 'order_status_change' | 'security_event';
+  userUid: string;
+  userName?: string;
+  title: string;
+  body: string;
+  relatedOrderId?: number | string;
+  metadata?: Record<string, string>;
+}): Promise<FcmDispatchResult> {
+  const payloadData: Record<string, string> = {
+    activityType: params.activityType,
+    relatedOrderId: String(params.relatedOrderId || ''),
+    timestamp: new Date().toISOString(),
+    ...(params.metadata || {}),
+  };
+
+  return sendFcmNotification({
+    userUid: params.userUid,
+    title: params.title,
+    body: params.body,
+    data: payloadData,
+  });
+}
+
+/**
  * Get status of Firebase Cloud Messaging service
  */
 export function getFcmStatus() {
   const tokens = getRegisteredFcmTokens();
+  const cfg = getFirebaseConfig();
   return {
     provider: 'firebase_cloud_messaging',
     activeProviderName: 'Firebase Cloud Messaging (FCM)',
     isConfigured: true,
-    projectId: firebaseConfig.projectId,
-    messagingSenderId: firebaseConfig.messagingSenderId,
-    appId: firebaseConfig.appId,
+    projectId: cfg.projectId,
+    messagingSenderId: cfg.messagingSenderId || '',
+    appId: cfg.appId || '',
     activeDevicesCount: tokens.length,
     registeredTokens: tokens.map((t) => ({
       userUid: t.userUid,

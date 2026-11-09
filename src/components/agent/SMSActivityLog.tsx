@@ -506,7 +506,7 @@ export const SMSActivityLog: React.FC<SMSActivityLogProps> = ({
               <span>Method 2: Firebase Cloud Messaging (FCM Native Dispatch)</span>
             </div>
             <p className="text-stone-300 text-[11px] leading-relaxed">
-              Automated real-time push and background alerts via <strong>Google Firebase Cloud Messaging</strong>. Fully integrated with project <code className="text-white">chromatic-flame-t83d0</code> with zero 3rd-party subscription costs or external secret keys.
+              Automated real-time push and background alerts via <strong>Google Firebase Cloud Messaging</strong>. Fully integrated with project <code className="text-white">malawi-harvest-hub</code> with zero 3rd-party subscription costs or external secret keys.
             </p>
           </div>
         </div>
@@ -1400,11 +1400,11 @@ export const SMSActivityLog: React.FC<SMSActivityLogProps> = ({
               <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
                 <div className="bg-white p-2 rounded-xl border border-amber-200">
                   <span className="text-stone-400 text-[10px] block font-sans">Firebase Project</span>
-                  <span className="text-stone-800 font-bold">{gatewayStatusData?.projectId || 'chromatic-flame-t83d0'}</span>
+                  <span className="text-stone-800 font-bold">{gatewayStatusData?.projectId || 'malawi-harvest-hub'}</span>
                 </div>
                 <div className="bg-white p-2 rounded-xl border border-amber-200">
                   <span className="text-stone-400 text-[10px] block font-sans">Messaging Sender ID</span>
-                  <span className="text-stone-800 font-bold">{gatewayStatusData?.messagingSenderId || '1098287344957'}</span>
+                  <span className="text-stone-800 font-bold">{gatewayStatusData?.messagingSenderId || '(Configured via Env/Config)'}</span>
                 </div>
               </div>
               <div className="flex justify-between items-center pt-1 border-t border-amber-200/60 text-[11px]">

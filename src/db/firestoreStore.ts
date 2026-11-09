@@ -14,7 +14,7 @@ import path from 'node:path';
 
 // Load Firebase configuration
 const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-let firebaseConfig: any = {};
+let firebaseConfig: any = { projectId: 'malawi-harvest-hub' };
 try {
   if (fs.existsSync(configPath)) {
     firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -24,7 +24,7 @@ try {
 }
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const firestoreDb: Firestore = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const firestoreDb: Firestore = getFirestore(app);
 
 export const COLLECTIONS = [
   'users',
@@ -113,6 +113,7 @@ export function getDocId(collectionName: string, item: any): string {
  * Persist a document directly to Cloud Firestore.
  */
 export async function persistDocToFirestore(collectionName: string, item: any): Promise<void> {
+  if (!firebaseConfig.apiKey) return;
   try {
     const docId = getDocId(collectionName, item);
     const sanitized = sanitizeForFirestore(item);
@@ -126,6 +127,7 @@ export async function persistDocToFirestore(collectionName: string, item: any): 
  * Delete a document from Cloud Firestore.
  */
 export async function deleteDocFromFirestore(collectionName: string, docId: string): Promise<void> {
+  if (!firebaseConfig.apiKey) return;
   try {
     await deleteDoc(doc(firestoreDb, collectionName, docId));
   } catch (err: any) {
@@ -137,6 +139,7 @@ export async function deleteDocFromFirestore(collectionName: string, docId: stri
  * Load all documents for a collection from Cloud Firestore.
  */
 export async function fetchCollectionFromFirestore(collectionName: string): Promise<any[]> {
+  if (!firebaseConfig.apiKey) return [];
   try {
     const snap = await getDocs(collection(firestoreDb, collectionName));
     const items: any[] = [];
@@ -159,6 +162,9 @@ export function setupFirestoreRealtimeSync(
   store: Record<string, any[]>,
   onUpdateCallback?: (collectionName: string, data: any) => void
 ) {
+  if (!firebaseConfig.apiKey) {
+    return;
+  }
   console.log('[FirestoreStore] Setting up live Cloud Firestore synchronization across instances...');
 
   for (const collName of COLLECTIONS) {

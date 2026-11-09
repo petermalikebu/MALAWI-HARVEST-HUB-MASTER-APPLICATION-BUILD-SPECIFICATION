@@ -1253,7 +1253,7 @@ export const SignInView: React.FC<SignInViewProps> = ({
                     <li>Click <strong>Add domain</strong>, paste the copied domain, and save.</li>
                   </ol>
                   <a
-                    href="https://console.firebase.google.com/project/chromatic-flame-t83d0/authentication/settings"
+                    href="https://console.firebase.google.com/project/malawi-harvest-hub/authentication/settings"
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"

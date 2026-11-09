@@ -134,6 +134,23 @@
         "createdAt": { "type": "string" }
       },
       "required": ["consultationNumber", "farmerUid", "cropOrTopic", "question", "district", "status"]
+    },
+    "FcmToken": {
+      "title": "FcmToken",
+      "description": "FCM device registration token for push notifications",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string" },
+        "userUid": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "district": { "type": "string" },
+        "deviceType": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastUsedAt": { "type": "string" }
+      },
+      "required": ["token", "userUid"]
     }
   },
   "firestore": {
@@ -164,6 +181,10 @@
     "/agri_consultations/{consultationId}": {
       "schema": "AgriConsultation",
       "description": "Farmer agricultural extension queries and expert responses"
+    },
+    "/fcm_tokens/{tokenId}": {
+      "schema": "FcmToken",
+      "description": "Registered Firebase Cloud Messaging device push tokens"
     }
   }
 }

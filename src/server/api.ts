@@ -39,8 +39,10 @@ import { africasTalkingService } from './africasTalkingService.ts';
 import {
   getFcmStatus,
   registerFcmToken,
+  unregisterFcmToken,
   sendFcmNotification,
   sendFcmBroadcast,
+  sendFcmAccountActivityNotification,
 } from './fcmService.ts';
 import {
   sendEmailNotification,
@@ -337,6 +339,14 @@ router.post('/users/register', async (req, res) => {
         : role === 'finance_admin'
         ? 'Finance Administrator'
         : 'Smallholder Farmer';
+
+    // Dispatch registration welcome alert across all channels (In-App, SMS, Email, FCM Push)
+    await createNotification({
+      userUid: newUser.uid,
+      title: 'Welcome to Mberalink!',
+      message: `Welcome ${newUser.fullName}! Your account has been registered successfully as ${roleName} in ${newUser.district}. Real-time notifications and alerts are now active.`,
+      type: 'system',
+    });
 
     return res.status(201).json({
       success: true,
@@ -4664,15 +4674,21 @@ router.post('/password-reset/request', async (req, res) => {
       createdAt: new Date(),
     };
 
-    // Create system notification for all administrators
-    const adminNotif = {
-      userUid: 'all_admins',
-      title: `Password Reset Request: ${matchedUser.fullName}`,
-      message: `${matchedUser.fullName} (${matchedUser.email}, Phone: ${cleanPhone || matchedUser.phoneNumber || 'N/A'}, Role: ${matchedUser.role}) has requested a password reset. Requires Admin Approval.`,
+    // Dispatch security alert to user requesting reset
+    await createNotification({
+      userUid: matchedUser.uid,
+      title: 'Security Alert: Password Reset Requested',
+      message: `A password reset request (#${requestId}) was submitted for your account (${matchedUser.email}). If you did not initiate this, please alert platform administration.`,
       type: 'system',
-      isRead: false,
-    };
-    await db.insert(notifications).values(adminNotif);
+    });
+
+    // Multi-channel alert to administrators
+    await createNotification({
+      userUid: 'admin',
+      title: `Password Reset Request: ${matchedUser.fullName}`,
+      message: `${matchedUser.fullName} (${matchedUser.email}, Role: ${matchedUser.role}) requested a password reset. Requires Admin Approval.`,
+      type: 'system',
+    });
 
     await logAudit({
       userUid: matchedUser.uid,
@@ -4685,7 +4701,6 @@ router.post('/password-reset/request', async (req, res) => {
     });
 
     broadcastEvent('password_reset_requested', requestRecord);
-    broadcastEvent('notification', adminNotif);
 
     return res.status(201).json({
       success: true,
@@ -4795,6 +4810,15 @@ router.post('/password-reset/approve', async (req, res) => {
       approvedByAdminName: adminName || 'Peter Malikebu',
       approvedAt,
     });
+
+    if (item.userUid) {
+      await createNotification({
+        userUid: item.userUid,
+        title: 'Password Reset Approved',
+        message: `Your password reset request #${requestId} has been approved by ${adminName || 'Peter Malikebu'}. You may now set your new password.`,
+        type: 'system',
+      });
+    }
 
     return res.json({
       success: true,
@@ -5034,6 +5058,13 @@ router.post('/users/change-password', async (req, res) => {
       action: 'PASSWORD_UPDATED',
       recordAffected: `User #${targetUser.id} (${targetUser.fullName})`,
       newValue: 'Password updated, securely hashed with SHA-256, and committed',
+    });
+
+    await createNotification({
+      userUid: targetUser.uid,
+      title: 'Security Alert: Password Updated',
+      message: `Your account password was updated successfully at ${new Date().toLocaleTimeString()}. If you did not authorize this change, please report it immediately.`,
+      type: 'system',
     });
 
     return res.json({
@@ -6134,6 +6165,42 @@ router.post(['/messaging/send', '/api/messaging/send'], async (req, res) => {
   }
 });
 
+// POST /api/messaging/unregister-token: Unregister or deactivate FCM client device token
+router.post(['/messaging/unregister-token', '/api/messaging/unregister-token'], (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'FCM device token is required' });
+    }
+    const success = unregisterFcmToken(token);
+    return res.json({ success, message: 'Device token successfully unsubscribed from FCM notifications.' });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to unregister token' });
+  }
+});
+
+// POST /api/messaging/test-push: Dispatch a live test push notification to user's device
+router.post(['/messaging/test-push', '/api/messaging/test-push'], async (req, res) => {
+  try {
+    const { userUid, token, title, body } = req.body;
+    const testTitle = title || 'Mberalink Push Notification Test';
+    const testBody = body || 'Firebase Cloud Messaging push delivery is working properly on your device.';
+    const result = await sendFcmNotification({
+      token,
+      userUid,
+      title: testTitle,
+      body: testBody,
+      data: {
+        type: 'test_push',
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to dispatch test push notification' });
+  }
+});
+
 // POST /api/agent/sms/test-real: Test real cellular SMS delivery to a phone number
 router.post('/agent/sms/test-real', async (req, res) => {
   try {
@@ -6942,6 +7009,14 @@ router.post(['/admin/users/:id/suspend', '/api/admin/users/:id/suspend'], async 
       });
     }
 
+    // Dispatch multi-channel security alert (In-App, SMS, Email, FCM push)
+    await createNotification({
+      userUid: user.uid,
+      title: 'Security Alert: Account Placed on Hold',
+      message: `Your account has been placed on administrative hold by ${adminName || 'System Administrator'}. Reason: ${suspensionReason}.`,
+      type: 'system',
+    });
+
     return res.json({
       success: true,
       message: `User ${user.fullName} (${user.role}) has been suspended.`,
@@ -7001,6 +7076,14 @@ router.post(['/admin/users/:id/reinstate', '/api/admin/users/:id/reinstate'], as
         recipientType: 'user',
       });
     }
+
+    // Dispatch multi-channel reinstatement alert
+    await createNotification({
+      userUid: user.uid,
+      title: 'Security Notice: Account Reinstated',
+      message: `Your account privileges have been restored by ${adminName || 'System Administrator'}. You may now access all marketplace and dispatch services.`,
+      type: 'system',
+    });
 
     return res.json({
       success: true,

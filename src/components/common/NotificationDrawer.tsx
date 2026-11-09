@@ -23,6 +23,12 @@ import {
   Zap,
 } from 'lucide-react';
 
+import {
+  getFcmSubscriptionStatus,
+  requestFcmToken,
+  unsubscribeFcmToken,
+} from '../../lib/firebase.ts';
+
 interface NotificationDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -40,6 +46,91 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
   const [now, setNow] = useState<number>(Date.now());
   const [isSendingTest, setIsSendingTest] = useState<boolean>(false);
   const [testOutcomeNotice, setTestOutcomeNotice] = useState<string | null>(null);
+
+  // FCM Push Subscription State
+  const [fcmSubscribed, setFcmSubscribed] = useState<boolean>(false);
+  const [fcmPermission, setFcmPermission] = useState<string>('default');
+  const [fcmTokenSnippet, setFcmTokenSnippet] = useState<string | null>(null);
+  const [isEnablingPush, setIsEnablingPush] = useState<boolean>(false);
+  const [isSendingPushTest, setIsSendingPushTest] = useState<boolean>(false);
+  const [pushNotice, setPushNotice] = useState<string | null>(null);
+  const [showConsoleInfo, setShowConsoleInfo] = useState<boolean>(false);
+
+  // Check FCM push subscription status when drawer opens
+  useEffect(() => {
+    if (!isOpen) return;
+    checkSubscription();
+  }, [isOpen]);
+
+  const checkSubscription = async () => {
+    const status = await getFcmSubscriptionStatus();
+    setFcmSubscribed(status.subscribed);
+    setFcmPermission(status.permission);
+    if (status.token) {
+      setFcmTokenSnippet(status.token.slice(-10));
+    } else {
+      setFcmTokenSnippet(null);
+    }
+  };
+
+  const handleTogglePush = async () => {
+    setIsEnablingPush(true);
+    setPushNotice(null);
+    try {
+      if (fcmSubscribed) {
+        await unsubscribeFcmToken();
+        setFcmSubscribed(false);
+        setFcmTokenSnippet(null);
+        setPushNotice('FCM push notifications deactivated on this browser.');
+      } else {
+        const token = await requestFcmToken({
+          uid: currentUser?.uid,
+          name: currentUser?.fullName,
+          role: currentUser?.role,
+          district: currentUser?.district,
+        });
+        if (token) {
+          setFcmSubscribed(true);
+          setFcmTokenSnippet(token.slice(-10));
+          setPushNotice('Push notifications enabled successfully! Device registered with FCM backend.');
+        } else {
+          setPushNotice('Could not register FCM device token. Please check browser permissions.');
+        }
+      }
+    } catch (err: any) {
+      setPushNotice(`FCM error: ${err?.message || 'Check notification permissions'}`);
+    } finally {
+      setIsEnablingPush(false);
+      setTimeout(() => setPushNotice(null), 6000);
+    }
+  };
+
+  const handleSendFcmTest = async () => {
+    setIsSendingPushTest(true);
+    setPushNotice(null);
+    try {
+      const res = await fetch('/api/messaging/test-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userUid: currentUser?.uid,
+          title: 'Mberalink Push Alert (FCM)',
+          body: `Moni ${currentUser?.fullName || 'User'}! Real-time Firebase Cloud Messaging push notification confirmed working.`,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPushNotice('FCM Push notification dispatched to your registered device!');
+      } else {
+        setPushNotice(data.statusText || 'Push notification sent to queue.');
+      }
+    } catch (err: any) {
+      setPushNotice(`Push test notice: ${err?.message || 'Check connectivity'}`);
+    } finally {
+      setIsSendingPushTest(false);
+      setTimeout(() => setPushNotice(null), 6000);
+    }
+  };
 
   // Send a live test alert to the current user's contact number and registered email
   const handleTestMultiChannel = async () => {
@@ -186,6 +277,89 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
           {testOutcomeNotice && (
             <div className="py-1 px-2 rounded-md bg-emerald-200/80 text-emerald-950 font-bold text-[10px] animate-in fade-in">
               {testOutcomeNotice}
+            </div>
+          )}
+        </div>
+
+        {/* FCM Push Notification Subscription & Testing Box */}
+        <div className="px-5 py-3 bg-white border-b border-stone-200 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Radio className={`w-4 h-4 ${fcmSubscribed ? 'text-emerald-600 animate-pulse' : 'text-amber-500'}`} />
+              <span className="text-xs font-bold text-stone-900">Firebase Cloud Messaging</span>
+            </div>
+            <span
+              className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border ${
+                fcmSubscribed
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-stone-100 text-stone-600 border-stone-200'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${fcmSubscribed ? 'bg-emerald-500 animate-ping' : 'bg-stone-400'}`} />
+              {fcmSubscribed ? 'Subscribed' : 'Not Subscribed'}
+            </span>
+          </div>
+
+          <p className="text-[11px] text-stone-500 leading-snug">
+            {language === 'ch'
+              ? 'Landirani zidziwitso mwachindunji pa foni kapena kompyuta yanu pamaoda, malipiro, ndi chitetezo ngakhale mutatuluka pa tsamba lino.'
+              : 'Receive real-time push alerts on orders, payments, dispatches, and account security even when the application is in the background.'}
+          </p>
+
+          <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+            <button
+              onClick={handleTogglePush}
+              disabled={isEnablingPush}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50 ${
+                fcmSubscribed
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                  : 'bg-emerald-700 text-white hover:bg-emerald-800'
+              }`}
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>{isEnablingPush ? 'Configuring...' : fcmSubscribed ? 'Unsubscribe Device' : 'Enable Device Push'}</span>
+            </button>
+
+            {fcmSubscribed && (
+              <button
+                onClick={handleSendFcmTest}
+                disabled={isSendingPushTest}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                title="Send a live test notification to this browser"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>{isSendingPushTest ? 'Sending...' : 'Send Test Push'}</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowConsoleInfo(!showConsoleInfo)}
+              className="text-[10px] text-stone-500 hover:text-stone-800 underline font-medium ml-auto"
+            >
+              {showConsoleInfo ? 'Hide Settings' : 'Console Settings'}
+            </button>
+          </div>
+
+          {pushNotice && (
+            <div className="py-1 px-2.5 rounded-lg bg-emerald-100/80 border border-emerald-300 text-emerald-950 font-bold text-[11px] animate-in fade-in flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+              <span>{pushNotice}</span>
+            </div>
+          )}
+
+          {showConsoleInfo && (
+            <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 text-[10px] text-stone-600 space-y-1.5 animate-in fade-in">
+              <div className="font-bold text-stone-800 flex items-center gap-1">
+                <Info className="w-3 h-3 text-emerald-700" />
+                Firebase Cloud Messaging Configuration
+              </div>
+              <ul className="list-disc pl-4 space-y-1">
+                <li><strong className="text-stone-800">Project ID:</strong> malawi-harvest-hub</li>
+                <li><strong className="text-stone-800">Sender ID:</strong> Configured via VITE_FIREBASE_MESSAGING_SENDER_ID</li>
+                <li><strong className="text-stone-800">Service Worker:</strong> /firebase-messaging-sw.js active</li>
+                <li><strong className="text-stone-800">Web Push Key (VAPID):</strong> Supplied via VITE_FIREBASE_VAPID_KEY</li>
+                <li><strong className="text-stone-800">Backend Security:</strong> Admin SDK uses malawi-harvest-hub credentials server-side; zero keys leaked to frontend.</li>
+              </ul>
             </div>
           )}
         </div>

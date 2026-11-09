@@ -418,6 +418,22 @@ export const emailNotifications = pgTable('email_notifications', {
   sentAt: timestamp('sent_at').defaultNow(),
 });
 
+// Firebase Cloud Messaging (FCM) Device Tokens Table
+export const fcmDeviceTokens = pgTable('fcm_device_tokens', {
+  id: serial('id').primaryKey(),
+  token: text('token').notNull().unique(),
+  userUid: text('user_uid').notNull().default('anonymous'),
+  userName: text('user_name').default('User'),
+  userRole: text('user_role').default('farmer'),
+  district: text('district').default('Lilongwe'),
+  deviceType: text('device_type').default('web'), // web | android | ios | mobile
+  userAgent: text('user_agent').default(''),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  lastUsedAt: timestamp('last_used_at').defaultNow(),
+});
+
 // Relationships
 export const usersRelations = relations(users, ({ many }) => ({
   commodities: many(commodities),
