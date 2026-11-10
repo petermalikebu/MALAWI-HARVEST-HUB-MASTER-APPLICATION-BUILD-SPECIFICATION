@@ -122,7 +122,7 @@ export const AdminDirectMessagesAuditPanel: React.FC = () => {
       uid,
       fullName: name,
       role,
-      email: `${uid}@mberalink.mw`,
+      email: `${uid}@mbewalink.mw`,
       district: 'National',
       region: 'Central',
     });

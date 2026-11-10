@@ -68,7 +68,7 @@ export interface Commodity {
   agentUid?: string;
   agentName?: string;
   agentDistrict?: string;
-  offlineFarmerId?: string; // e.g. MBR-ZOM-2026-0001
+  offlineFarmerId?: string; // e.g. MBW-ZOM-2026-0001
   farmerPhone?: string; // Phone of keypad farmer for SMS
   traditionalAuthority?: string;
   village?: string;
@@ -556,7 +556,7 @@ export interface AgriChatMessage {
 
 export interface OfflineFarmer {
   id: number;
-  farmerId: string; // Unique Mberalink Farmer ID: e.g. MBR-ZOM-2026-0001
+  farmerId: string; // Unique Mbewalink Farmer ID: e.g. MBW-ZOM-2026-0001
   fullName: string;
   phoneNumber: string; // For automated SMS notifications
   altPhoneNumber?: string;
@@ -640,13 +640,21 @@ export interface AgentDistrictWorkspace {
   pendingOrdersCount: number;
 }
 
-export type MessageParticipantRole = 'buyer' | 'transporter' | 'farmer' | 'admin';
-export type DirectMessageRelationship = 'buyer_transporter' | 'farmer_buyer' | 'farmer_transporter';
+export type MessageParticipantRole = 'buyer' | 'transporter' | 'farmer' | 'admin' | 'agent' | 'finance_admin';
+export type DirectMessageRelationship =
+  | 'buyer_transporter'
+  | 'farmer_buyer'
+  | 'farmer_transporter'
+  | 'farmer_agent'
+  | 'agent_buyer'
+  | 'agent_transporter'
+  | 'peer_to_peer'
+  | 'general';
 
 export interface DirectMessage {
   id: number;
   messageId: string;
-  orderId: number;
+  orderId?: number;
   orderNumber?: string;
   senderUid: string;
   senderName: string;
@@ -662,10 +670,26 @@ export interface DirectMessage {
   flagReason?: string;
 }
 
+export interface ChatConversation {
+  peerUid: string;
+  peerName: string;
+  peerRole: MessageParticipantRole;
+  peerPhone?: string;
+  peerEmail?: string;
+  peerDistrict?: string;
+  peerPhotoUrl?: string;
+  lastMessage: DirectMessage;
+  unreadCount: number;
+  totalMessages: number;
+  relationship?: DirectMessageRelationship;
+  orderId?: number;
+  orderNumber?: string;
+}
+
 export interface DirectMessageThread {
   threadId: string;
-  orderId: number;
-  orderNumber: string;
+  orderId?: number;
+  orderNumber?: string;
   commodityName?: string;
   relationship: DirectMessageRelationship;
   participant1: {

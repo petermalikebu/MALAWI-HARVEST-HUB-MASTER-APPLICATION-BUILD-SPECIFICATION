@@ -1,5 +1,5 @@
 /**
- * Mberalink Mock Cellular SMS Gateway Service
+ * Mbewalink Mock Cellular SMS Gateway Service
  * 
  * Simulates high-throughput cellular SMS transmission to TNM and Airtel Malawi subscribers.
  * Used for nationwide administrative announcements, keypad farmer alerts,
@@ -328,7 +328,7 @@ export function getMockSmsGatewayStatus() {
   const airtelCount = allNotifications.filter((s: any) => s.carrierNetwork === 'Airtel').length;
 
   return {
-    gateway: 'Mberalink Mock Cellular SMS Gateway',
+    gateway: 'Mbewalink Mock Cellular SMS Gateway',
     status: 'online',
     tnmStatus: 'connected',
     airtelStatus: 'connected',

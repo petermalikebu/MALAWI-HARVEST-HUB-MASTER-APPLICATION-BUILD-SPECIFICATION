@@ -1,8 +1,8 @@
-// Mberalink Malawi Harvest Hub - Progressive Offline Service Worker
+// Mbewalink Malawi Harvest Hub - Progressive Offline Service Worker
 // Enables intermittent & offline caching for rural Malawian farmers and buyers.
 
-const CACHE_NAME = 'mberalink-static-v1';
-const DATA_CACHE_NAME = 'mberalink-marketplace-data-v1';
+const CACHE_NAME = 'mbewalink-static-v1';
+const DATA_CACHE_NAME = 'mbewalink-marketplace-data-v1';
 
 // Static App Shell resources to precache
 const STATIC_ASSETS = [
@@ -88,7 +88,7 @@ self.addEventListener('fetch', (event) => {
           // If no cache, return empty array JSON so UI gracefully renders empty state rather than error
           return new Response(JSON.stringify([]), {
             status: 200,
-            headers: { 'Content-Type': 'application/json', 'X-Mberalink-Offline': 'true' }
+            headers: { 'Content-Type': 'application/json', 'X-Mbewalink-Offline': 'true' }
           });
         })
     );

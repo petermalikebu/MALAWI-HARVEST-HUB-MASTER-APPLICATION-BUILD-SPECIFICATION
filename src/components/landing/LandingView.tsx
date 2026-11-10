@@ -96,13 +96,13 @@ export const LandingView: React.FC<LandingViewProps> = ({
         <div className="relative z-10 max-w-3xl space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold tracking-wide">
             <Sprout className="w-4 h-4 text-emerald-400" />
-            <span>Mberalink • Malawi's Premier Agricultural Digital Exchange</span>
+            <span>Mbewalink • Malawi's Premier Agricultural Digital Exchange</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-tight">
             {language === 'ch'
-              ? 'Mberalink: Kulunzanitsa Alimi, Ogula Katundu Wambiri & Onyamula pa Galimoto ku Malawi'
-              : 'Mberalink: Connecting Malawian Farmers, Commercial Buyers & Freight Transporters'}
+              ? 'Mbewalink: Kulunzanitsa Alimi, Ogula Katundu Wambiri & Onyamula pa Galimoto ku Malawi'
+              : 'Mbewalink: Connecting Malawian Farmers, Commercial Buyers & Freight Transporters'}
           </h1>
 
           <p className="text-stone-200 text-sm sm:text-base leading-relaxed">

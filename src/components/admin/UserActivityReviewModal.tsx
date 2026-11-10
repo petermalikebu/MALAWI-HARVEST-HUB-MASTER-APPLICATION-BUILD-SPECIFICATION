@@ -145,7 +145,7 @@ export const UserActivityReviewModal: React.FC<UserActivityReviewModalProps> = (
     }
 
     const confirmRemoval = window.confirm(
-      `Are you sure you want to permanently expel and remove ${user.fullName} from Mberalink after assessment? This action will cancel open transactions and cannot be undone.`
+      `Are you sure you want to permanently expel and remove ${user.fullName} from Mbewalink after assessment? This action will cancel open transactions and cannot be undone.`
     );
     if (!confirmRemoval) return;
 
@@ -471,7 +471,7 @@ export const UserActivityReviewModal: React.FC<UserActivityReviewModalProps> = (
                               <span>Expel & Remove User After Assessment (Guilty Verdict)</span>
                             </div>
                             <p className="text-[11px] text-stone-500 mt-1">
-                              If the user is found guilty of fraud, repeated harassment, or attempting to bypass platform escrow, enter the assessment outcome and remove them from Mberalink.
+                              If the user is found guilty of fraud, repeated harassment, or attempting to bypass platform escrow, enter the assessment outcome and remove them from Mbewalink.
                             </p>
                           </div>
 

@@ -50,8 +50,8 @@ export const RulesAndRegulationsView: React.FC<{ onContactClick?: () => void }> 
       color: 'blue',
       points: [
         language === 'ch'
-          ? 'Ndalama zonse za oda zimalowetsedwa mu akaunti ya Escrow ya Boma ya Mberalink (National Bank of Malawi / Airtel Money / TNM Mpamba).'
-          : 'All order payments are locked securely into the official Mberalink Escrow Account before produce dispatch.',
+          ? 'Ndalama zonse za oda zimalowetsedwa mu akaunti ya Escrow ya Boma ya Mbewalink (National Bank of Malawi / Airtel Money / TNM Mpamba).'
+          : 'All order payments are locked securely into the official Mbewalink Escrow Account before produce dispatch.',
         language === 'ch'
           ? 'Ndalama siziperekedwa kwa mlimi mpaka wogula atalandira katundu ndi kutsimikizira khalidwe labwino (maola 24 a dispute window).'
           : 'Funds are never released to the farmer until produce arrives and the buyer verifies quality within a transparent 24-hour inspection window.',
@@ -86,8 +86,8 @@ export const RulesAndRegulationsView: React.FC<{ onContactClick?: () => void }> 
       color: 'purple',
       points: [
         language === 'ch'
-          ? 'Mberalink imatenga commission yotsika komanso yowonekera poyera yomwe imatsimikiziridwa ndi Oyang\'anira Akulu a pa nsanja.'
-          : 'Mberalink operates on a transparent, dynamically regulated commission rate set and managed centrally by Platform Administration.',
+          ? 'Mbewalink imatenga commission yotsika komanso yowonekera poyera yomwe imatsimikiziridwa ndi Oyang\'anira Akulu a pa nsanja.'
+          : 'Mbewalink operates on a transparent, dynamically regulated commission rate set and managed centrally by Platform Administration.',
         language === 'ch'
           ? 'Commission imagwiritsidwa ntchito posamalira njira za escrow, kulipira ndalama pa foni, ndi kuyang\'anira masikelo m\'maboma 28.'
           : 'Platform fees sustain digital escrow guarantees, nationwide bank/telecom gateway integrations, dispute arbitrations, and district depot supervision.',
@@ -123,7 +123,7 @@ export const RulesAndRegulationsView: React.FC<{ onContactClick?: () => void }> 
         <div className="relative z-10 space-y-4 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
             <Scale className="w-4 h-4 text-emerald-400" />
-            <span>Mberalink • Regulatory Standards &amp; Trading Code</span>
+            <span>Mbewalink • Regulatory Standards &amp; Trading Code</span>
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
@@ -134,8 +134,8 @@ export const RulesAndRegulationsView: React.FC<{ onContactClick?: () => void }> 
 
           <p className="text-stone-300 text-xs sm:text-sm leading-relaxed">
             {language === 'ch'
-              ? 'Mberalink ikuyendetsedwa ndi malamulo okhwima obweretsa chilungamo, chitetezo cha ndalama mu escrow, komanso khalidwe lapamwamba la zokolola kwa alimi, ogula, ndi onyamula katundu m\'maboma onse 28 a Malawi.'
-              : 'Mberalink is established upon strict integrity protocols, transparent platform commission schedules, guaranteed escrow settlements, and verified grain calibration standards across all 28 districts of Malawi.'}
+              ? 'Mbewalink ikuyendetsedwa ndi malamulo okhwima obweretsa chilungamo, chitetezo cha ndalama mu escrow, komanso khalidwe lapamwamba la zokolola kwa alimi, ogula, ndi onyamula katundu m\'maboma onse 28 a Malawi.'
+              : 'Mbewalink is established upon strict integrity protocols, transparent platform commission schedules, guaranteed escrow settlements, and verified grain calibration standards across all 28 districts of Malawi.'}
           </p>
 
           <div className="pt-2 flex flex-wrap gap-3">
@@ -194,7 +194,7 @@ export const RulesAndRegulationsView: React.FC<{ onContactClick?: () => void }> 
                 <div>
                   <h3 className="font-extrabold text-base sm:text-lg text-stone-900">{rule.title}</h3>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
-                    Mberalink Binding Trading Code
+                    Mbewalink Binding Trading Code
                   </span>
                 </div>
               </div>

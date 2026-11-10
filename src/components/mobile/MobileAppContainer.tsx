@@ -324,7 +324,7 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
                   MB
                 </div>
                 <span className="font-bold text-stone-900 text-xs truncate max-w-[130px]">
-                  Mberalink Mobile
+                  Mbewalink Mobile
                 </span>
               </div>
             </div>
@@ -366,7 +366,7 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
                     </div>
                     <div>
                       <h4 className="font-bold text-stone-900 text-xs">{t('nav_menu')}</h4>
-                      <p className="text-[10px] text-stone-500">Mberalink Platform</p>
+                      <p className="text-[10px] text-stone-500">Mbewalink Platform</p>
                     </div>
                   </div>
                   <button

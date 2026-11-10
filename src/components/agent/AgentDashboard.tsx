@@ -41,12 +41,14 @@ import {
   Eye,
   Camera,
   Layers,
-  ArrowRight,
   Filter,
   Check,
   ChevronRight,
+  ChevronDown,
   UserCheck,
+  Trash2,
 } from 'lucide-react';
+import { useChat } from '../../context/ChatContext.tsx';
 
 interface AgentDashboardProps {
   categoriesList?: Category[];
@@ -56,6 +58,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
   const { currentUser } = useAuth();
   const { subscribe } = useRealtime();
   const { language, t } = useLanguage();
+  const { openChat } = useChat();
 
   // Active Workspace District (defaults to Agent's assigned district or Zomba)
   const [activeDistrict, setActiveDistrict] = useState<string>(
@@ -132,6 +135,13 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
   const [pinCheckFarmer, setPinCheckFarmer] = useState<OfflineFarmer | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [pinVerificationResult, setPinVerificationResult] = useState<string | null>(null);
+
+  // Modal 6: Commodity Removal Confirmation
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [commodityToDelete, setCommodityToDelete] = useState<Commodity | null>(null);
+  const [deleteReason, setDeleteReason] = useState('Stock sold out or withdrawn by farmer');
+  const [deletingCommodity, setDeletingCommodity] = useState(false);
+  const [expandedFarmerId, setExpandedFarmerId] = useState<string | null>(null);
 
   // Fetch Workspace Data
   const fetchWorkspaceData = async () => {
@@ -218,12 +228,12 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
       const parsed = await safeParseResponse(res);
       if (parsed.ok) {
         setShowRegisterFarmerModal(false);
-        const welcomeText = parsed.data?.sms?.messageText || `MBERALINK: Mwalandiridwa ${farmerFullName}! Nambala yanu ndi ${parsed.data?.farmer?.farmerId}.`;
+        const welcomeText = parsed.data?.sms?.messageText || `MBEWALINK: Mwalandiridwa ${farmerFullName}! Nambala yanu ndi ${parsed.data?.farmer?.farmerId}.`;
         const smsUri = createDeviceSmsUri(parsed.data?.farmer?.phoneNumber || farmerPhone, welcomeText);
 
         setFeedback({
           type: 'success',
-          message: `Farmer ${farmerFullName} successfully registered with Mberalink Farmer ID: ${parsed.data.farmer.farmerId}. Welcome credentials generated.`,
+          message: `Farmer ${farmerFullName} successfully registered with Mbewalink Farmer ID: ${parsed.data.farmer.farmerId}. Welcome credentials generated.`,
           actionLink: smsUri,
           actionLabel: 'Send via Phone Messages App',
         });
@@ -293,7 +303,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
         location: produceLocation || `${selectedFarmerForProduce.traditionalAuthority}, ${selectedFarmerForProduce.village}`,
         quality: produceQuality,
         availabilityDate: produceDate,
-        description: produceDescription || `Managed by Mberalink Agent ${currentUser?.fullName} on behalf of ${selectedFarmerForProduce.fullName}.`,
+        description: produceDescription || `Managed by Mbewalink Agent ${currentUser?.fullName} on behalf of ${selectedFarmerForProduce.fullName}.`,
         imageUrl: produceImage,
         agentUid: currentUser?.uid,
         agentName: currentUser?.fullName || 'District Agent',
@@ -309,7 +319,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
       const parsed = await safeParseResponse(res);
       if (parsed.ok) {
         setShowAddProduceModal(false);
-        const listText = parsed.data?.sms?.messageText || `MBERALINK: Zikomo ${selectedFarmerForProduce.fullName}. Mbewu zanu: ${produceQuantity} ${produceUnit} a ${produceCommodityName} zalembedwa pa msika wa Mberalink pa mtengo wa MWK ${producePrice}/${produceUnit}.`;
+        const listText = parsed.data?.sms?.messageText || `MBEWALINK: Zikomo ${selectedFarmerForProduce.fullName}. Mbewu zanu: ${produceQuantity} ${produceUnit} a ${produceCommodityName} zalembedwa pa msika wa Mbewalink pa mtengo wa MWK ${producePrice}/${produceUnit}.`;
         const smsUri = createDeviceSmsUri(selectedFarmerForProduce.phoneNumber, listText);
 
         setFeedback({
@@ -328,6 +338,41 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
       setAddProduceError(err.message || 'Error listing produce');
     } finally {
       setSubmittingProduce(false);
+    }
+  };
+
+  // Handle Commodity Removal
+  const handleInitiateRemove = (commodity: Commodity) => {
+    setCommodityToDelete(commodity);
+    setDeleteReason('Stock sold out or withdrawn by farmer');
+    setShowDeleteConfirmModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!commodityToDelete) return;
+    setDeletingCommodity(true);
+    try {
+      const res = await fetch(
+        `/api/commodities/${commodityToDelete.id}?userUid=${encodeURIComponent(currentUser?.uid || '')}&reason=${encodeURIComponent(deleteReason)}`,
+        { method: 'DELETE' }
+      );
+      const parsed = await safeParseResponse(res);
+      if (parsed.ok) {
+        setShowDeleteConfirmModal(false);
+        setFeedback({
+          type: 'success',
+          message: `Product "${commodityToDelete.commodityName}" was removed from the database and marketplace successfully.`,
+        });
+        setTimeout(() => setFeedback(null), 8000);
+        setCommodityToDelete(null);
+        fetchWorkspaceData();
+      } else {
+        alert(parsed.error || 'Failed to remove commodity');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error deleting commodity');
+    } finally {
+      setDeletingCommodity(false);
     }
   };
 
@@ -539,7 +584,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
           <div className="bg-emerald-900/40 p-3.5 rounded-2xl border border-emerald-700/40">
             <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider">Managed Market Listings</div>
             <div className="text-2xl font-black text-white mt-1">{districtCommodities.length}</div>
-            <div className="text-[10px] text-stone-300">Live on Mberalink</div>
+            <div className="text-[10px] text-stone-300">Live on Mbewalink</div>
           </div>
           <div className="bg-emerald-900/40 p-3.5 rounded-2xl border border-emerald-700/40">
             <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider">Total Farmer Sales</div>
@@ -746,27 +791,83 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
                     {f.notes && <p className="mt-2 text-[11px] text-stone-500 line-clamp-2">{f.notes}</p>}
                   </div>
 
-                  {/* Actions Bar */}
-                  <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => handleOpenAddProduce(f)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all flex-1 justify-center"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>List Produce</span>
-                    </button>
+                    {/* Actions Bar */}
+                    <div className="pt-3 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2">
+                      <button
+                        onClick={() => handleOpenAddProduce(f)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all flex-1 justify-center"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>List Produce</span>
+                      </button>
 
-                    <button
-                      onClick={() => handleLaunchUssdForFarmer(f)}
-                      className="p-1.5 rounded-xl border border-stone-200 text-stone-700 hover:bg-amber-50 hover:text-amber-800 transition-colors"
-                      title="Test USSD (*265#) as this farmer"
-                    >
-                      <Smartphone className="w-4 h-4" />
-                    </button>
+                      <button
+                        onClick={() => setExpandedFarmerId(expandedFarmerId === f.farmerId ? null : f.farmerId)}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-1 ${
+                          expandedFarmerId === f.farmerId
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+                        }`}
+                        title="View active produce for this farmer"
+                      >
+                        <span>Produce</span>
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedFarmerId === f.farmerId ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      <button
+                        onClick={() => handleLaunchUssdForFarmer(f)}
+                        className="p-1.5 rounded-xl border border-stone-200 text-stone-700 hover:bg-amber-50 hover:text-amber-800 transition-colors"
+                        title="Test USSD (*265#) as this farmer"
+                      >
+                        <Smartphone className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Expandable Produce Drawer for this farmer */}
+                    {expandedFarmerId === f.farmerId && (
+                      <div className="mt-3 pt-3 border-t border-dashed border-stone-200 space-y-2 animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-stone-700">
+                          <span>Active Produce in Database</span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-mono">
+                            {districtCommodities.filter((c) => c.offlineFarmerId === f.farmerId).length} listed
+                          </span>
+                        </div>
+
+                        {districtCommodities.filter((c) => c.offlineFarmerId === f.farmerId).length === 0 ? (
+                          <div className="p-3 bg-stone-50 rounded-xl text-center text-[11px] text-stone-500">
+                            No active produce listed for this farmer yet.
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {districtCommodities
+                              .filter((c) => c.offlineFarmerId === f.farmerId)
+                              .map((c) => (
+                                <div
+                                  key={c.id}
+                                  className="p-2 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-between text-xs"
+                                >
+                                  <div>
+                                    <div className="font-bold text-stone-900">{c.commodityName}</div>
+                                    <div className="text-[10px] text-stone-500">
+                                      {c.quantity} {c.unit} • MWK {Number(c.pricePerUnit).toLocaleString()}/{c.unit}
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => handleInitiateRemove(c)}
+                                    className="p-1 rounded text-rose-600 hover:bg-rose-100 transition-colors"
+                                    title="Remove this produce from database & marketplace"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
           )}
         </div>
       )}
@@ -800,7 +901,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
               <Package className="w-12 h-12 text-stone-400 mx-auto" />
               <h3 className="font-bold text-stone-900 text-sm">No agent-managed produce listings in {activeDistrict}</h3>
               <p className="text-xs text-stone-500 max-w-md mx-auto">
-                Register produce for keypad farmers so buyers across Malawi can purchase their stock directly through Mberalink.
+                Register produce for keypad farmers so buyers across Malawi can purchase their stock directly through Mbewalink.
               </p>
               <button
                 onClick={() => handleOpenAddProduce()}
@@ -872,10 +973,20 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
                     </div>
                   </div>
 
-                  {/* Card Footer: Agent attribution & status */}
+                  {/* Card Footer: Agent attribution & status & Removal button */}
                   <div className="px-4 py-2.5 bg-stone-50 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
-                    <span>Agent: {c.agentName || 'Mberalink Team'}</span>
-                    <span className="font-semibold text-emerald-700">Marketplace Active</span>
+                    <span>Agent: {c.agentName || 'Mbewalink Team'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-emerald-700">Marketplace Active</span>
+                      <button
+                        onClick={() => handleInitiateRemove(c)}
+                        className="flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+                        title="Remove produce listing from database and marketplace"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1013,9 +1124,9 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
           </div>
 
           <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-xs space-y-3 text-xs">
-            <h4 className="font-bold text-stone-900 text-sm">Agent Remuneration Policy (Mberalink Fair Trade)</h4>
+            <h4 className="font-bold text-stone-900 text-sm">Agent Remuneration Policy (Mbewalink Fair Trade)</h4>
             <p className="text-stone-600 leading-relaxed">
-              Mberalink agents receive a transparent service incentive paid from the platform operations fee for onboarding rural farmers, verifying grain conditions, and coordinating logistics. There are <strong>zero secret deductions</strong> from farmers' payments; all proceeds are recorded and verifiable via SMS receipts.
+              Mbewalink agents receive a transparent service incentive paid from the platform operations fee for onboarding rural farmers, verifying grain conditions, and coordinating logistics. There are <strong>zero secret deductions</strong> from farmers' payments; all proceeds are recorded and verifiable via SMS receipts.
             </p>
           </div>
         </div>
@@ -1033,7 +1144,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
                 <div>
                   <h3 className="font-bold text-stone-900 text-base">Register Offline Farmer</h3>
                   <p className="text-[11px] text-stone-500">
-                    District: <strong>{activeDistrict}</strong> &bull; Generates Mberalink Farmer ID &amp; Welcome SMS
+                    District: <strong>{activeDistrict}</strong> &bull; Generates Mbewalink Farmer ID &amp; Welcome SMS
                   </p>
                 </div>
               </div>
@@ -1165,7 +1276,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
                   className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                 />
                 <label htmlFor="farmerConsentCheckbox" className="text-[11px] text-stone-600 leading-snug">
-                  I confirm that I have explained Mberalink terms and received the farmer's permission to register their agricultural information and send automated transaction SMS notifications.
+                  I confirm that I have explained Mbewalink terms and received the farmer's permission to register their agricultural information and send automated transaction SMS notifications.
                 </label>
               </div>
 
@@ -1202,7 +1313,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
                 <div>
                   <h3 className="font-bold text-stone-900 text-base">List Produce on Behalf of Farmer</h3>
                   <p className="text-[11px] text-stone-500">
-                    Will appear live on Mberalink marketplace &bull; Dispatches SMS to farmer
+                    Will appear live on Mbewalink marketplace &bull; Dispatches SMS to farmer
                   </p>
                 </div>
               </div>
@@ -1466,6 +1577,90 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ categoriesList =
                 className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-xs disabled:opacity-50"
               >
                 {coordinatingTransport ? 'Dispatching...' : 'Confirm Transport & Send SMS'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: REMOVE COMMODITY CONFIRMATION */}
+      {showDeleteConfirmModal && commodityToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <button
+                onClick={() => setShowDeleteConfirmModal(false)}
+                className="p-1 rounded-xl text-stone-400 hover:bg-stone-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-stone-900">
+                Remove Produce from Database & Marketplace?
+              </h3>
+              <p className="text-xs text-stone-500 mt-1">
+                You are about to remove <strong>{commodityToDelete.commodityName}</strong> ({commodityToDelete.quantity} {commodityToDelete.unit}) listed for farmer <strong>{commodityToDelete.farmerName}</strong>.
+              </p>
+            </div>
+
+            <div className="p-3 bg-stone-50 rounded-2xl text-xs space-y-1.5 border border-stone-200">
+              <div className="flex justify-between text-stone-600">
+                <span>Commodity ID:</span>
+                <span className="font-mono font-bold text-stone-900">CMD-{commodityToDelete.id}</span>
+              </div>
+              <div className="flex justify-between text-stone-600">
+                <span>Farmer ID:</span>
+                <span className="font-mono font-bold text-emerald-800">{commodityToDelete.offlineFarmerId || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between text-stone-600">
+                <span>Asking Price:</span>
+                <span className="font-bold text-stone-900">MWK {Number(commodityToDelete.pricePerUnit).toLocaleString()}/{commodityToDelete.unit}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                Reason for Removal:
+              </label>
+              <select
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                className="w-full text-xs p-2 rounded-xl border border-stone-300 bg-white"
+              >
+                <option value="Stock sold out or withdrawn by farmer">Stock sold out or withdrawn by farmer</option>
+                <option value="Quality grading failure or moisture exceeded">Quality grading failure or moisture exceeded</option>
+                <option value="Duplicate listing or incorrect quantity entered">Duplicate listing or incorrect quantity entered</option>
+                <option value="Offline private farmgate purchase completed">Offline private farmgate purchase completed</option>
+              </select>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirmModal(false)}
+                className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingCommodity}
+                onClick={handleConfirmDelete}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {deletingCommodity ? (
+                  <span>Removing from Database...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm Removal</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

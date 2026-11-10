@@ -114,7 +114,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userUid: currentUser?.uid,
-          title: 'Mberalink Push Alert (FCM)',
+          title: 'Mbewalink Push Alert (FCM)',
           body: `Moni ${currentUser?.fullName || 'User'}! Real-time Firebase Cloud Messaging push notification confirmed working.`,
         }),
       });
@@ -139,7 +139,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
     try {
       const targetPhone = currentUser?.phoneNumber || '+265999036912';
       const targetEmail = currentUser?.email || 'user@harvesthub.mw';
-      const targetName = currentUser?.fullName || 'Mberalink User';
+      const targetName = currentUser?.fullName || 'Mbewalink User';
 
       // 1. Dispatch Contact Number SMS
       await fetch('/api/agent/sms/test-real', {
@@ -148,7 +148,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
         body: JSON.stringify({
           phone: targetPhone,
           name: targetName,
-          customText: `MBERALINK REAL-TIME TEST: Hello ${targetName}! All 4 delivery channels (Phone SMS, Email, In-App, and Firebase Push) are confirmed working across Malawi.`,
+          customText: `MBEWALINK REAL-TIME TEST: Hello ${targetName}! All 4 delivery channels (Phone SMS, Email, In-App, and Firebase Push) are confirmed working across Malawi.`,
         }),
       });
 
@@ -159,7 +159,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
         body: JSON.stringify({
           toEmail: targetEmail,
           recipientName: targetName,
-          subject: 'Mberalink Real-Time Notification Test (Malawi Harvest Hub)',
+          subject: 'Mbewalink Real-Time Notification Test (Malawi Harvest Hub)',
           messageText: `Moni ${targetName}!\n\nThis is a live multi-channel confirmation. Your registered email (${targetEmail}) and mobile contact number (${targetPhone}) are fully connected to receive real-time updates for orders, commodity prices, and logistics dispatches.`,
         }),
       });

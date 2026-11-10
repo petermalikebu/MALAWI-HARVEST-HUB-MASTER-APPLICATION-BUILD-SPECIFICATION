@@ -21,6 +21,8 @@ import { RulesAndRegulationsView } from './components/common/RulesAndRegulations
 import { ContactDetailsView } from './components/common/ContactDetailsView.tsx';
 import { AgentDashboard } from './components/agent/AgentDashboard.tsx';
 import { LanguageProvider, useLanguage } from './context/LanguageContext.tsx';
+import { ChatProvider } from './context/ChatContext.tsx';
+import { FcbMessagingCenter } from './components/chat/FcbMessagingCenter.tsx';
 import { ShieldAlert } from 'lucide-react';
 
 function MainContent() {
@@ -276,12 +278,15 @@ function MainContent() {
         }}
       />
 
+      {/* FCB Real-Time Peer-to-Peer Messaging System */}
+      <FcbMessagingCenter />
+
       <footer className="bg-white border-t border-stone-200 py-6 text-center text-xs text-stone-500">
         <div className="max-w-7xl mx-auto px-4 space-y-1">
           <p className="font-semibold text-stone-700">
             {language === 'ch'
-              ? 'Mberalink (Malawi Harvest Hub) • Kupatsa Mphamvu Malonda a Ulimi M\'maboma Onse 28 a Malawi'
-              : 'Mberalink • Empowering Agricultural Commerce & Logistics Across 28 Districts of Malawi'}
+              ? 'Mbewalink (Malawi Harvest Hub) • Kupatsa Mphamvu Malonda a Ulimi M\'maboma Onse 28 a Malawi'
+              : 'Mbewalink • Empowering Agricultural Commerce & Logistics Across 28 Districts of Malawi'}
           </p>
           <p className="text-[11px] text-stone-400">
             {language === 'ch'
@@ -299,7 +304,9 @@ export default function App() {
     <AuthProvider>
       <LanguageProvider>
         <RealtimeProvider>
-          <MainContent />
+          <ChatProvider>
+            <MainContent />
+          </ChatProvider>
         </RealtimeProvider>
       </LanguageProvider>
     </AuthProvider>

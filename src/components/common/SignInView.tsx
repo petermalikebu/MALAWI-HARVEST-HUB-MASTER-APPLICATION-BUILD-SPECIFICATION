@@ -449,7 +449,7 @@ export const SignInView: React.FC<SignInViewProps> = ({
           <Sprout className="w-7 h-7 text-emerald-300" />
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-          Mberalink
+          Mbewalink
         </h1>
         <p className="text-emerald-100 text-xs sm:text-sm max-w-md mx-auto">
           Agricultural Trade &amp; Logistics Portal connecting Smallholder Farmers, Wholesale Buyers, and Freight Transporters across Malawi.

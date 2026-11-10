@@ -332,7 +332,7 @@ export async function generateAgriAdvice(params: {
 
   // SYSTEM INSTRUCTION tailored for Malawian Farmers
   const systemInstruction = `
-You are the "Mberalink Mlimi Wodziwa" (Malawi Harvest Hub AI Agricultural Advisor and Knowledge Scientist).
+You are the "Mbewalink Mlimi Wodziwa" (Malawi Harvest Hub AI Agricultural Advisor and Knowledge Scientist).
 You are an expert agronomist, plant pathologist, and agricultural economist specializing in Malawian agriculture.
 
 Your audience: Malawian smallholder and commercial farmers, agribusiness cooperatives, and Extension Planning Area (EPA) officers.

@@ -96,7 +96,7 @@ export const AdminAgentNetworkPanel: React.FC = () => {
   const [broadcastAudience, setBroadcastAudience] = useState<'all_farmers' | 'offline_farmers' | 'agents' | 'all'>('all_farmers');
   const [broadcastLanguage, setBroadcastLanguage] = useState<'ch' | 'en'>('ch');
   const [broadcastMessage, setBroadcastMessage] = useState(
-    'MBERALINK CHIDZIWITSO: Mitengo ya msika ya mbewu za m\'chaka chino yasinthidwa. Funsani mlangizi wanu wa m\'boma kuti mudziwe mitengo yovomerezeka ya chimanga, mtedza, ndi mpunga.'
+    'MBEWALINK CHIDZIWITSO: Mitengo ya msika ya mbewu za m\'chaka chino yasinthidwa. Funsani mlangizi wanu wa m\'boma kuti mudziwe mitengo yovomerezeka ya chimanga, mtedza, ndi mpunga.'
   );
   const [dispatchingBroadcast, setDispatchingBroadcast] = useState(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
@@ -582,7 +582,7 @@ export const AdminAgentNetworkPanel: React.FC = () => {
         <div className="space-y-4">
           <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
             <span className="text-stone-600">
-              Authorized Mberalink District Agents assisting rural farmers without smartphones across Malawi.
+              Authorized Mbewalink District Agents assisting rural farmers without smartphones across Malawi.
             </span>
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -834,15 +834,15 @@ export const AdminAgentNetworkPanel: React.FC = () => {
                   {[
                     {
                       label: 'Price Surge Alert',
-                      text: `MBERALINK CHIDZIWITSO: Mtengo wa Mpunga wa Kilombero m'boma la Zomba wafika pa MWK 1,850/kg sabata ino. Alimi omwe ali ndi mpunga wokonzeka akambirane ndi alangizi awo a Mberalink.`,
+                      text: `MBEWALINK CHIDZIWITSO: Mtengo wa Mpunga wa Kilombero m'boma la Zomba wafika pa MWK 1,850/kg sabata ino. Alimi omwe ali ndi mpunga wokonzeka akambirane ndi alangizi awo a Mbewalink.`,
                     },
                     {
                       label: 'Moisture Standard Reminder',
-                      text: `MBERALINK ANNOUNCEMENT: Maintain grain moisture below 13% for maize and 7.5% for groundnuts to qualify for Grade A buyer premium prices at commercial depots.`,
+                      text: `MBEWALINK ANNOUNCEMENT: Maintain grain moisture below 13% for maize and 7.5% for groundnuts to qualify for Grade A buyer premium prices at commercial depots.`,
                     },
                     {
                       label: 'Commission Rate Update',
-                      text: `MBERALINK NOTICE: Platform transaction commission fee has been synchronized. Payouts to farmer accounts remain 100% transparent with zero hidden deductions.`,
+                      text: `MBEWALINK NOTICE: Platform transaction commission fee has been synchronized. Payouts to farmer accounts remain 100% transparent with zero hidden deductions.`,
                     },
                   ].map((preset, idx) => (
                     <button
@@ -1078,7 +1078,7 @@ export const AdminAgentNetworkPanel: React.FC = () => {
                     type="email"
                     value={addEmail}
                     onChange={(e) => setAddEmail(e.target.value)}
-                    placeholder="agent@mberalink.mw"
+                    placeholder="agent@mbewalink.mw"
                     className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-white"
                   />
                 </div>

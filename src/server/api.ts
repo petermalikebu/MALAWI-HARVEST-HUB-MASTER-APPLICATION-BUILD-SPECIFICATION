@@ -1,5 +1,6 @@
 import express from 'express';
 import { db, saveStoreToDisk, getInMemoryStore } from '../db/index.ts';
+import { persistDocToFirestore } from '../db/firestoreStore.ts';
 import {
   users,
   commodities,
@@ -99,7 +100,7 @@ async function logAudit(params: {
 // Automatically alerts the recipient across:
 // 1. In-App Notifications Drawer (WebSocket Real-Time Broadcast)
 // 2. Mobile Contact Number (SMS for Keypad 2G Phones & Smartphones)
-// 3. Registered Email Address (Mberalink HTML/Plaintext Branded Email)
+// 3. Registered Email Address (Mbewalink HTML/Plaintext Branded Email)
 // 4. Firebase Cloud Messaging (FCM Device Push)
 async function createNotification(params: {
   userUid: string;
@@ -162,7 +163,7 @@ async function createNotification(params: {
           const formattedPhone = formatMalawiPhoneNumber(u.phoneNumber);
           sendAutomatedFarmerSms({
             recipientPhone: formattedPhone || u.phoneNumber,
-            recipientName: u.fullName || 'Mberalink User',
+            recipientName: u.fullName || 'Mbewalink User',
             district: u.district || 'National',
             messageText: `${params.title}\n${params.message}`,
             messageLanguage: 'ch',
@@ -343,7 +344,7 @@ router.post('/users/register', async (req, res) => {
     // Dispatch registration welcome alert across all channels (In-App, SMS, Email, FCM Push)
     await createNotification({
       userUid: newUser.uid,
-      title: 'Welcome to Mberalink!',
+      title: 'Welcome to Mbewalink!',
       message: `Welcome ${newUser.fullName}! Your account has been registered successfully as ${roleName} in ${newUser.district}. Real-time notifications and alerts are now active.`,
       type: 'system',
     });
@@ -1536,17 +1537,23 @@ router.delete('/commodities/:id', async (req, res) => {
           requesterUser.role === 'admin' ||
           requesterUser.uid === existing[0].farmerUid ||
           requesterUser.id === existing[0].farmerId ||
-          (existing[0].farmerName && requesterUser.fullName && existing[0].farmerName.trim().toLowerCase() === requesterUser.fullName.trim().toLowerCase())
+          (existing[0].farmerName && requesterUser.fullName && existing[0].farmerName.trim().toLowerCase() === requesterUser.fullName.trim().toLowerCase()) ||
+          (requesterUser.role === 'agent' && (
+            existing[0].isAgentAssisted ||
+            existing[0].agentUid === requesterUser.uid ||
+            existing[0].district?.toLowerCase() === requesterUser.assignedDistrict?.toLowerCase() ||
+            existing[0].district?.toLowerCase() === requesterUser.district?.toLowerCase()
+          ))
         ) {
           isAuthorized = true;
         }
-      } else if (existing[0].farmerUid === userUid) {
+      } else if (existing[0].farmerUid === userUid || existing[0].agentUid === userUid) {
         isAuthorized = true;
       }
     }
 
     if (!isAuthorized) {
-      return res.status(403).json({ error: 'Unauthorized: You can only remove your own products' });
+      return res.status(403).json({ error: 'Unauthorized: You can only remove your own or assigned products' });
     }
 
     if (action === 'archive') {
@@ -1613,6 +1620,15 @@ router.delete('/commodities/:id', async (req, res) => {
       }
       if (Array.isArray(store.orders)) {
         store.orders = store.orders.filter((o: any) => o.commodityId !== id);
+      }
+      // Decrement farmer's total produce count if linked to an offline farmer
+      if (existing[0].offlineFarmerId && Array.isArray(store.offline_farmers)) {
+        const matchedFarmer = store.offline_farmers.find(
+          (f: any) => f.farmerId === existing[0].offlineFarmerId
+        );
+        if (matchedFarmer && typeof matchedFarmer.totalProduceListed === 'number') {
+          matchedFarmer.totalProduceListed = Math.max(0, matchedFarmer.totalProduceListed - 1);
+        }
       }
       saveStoreToDisk(store);
     }
@@ -2091,7 +2107,7 @@ router.post('/orders/:id/finance-disburse-funds', async (req, res) => {
     await createNotification({
       userUid: ord[0].farmerUid,
       title: `Escrow Payout Disbursed #${ord[0].orderNumber}`,
-      message: `Funds have been disbursed! Financial Administrator sent MK ${farmerEarnings.toLocaleString()} (net of ${(commissionRate * 100).toFixed(1)}% platform fee) via ${payoutMethod || 'Mobile Money'} (Ref: ${ref}). Thank you for selling on Mberalink!`,
+      message: `Funds have been disbursed! Financial Administrator sent MK ${farmerEarnings.toLocaleString()} (net of ${(commissionRate * 100).toFixed(1)}% platform fee) via ${payoutMethod || 'Mobile Money'} (Ref: ${ref}). Thank you for selling on Mbewalink!`,
       type: 'finance',
       relatedOrderId: ord[0].id,
     });
@@ -3823,9 +3839,9 @@ router.post(['/notifications/emails/test', '/api/notifications/emails/test'], as
     }
     const record = await sendEmailNotification({
       toEmail,
-      recipientName: recipientName || 'Mberalink User',
-      subject: subject || 'Mberalink Real-Time Notification Test',
-      messageText: messageText || 'This is a live test notification from Mberalink Malawi Harvest Hub confirming your registered email channel is active and receiving alerts.',
+      recipientName: recipientName || 'Mbewalink User',
+      subject: subject || 'Mbewalink Real-Time Notification Test',
+      messageText: messageText || 'This is a live test notification from Mbewalink Malawi Harvest Hub confirming your registered email channel is active and receiving alerts.',
       eventType: 'system_test',
     });
     return res.json({ success: true, message: 'Test email successfully dispatched and logged.', record });
@@ -4188,7 +4204,7 @@ router.post('/market-prices', async (req, res) => {
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'Platform Administrator',
       role: 'admin',
       action: 'MARKET_PRICE_ADDED',
@@ -4266,7 +4282,7 @@ router.put('/market-prices/:id', async (req, res) => {
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'Platform Administrator',
       role: 'admin',
       action: 'MARKET_PRICE_UPDATED',
@@ -4305,7 +4321,7 @@ router.delete('/market-prices/:id', async (req, res) => {
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'Platform Administrator',
       role: 'admin',
       action: 'MARKET_PRICE_DELETED',
@@ -5767,13 +5783,13 @@ router.post('/agent/farmers', async (req, res) => {
       });
     }
 
-    // Generate unique Mberalink Farmer ID: e.g. MBR-ZOM-2026-0005
+    // Generate unique Mbewalink Farmer ID: e.g. MBW-ZOM-2026-0005
     const distPrefix = district.slice(0, 3).toUpperCase();
     const year = new Date().getFullYear();
     const distCount = store.offline_farmers.filter(
       (f: any) => f.district.toLowerCase() === district.toLowerCase()
     ).length + 1;
-    const farmerId = `MBR-${distPrefix}-${year}-${String(distCount).padStart(4, '0')}`;
+    const farmerId = `MBW-${distPrefix}-${year}-${String(distCount).padStart(4, '0')}`;
 
     // Generate 4-digit verification PIN for farmer
     const verificationPin = Math.floor(1000 + Math.random() * 9000).toString();
@@ -5808,8 +5824,8 @@ router.post('/agent/farmers', async (req, res) => {
     const lang = preferredLanguage === 'en' ? 'en' : 'ch';
     const welcomeMsg =
       lang === 'en'
-        ? `MBERALINK: Welcome to Mberalink! Your official Farmer ID is ${farmerId}. Your assigned district agent in ${district} is ${agentName} (${agentPhone || ''}). Your secret verification PIN is ${verificationPin}.`
-        : `MBERALINK: Mwalandiridwa ku Mberalink! Nambala yanu ya mlimi ndi ${farmerId}. Mlangizi wanu wa m'boma la ${district} ndi ${agentName} (${agentPhone || ''}). PIN yanu yachinsinsi ndi ${verificationPin}.`;
+        ? `MBEWALINK: Welcome to Mbewalink! Your official Farmer ID is ${farmerId}. Your assigned district agent in ${district} is ${agentName} (${agentPhone || ''}). Your secret verification PIN is ${verificationPin}.`
+        : `MBEWALINK: Mwalandiridwa ku Mbewalink! Nambala yanu ya mlimi ndi ${farmerId}. Mlangizi wanu wa m'boma la ${district} ndi ${agentName} (${agentPhone || ''}). PIN yanu yachinsinsi ndi ${verificationPin}.`;
 
     const smsRecord = sendAutomatedFarmerSms({
       recipientPhone: newFarmer.phoneNumber,
@@ -5825,7 +5841,7 @@ router.post('/agent/farmers', async (req, res) => {
     // Audit log
     await logAudit({
       userUid: agentUid || 'agent',
-      userEmail: 'agent@mberalink.mw',
+      userEmail: 'agent@mbewalink.mw',
       userName: agentName || 'District Agent',
       role: 'agent',
       action: 'OFFLINE_FARMER_REGISTERED',
@@ -5838,7 +5854,7 @@ router.post('/agent/farmers', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: `Farmer ${newFarmer.fullName} successfully registered with Mberalink Farmer ID: ${farmerId}. Confirmation SMS dispatched!`,
+      message: `Farmer ${newFarmer.fullName} successfully registered with Mbewalink Farmer ID: ${farmerId}. Confirmation SMS dispatched!`,
       farmer: newFarmer,
       sms: smsRecord,
     });
@@ -5891,9 +5907,8 @@ router.post('/agent/commodities', async (req, res) => {
     if (isNaN(qty) || qty <= 0) return res.status(400).json({ error: 'Quantity must be a positive integer.' });
     if (isNaN(unitPrice) || unitPrice <= 0) return res.status(400).json({ error: 'Price per unit must be greater than 0.' });
 
-    const newCommodity = {
-      id: (store.commodities || []).length + 1,
-      farmerId: farmer.id,
+    const commodityData = {
+      farmerId: farmer.id || 1,
       farmerUid: `offline-${farmer.farmerId}`,
       farmerName: farmer.fullName,
       commodityName: String(commodityName).trim(),
@@ -5904,10 +5919,10 @@ router.post('/agent/commodities', async (req, res) => {
       pricePerUnit: unitPrice.toString(),
       district: farmer.district,
       location: location || `${farmer.traditionalAuthority}, ${farmer.village}`,
-      region: getDistrictRegion(farmer.district),
+      region: getDistrictRegion(farmer.district) || 'Southern',
       quality: quality || 'Grade A - Premium',
       availabilityDate: availabilityDate || new Date().toISOString().split('T')[0],
-      description: description || `Listed by authorized Mberalink Agent on behalf of farmer ${farmer.fullName}.`,
+      description: description || `Listed by authorized Mbewalink Agent on behalf of farmer ${farmer.fullName}.`,
       imageUrl:
         imageUrl ||
         'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=600&auto=format&fit=crop&q=80',
@@ -5921,23 +5936,38 @@ router.post('/agent/commodities', async (req, res) => {
       farmerPhone: farmer.phoneNumber,
       traditionalAuthority: farmer.traditionalAuthority,
       village: farmer.village,
+    };
+
+    const inserted = await db.insert(commodities).values(commodityData).returning();
+    const newCommodity = inserted && inserted.length > 0 ? inserted[0] : {
+      id: (store.commodities || []).length + 1,
       createdAt: new Date(),
       updatedAt: new Date(),
+      ...commodityData,
     };
 
     if (!Array.isArray(store.commodities)) store.commodities = [];
-    store.commodities.unshift(newCommodity);
+    const existingIdx = store.commodities.findIndex((c: any) => c.id === newCommodity.id);
+    if (existingIdx >= 0) {
+      store.commodities[existingIdx] = newCommodity;
+    } else {
+      store.commodities.unshift(newCommodity);
+    }
 
     // Update farmer's total produce count
     farmer.totalProduceListed = (farmer.totalProduceListed || 0) + 1;
     saveStoreToDisk(store);
 
+    persistDocToFirestore('commodities', newCommodity).catch((e: any) =>
+      console.warn('[Firestore] Failed to persist agent commodity:', e?.message || e)
+    );
+
     // Send automated Produce Listing SMS to farmer
     const lang = farmer.preferredLanguage || 'ch';
     const listMsg =
       lang === 'en'
-        ? `MBERALINK: Hello ${farmer.fullName}. Your produce (${qty} ${resolvedUnit} of ${commodityName}) is now live on Mberalink marketplace at MWK ${unitPrice.toLocaleString()}/${resolvedUnit}. You will receive an SMS when a buyer orders.`
-        : `MBERALINK: Zikomo ${farmer.fullName}. Mbewu zanu: ${qty} ${resolvedUnit} a ${commodityName} zalembedwa pa msika wa Mberalink pa mtengo wa MWK ${unitPrice.toLocaleString()}/${resolvedUnit}. Tidzakudziwitsani wogula akapezeka.`;
+        ? `MBEWALINK: Hello ${farmer.fullName}. Your produce (${qty} ${resolvedUnit} of ${commodityName}) is now live on Mbewalink marketplace at MWK ${unitPrice.toLocaleString()}/${resolvedUnit}. You will receive an SMS when a buyer orders.`
+        : `MBEWALINK: Zikomo ${farmer.fullName}. Mbewu zanu: ${qty} ${resolvedUnit} a ${commodityName} zalembedwa pa msika wa Mbewalink pa mtengo wa MWK ${unitPrice.toLocaleString()}/${resolvedUnit}. Tidzakudziwitsani wogula akapezeka.`;
 
     const smsRecord = sendAutomatedFarmerSms({
       recipientPhone: farmer.phoneNumber,
@@ -5952,7 +5982,7 @@ router.post('/agent/commodities', async (req, res) => {
     // Audit log
     await logAudit({
       userUid: agentUid || 'agent',
-      userEmail: 'agent@mberalink.mw',
+      userEmail: 'agent@mbewalink.mw',
       userName: agentName || 'District Agent',
       role: 'agent',
       action: 'AGENT_COMMODITY_LISTED',
@@ -5965,7 +5995,7 @@ router.post('/agent/commodities', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: `Produce for ${farmer.fullName} published to Mberalink marketplace! Automated SMS notification sent.`,
+      message: `Produce for ${farmer.fullName} published to Mbewalink marketplace! Automated SMS notification sent.`,
       commodity: newCommodity,
       sms: smsRecord,
     });
@@ -6183,7 +6213,7 @@ router.post(['/messaging/unregister-token', '/api/messaging/unregister-token'], 
 router.post(['/messaging/test-push', '/api/messaging/test-push'], async (req, res) => {
   try {
     const { userUid, token, title, body } = req.body;
-    const testTitle = title || 'Mberalink Push Notification Test';
+    const testTitle = title || 'Mbewalink Push Notification Test';
     const testBody = body || 'Firebase Cloud Messaging push delivery is working properly on your device.';
     const result = await sendFcmNotification({
       token,
@@ -6209,8 +6239,8 @@ router.post('/agent/sms/test-real', async (req, res) => {
       return res.status(400).json({ error: 'Phone number is required.' });
     }
 
-    const recipientName = name || 'Mberalink User';
-    const message = customText || `MBERALINK TEST: Hello ${recipientName}! This is a live test message from Mberalink agricultural digital exchange platform. Real-time notifications are working.`;
+    const recipientName = name || 'Mbewalink User';
+    const message = customText || `MBEWALINK TEST: Hello ${recipientName}! This is a live test message from Mbewalink agricultural digital exchange platform. Real-time notifications are working.`;
 
     const dispatchOutcome = await dispatchRealSms({
       toPhone: phone,
@@ -6354,9 +6384,9 @@ router.post('/agent/ussd-simulate', (req, res) => {
 
     // Root Menu
     if (!input) {
-      const greeting = farmer ? `Welcome, ${farmer.fullName}!` : 'Welcome to Mberalink Malawi!';
+      const greeting = farmer ? `Welcome, ${farmer.fullName}!` : 'Welcome to Mbewalink Malawi!';
       return res.json({
-        response: `MBERALINK FARMER USSD (*265#)\n${greeting}\n\n1. Check My Listed Produce\n2. Check Orders & Payments\n3. Prevailing Market Prices\n4. Contact My District Agent\n5. Request Farmer Assistance`,
+        response: `MBEWALINK FARMER USSD (*265#)\n${greeting}\n\n1. Check My Listed Produce\n2. Check Orders & Payments\n3. Prevailing Market Prices\n4. Contact My District Agent\n5. Request Farmer Assistance`,
         continueSession: true,
       });
     }
@@ -6365,7 +6395,7 @@ router.post('/agent/ussd-simulate', (req, res) => {
     if (input === '1') {
       if (!farmer) {
         return res.json({
-          response: 'You have no registered produce under this phone number. Contact your local Mberalink District Agent to register.',
+          response: 'You have no registered produce under this phone number. Contact your local Mbewalink District Agent to register.',
           continueSession: false,
         });
       }
@@ -6376,7 +6406,7 @@ router.post('/agent/ussd-simulate', (req, res) => {
 
       if (farmerCommodities.length === 0) {
         return res.json({
-          response: `Mberalink (${farmer.district}):\nYou have 0 active listings.\nContact your agent ${farmer.registeredByAgentName} (${farmer.registeredByAgentPhone || ''}) to list your harvest.`,
+          response: `Mbewalink (${farmer.district}):\nYou have 0 active listings.\nContact your agent ${farmer.registeredByAgentName} (${farmer.registeredByAgentPhone || ''}) to list your harvest.`,
           continueSession: false,
         });
       }
@@ -6390,7 +6420,7 @@ router.post('/agent/ussd-simulate', (req, res) => {
         .join('\n');
 
       return res.json({
-        response: `Mberalink Produce for ${farmer.fullName}:\n${summary}\n\nReply 0 to Return to Main Menu`,
+        response: `Mbewalink Produce for ${farmer.fullName}:\n${summary}\n\nReply 0 to Return to Main Menu`,
         continueSession: true,
       });
     }
@@ -6414,7 +6444,7 @@ router.post('/agent/ussd-simulate', (req, res) => {
 
       if (farmerOrders.length === 0) {
         return res.json({
-          response: `Mberalink Orders:\nNo pending orders at this moment.\nTotal completed earnings: MWK ${(Number(farmer.totalEarningsMwk) || 0).toLocaleString()}.\nYou will receive an SMS as soon as a buyer orders.`,
+          response: `Mbewalink Orders:\nNo pending orders at this moment.\nTotal completed earnings: MWK ${(Number(farmer.totalEarningsMwk) || 0).toLocaleString()}.\nYou will receive an SMS as soon as a buyer orders.`,
           continueSession: false,
         });
       }
@@ -6428,7 +6458,7 @@ router.post('/agent/ussd-simulate', (req, res) => {
         .join('\n');
 
       return res.json({
-        response: `Mberalink Orders for ${farmer.fullName}:\n${orderList}\n\nReply 0 to Return to Main Menu`,
+        response: `Mbewalink Orders for ${farmer.fullName}:\n${orderList}\n\nReply 0 to Return to Main Menu`,
         continueSession: true,
       });
     }
@@ -6442,7 +6472,7 @@ router.post('/agent/ussd-simulate', (req, res) => {
 
       if (prices.length === 0) {
         return res.json({
-          response: `Mberalink Prices (${userDistrict}):\nMaize: MWK 680/kg\nGroundnuts: MWK 1,500/kg\nSoya Beans: MWK 950/kg\nRice: MWK 1,800/kg`,
+          response: `Mbewalink Prices (${userDistrict}):\nMaize: MWK 680/kg\nGroundnuts: MWK 1,500/kg\nSoya Beans: MWK 950/kg\nRice: MWK 1,800/kg`,
           continueSession: false,
         });
       }
@@ -6453,7 +6483,7 @@ router.post('/agent/ussd-simulate', (req, res) => {
         .join('\n');
 
       return res.json({
-        response: `Mberalink Official Prices (${userDistrict}):\n${priceSummary}\n\nReply 0 to Return to Main Menu`,
+        response: `Mbewalink Official Prices (${userDistrict}):\n${priceSummary}\n\nReply 0 to Return to Main Menu`,
         continueSession: true,
       });
     }
@@ -6467,7 +6497,7 @@ router.post('/agent/ussd-simulate', (req, res) => {
         });
       } else {
         return res.json({
-          response: 'Mberalink Agents:\nZomba: Hastings Banda (+265 888 777 111)\nLilongwe: Patrick Chiume (+265 881 234 567)\nHead Office: +265 999 036 912',
+          response: 'Mbewalink Agents:\nZomba: Hastings Banda (+265 888 777 111)\nLilongwe: Patrick Chiume (+265 881 234 567)\nHead Office: +265 999 036 912',
           continueSession: false,
         });
       }
@@ -6481,14 +6511,14 @@ router.post('/agent/ussd-simulate', (req, res) => {
           recipientPhone: farmer.registeredByAgentPhone || '+265 888 777 111',
           recipientName: farmer.registeredByAgentName,
           district: farmer.district,
-          messageText: `MBERALINK ALERT: Offline farmer ${farmer.fullName} (${farmer.farmerId}, Tel: ${farmer.phoneNumber}) dialed *265# requesting agent assistance in ${farmer.traditionalAuthority}, Village ${farmer.village}. Please follow up.`,
+          messageText: `MBEWALINK ALERT: Offline farmer ${farmer.fullName} (${farmer.farmerId}, Tel: ${farmer.phoneNumber}) dialed *265# requesting agent assistance in ${farmer.traditionalAuthority}, Village ${farmer.village}. Please follow up.`,
           messageLanguage: 'ch',
           eventType: 'broadcast_announcement',
         });
       }
 
       return res.json({
-        response: 'Mberalink Assistance:\nYour request has been sent to your local District Agent. They will call you or visit your village shortly.\nThank you for using Mberalink!',
+        response: 'Mbewalink Assistance:\nYour request has been sent to your local District Agent. They will call you or visit your village shortly.\nThank you for using Mbewalink!',
         continueSession: false,
       });
     }
@@ -6496,7 +6526,7 @@ router.post('/agent/ussd-simulate', (req, res) => {
     // Back to root
     if (input === '0') {
       return res.json({
-        response: 'MBERALINK FARMER USSD (*265#)\n1. Check My Listed Produce\n2. Check Orders & Payments\n3. Prevailing Market Prices\n4. Contact My District Agent\n5. Request Farmer Assistance',
+        response: 'MBEWALINK FARMER USSD (*265#)\n1. Check My Listed Produce\n2. Check Orders & Payments\n3. Prevailing Market Prices\n4. Contact My District Agent\n5. Request Farmer Assistance',
         continueSession: true,
       });
     }
@@ -6610,7 +6640,7 @@ router.post('/admin/agents/assign', async (req, res) => {
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'Administrator',
       role: 'admin',
       action: 'AGENT_ASSIGNED_TO_DISTRICT',
@@ -6624,7 +6654,7 @@ router.post('/admin/agents/assign', async (req, res) => {
 
     return res.json({
       success: true,
-      message: `User ${user.fullName} is now an authorized Mberalink Agent for ${assignedDistrict}.`,
+      message: `User ${user.fullName} is now an authorized Mbewalink Agent for ${assignedDistrict}.`,
       user,
     });
   } catch (error: any) {
@@ -6658,7 +6688,7 @@ router.post(['/admin/sms-broadcast', '/api/admin/sms-broadcast'], async (req, re
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'System Administrator',
       role: 'admin',
       action: 'SMS_BROADCAST_DISPATCHED',
@@ -6747,7 +6777,7 @@ router.post(['/admin/agents/add', '/api/admin/agents/add'], async (req, res) => 
       targetUser = {
         id: nextId,
         uid: genUid,
-        email: email || `agent.${fullName.toLowerCase().replace(/\s+/g, '')}@mberalink.mw`,
+        email: email || `agent.${fullName.toLowerCase().replace(/\s+/g, '')}@mbewalink.mw`,
         fullName,
         role: 'agent',
         phoneNumber: phoneNumber || '+265 999 000 000',
@@ -6767,7 +6797,7 @@ router.post(['/admin/agents/add', '/api/admin/agents/add'], async (req, res) => 
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'System Administrator',
       role: 'admin',
       action: 'AGENT_ONBOARDED',
@@ -6810,7 +6840,7 @@ router.post(['/admin/agents/:id/suspend', '/api/admin/agents/:id/suspend'], asyn
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'System Administrator',
       role: 'admin',
       action: 'AGENT_SUSPENDED',
@@ -6827,7 +6857,7 @@ router.post(['/admin/agents/:id/suspend', '/api/admin/agents/:id/suspend'], asyn
         recipientPhone: user.phoneNumber,
         recipientName: user.fullName,
         district: user.assignedDistrict || user.district,
-        messageText: `MBERALINK: Udindo wanu wa District Agent wayimitsidwa kwakanthawi kamba ka: ${user.suspensionReason}. Lumikizanani ndi a Head Office.`,
+        messageText: `MBEWALINK: Udindo wanu wa District Agent wayimitsidwa kwakanthawi kamba ka: ${user.suspensionReason}. Lumikizanani ndi a Head Office.`,
         eventType: 'agent_status_change',
         recipientType: 'agent',
       });
@@ -6865,7 +6895,7 @@ router.post(['/admin/agents/:id/reinstate', '/api/admin/agents/:id/reinstate'], 
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'System Administrator',
       role: 'admin',
       action: 'AGENT_REINSTATED',
@@ -6909,7 +6939,7 @@ router.post(['/admin/agents/:id/remove', '/api/admin/agents/:id/remove'], async 
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'System Administrator',
       role: 'admin',
       action: 'AGENT_ROLE_REVOKED',
@@ -6986,7 +7016,7 @@ router.post(['/admin/users/:id/suspend', '/api/admin/users/:id/suspend'], async 
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'System Administrator',
       role: 'admin',
       action: 'USER_SUSPENDED',
@@ -7003,7 +7033,7 @@ router.post(['/admin/users/:id/suspend', '/api/admin/users/:id/suspend'], async 
         recipientPhone: user.phoneNumber,
         recipientName: user.fullName,
         district: user.district || 'Lilongwe',
-        messageText: `MBERALINK: Akaunti yanu yayimitsidwa kwakanthawi kamba ka: ${suspensionReason}. Kuti mudziwe zambiri, funsani chithandizo pa admin@mberalink.mw`,
+        messageText: `MBEWALINK: Akaunti yanu yayimitsidwa kwakanthawi kamba ka: ${suspensionReason}. Kuti mudziwe zambiri, funsani chithandizo pa admin@mbewalink.mw`,
         eventType: 'account_suspended',
         recipientType: 'user',
       });
@@ -7055,7 +7085,7 @@ router.post(['/admin/users/:id/reinstate', '/api/admin/users/:id/reinstate'], as
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'System Administrator',
       role: 'admin',
       action: 'USER_REINSTATED',
@@ -7071,7 +7101,7 @@ router.post(['/admin/users/:id/reinstate', '/api/admin/users/:id/reinstate'], as
         recipientPhone: user.phoneNumber,
         recipientName: user.fullName,
         district: user.district || 'Lilongwe',
-        messageText: `MBERALINK: Akaunti yanu yayambiranso kugwira ntchito mokwanira. Takulandiraninso pa Mberalink!`,
+        messageText: `MBEWALINK: Akaunti yanu yayambiranso kugwira ntchito mokwanira. Takulandiraninso pa Mbewalink!`,
         eventType: 'account_reinstated',
         recipientType: 'user',
       });
@@ -7290,7 +7320,7 @@ router.post(['/admin/users/:id/assess-remove', '/api/admin/users/:id/assess-remo
 
     await logAudit({
       userUid: adminUid || 'admin',
-      userEmail: 'admin@mberalink.mw',
+      userEmail: 'admin@mbewalink.mw',
       userName: adminName || 'System Administrator',
       role: 'admin',
       action: 'USER_EXPELLED_AFTER_ASSESSMENT',
@@ -7307,7 +7337,7 @@ router.post(['/admin/users/:id/assess-remove', '/api/admin/users/:id/assess-remo
         recipientPhone: targetUser.phoneNumber,
         recipientName: targetUser.fullName,
         district: targetUser.district || 'Lilongwe',
-        messageText: `MBERALINK: Pambuyo pofufuza ndi kuwunika zochita zanu, akaunti yanu yachotsedwa pa Mberalink kamba ka: ${findings}. Chigamulo ichi ndi chotsiriza.`,
+        messageText: `MBEWALINK: Pambuyo pofufuza ndi kuwunika zochita zanu, akaunti yanu yachotsedwa pa Mbewalink kamba ka: ${findings}. Chigamulo ichi ndi chotsiriza.`,
         eventType: 'account_expelled',
         recipientType: 'user',
       });
@@ -7344,8 +7374,8 @@ const AUDIT_FLAG_KEYWORDS = [
   'off-app',
 ];
 
-// POST /api/messages/send: Send a direct message between order participants
-router.post(['/messages/send', '/api/messages/send'], async (req, res) => {
+// POST /api/messages: Send a direct message between participants
+router.post(['/messages', '/messages/send', '/api/messages', '/api/messages/send'], async (req, res) => {
   try {
     const {
       orderId,
@@ -7411,7 +7441,7 @@ router.post(['/messages/send', '/api/messages/send'], async (req, res) => {
       orderId: Number(orderId) || 0,
       orderNumber: orderNumber || `ORD-${orderId || 'DIRECT'}`,
       senderUid,
-      senderName: senderName || 'Mberalink User',
+      senderName: senderName || 'Mbewalink User',
       senderRole: senderRole || 'farmer',
       recipientUid,
       recipientName: recipientName || 'Participant',
@@ -7431,7 +7461,7 @@ router.post(['/messages/send', '/api/messages/send'], async (req, res) => {
     if (flaggedForReview) {
       await logAudit({
         userUid: senderUid,
-        userEmail: sender?.email || 'user@mberalink.mw',
+        userEmail: sender?.email || 'user@mbewalink.mw',
         userName: senderName,
         role: senderRole,
         action: 'DIRECT_MESSAGE_FLAGGED',
@@ -7606,6 +7636,151 @@ router.get(['/admin/messages/audit', '/api/admin/messages/audit'], async (req, r
   } catch (error: any) {
     console.error('Error fetching admin messages audit:', error);
     return res.status(500).json({ error: error.message || 'Failed to fetch messages audit' });
+  }
+});
+
+// GET /api/messages/conversations/:userUid: Return all active peer-to-peer conversations for a user
+router.get(['/messages/conversations/:userUid', '/api/messages/conversations/:userUid'], async (req, res) => {
+  try {
+    const userUid = req.params.userUid;
+    if (!userUid) return res.status(400).json({ error: 'User UID is required' });
+
+    const store = getInMemoryStore();
+    const allMessages = store.direct_messages || [];
+    const allUsers = store.users || [];
+
+    // Filter messages involving this user
+    const userMessages = allMessages.filter(
+      (m: any) => m.senderUid === userUid || m.recipientUid === userUid
+    );
+
+    // Group by peer UID
+    const peerGroups = new Map<string, any[]>();
+    for (const msg of userMessages) {
+      const peerUid = msg.senderUid === userUid ? msg.recipientUid : msg.senderUid;
+      if (!peerGroups.has(peerUid)) {
+        peerGroups.set(peerUid, []);
+      }
+      peerGroups.get(peerUid)!.push(msg);
+    }
+
+    const conversations: any[] = [];
+    for (const [peerUid, msgs] of peerGroups.entries()) {
+      msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const lastMsg = msgs[0];
+      const unreadCount = msgs.filter((m) => m.recipientUid === userUid && !m.isRead).length;
+
+      // Find peer profile info from registered users or offline farmers
+      const matchedUser = allUsers.find((u: any) => u.uid === peerUid);
+      const peerName =
+        matchedUser?.fullName ||
+        (lastMsg.senderUid === peerUid ? lastMsg.senderName : lastMsg.recipientName) ||
+        'Mbewalink User';
+      const peerRole =
+        matchedUser?.role ||
+        (lastMsg.senderUid === peerUid ? lastMsg.senderRole : lastMsg.recipientRole) ||
+        'farmer';
+
+      conversations.push({
+        peerUid,
+        peerName,
+        peerRole,
+        peerPhone: matchedUser?.phoneNumber || '',
+        peerEmail: matchedUser?.email || '',
+        peerDistrict: matchedUser?.district || '',
+        peerPhotoUrl: matchedUser?.photoUrl || '',
+        lastMessage: lastMsg,
+        unreadCount,
+        totalMessages: msgs.length,
+        relationship: lastMsg.relationship || 'peer_to_peer',
+        orderId: lastMsg.orderId || 0,
+        orderNumber: lastMsg.orderNumber || '',
+      });
+    }
+
+    // Sort by latest message first
+    conversations.sort(
+      (a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()
+    );
+
+    return res.json(conversations);
+  } catch (error: any) {
+    console.error('Error fetching conversations:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch conversations' });
+  }
+});
+
+// POST /api/messages/mark-read: Mark messages from a peer as read
+router.post(['/messages/mark-read', '/api/messages/mark-read'], async (req, res) => {
+  try {
+    const { userUid, peerUid } = req.body;
+    if (!userUid || !peerUid) {
+      return res.status(400).json({ error: 'userUid and peerUid are required' });
+    }
+
+    const store = getInMemoryStore();
+    const allMessages = store.direct_messages || [];
+    let updatedCount = 0;
+
+    for (const msg of allMessages) {
+      if (msg.recipientUid === userUid && msg.senderUid === peerUid && !msg.isRead) {
+        msg.isRead = true;
+        msg.readAt = new Date().toISOString();
+        updatedCount++;
+      }
+    }
+
+    if (updatedCount > 0) {
+      saveStoreToDisk(store);
+      broadcastEvent('MESSAGES_READ', { userUid, peerUid });
+    }
+
+    return res.json({ success: true, updatedCount });
+  } catch (error: any) {
+    console.error('Error marking messages as read:', error);
+    return res.status(500).json({ error: error.message || 'Failed to mark messages as read' });
+  }
+});
+
+// GET /api/messages/peers: Search directory of users to start a chat with
+router.get(['/messages/peers', '/api/messages/peers'], async (req, res) => {
+  try {
+    const currentUid = String(req.query.userUid || '');
+    const query = String(req.query.search || '').toLowerCase().trim();
+    const roleFilter = String(req.query.role || '');
+
+    const store = getInMemoryStore();
+    const allUsers = (store.users || []).filter((u: any) => u.uid !== currentUid && u.status !== 'banned');
+
+    let results = allUsers;
+    if (roleFilter && roleFilter !== 'all') {
+      results = results.filter((u: any) => u.role === roleFilter);
+    }
+
+    if (query) {
+      results = results.filter(
+        (u: any) =>
+          u.fullName?.toLowerCase().includes(query) ||
+          u.role?.toLowerCase().includes(query) ||
+          u.district?.toLowerCase().includes(query) ||
+          u.tradingArea?.toLowerCase().includes(query)
+      );
+    }
+
+    const peers = results.slice(0, 30).map((u: any) => ({
+      uid: u.uid,
+      name: u.fullName,
+      role: u.role,
+      district: u.district || 'Malawi',
+      tradingArea: u.tradingArea || '',
+      phone: u.phoneNumber || '',
+      photoUrl: u.photoUrl || '',
+    }));
+
+    return res.json(peers);
+  } catch (error: any) {
+    console.error('Error fetching chat peers:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch peers' });
   }
 });
 

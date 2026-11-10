@@ -1,5 +1,5 @@
 /**
- * Mberalink Email Notification Dispatcher
+ * Mbewalink Email Notification Dispatcher
  * Dispatches and logs official email alerts for orders, payments, transport bookings,
  * and administrative broadcasts across all registered users in Malawi.
  */
@@ -41,9 +41,9 @@ const emailCache: EmailNotificationRecord[] = [];
 let nextEmailId = 1;
 
 /**
- * Generate standard branded Mberalink HTML Email Template
+ * Generate standard branded Mbewalink HTML Email Template
  */
-export function generateMberalinkEmailHtml(options: {
+export function generateMbewalinkEmailHtml(options: {
   recipientName: string;
   subject: string;
   messageText: string;
@@ -80,13 +80,13 @@ export function generateMberalinkEmailHtml(options: {
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo">Mberalink — Malawi Harvest Hub</div>
+      <div class="logo">Mbewalink — Malawi Harvest Hub</div>
       <div class="sublogo">Agricultural Marketplace & Logistics Network • Nationwide Malawi</div>
       ${options.eventType ? `<div class="badge">${options.eventType.toUpperCase().replace(/_/g, ' ')}</div>` : ''}
     </div>
     <div class="content">
       <div class="greeting">Moni / Hello, ${options.recipientName}!</div>
-      <p>You have received an official notification from the Mberalink Agricultural Exchange platform.</p>
+      <p>You have received an official notification from the Mbewalink Agricultural Exchange platform.</p>
       <div class="message-card">
         ${options.messageText.replace(/\n/g, '<br/>')}
       </div>
@@ -106,10 +106,10 @@ export function generateMberalinkEmailHtml(options: {
         </div>
       </div>
       ` : ''}
-      <a href="/" class="cta-btn">Access Mberalink Portal</a>
+      <a href="/" class="cta-btn">Access Mbewalink Portal</a>
     </div>
     <div class="footer">
-      Mberalink (Malawi Harvest Hub) • Empowering smallholders, buyers, and transporters across all 28 districts of Malawi.<br/>
+      Mbewalink (Malawi Harvest Hub) • Empowering smallholders, buyers, and transporters across all 28 districts of Malawi.<br/>
       Official agricultural digital exchange • © ${currentYear} Republic of Malawi.
     </div>
   </div>
@@ -127,7 +127,7 @@ export async function sendEmailNotification(options: SendEmailOptions): Promise<
     store.email_notifications = [];
   }
 
-  const generatedHtml = options.htmlBody || generateMberalinkEmailHtml({
+  const generatedHtml = options.htmlBody || generateMbewalinkEmailHtml({
     recipientName: options.recipientName,
     subject: options.subject,
     messageText: options.messageText,

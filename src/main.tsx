@@ -10,10 +10,10 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV !== 'test') {
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
-        console.log('[Mberalink PWA] Service Worker registered successfully:', reg.scope);
+        console.log('[Mbewalink PWA] Service Worker registered successfully:', reg.scope);
       })
       .catch((err) => {
-        console.warn('[Mberalink PWA] Service Worker registration skipped or failed:', err);
+        console.warn('[Mbewalink PWA] Service Worker registration skipped or failed:', err);
       });
   });
 }

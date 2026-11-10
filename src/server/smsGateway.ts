@@ -1,5 +1,5 @@
 /**
- * Mberalink Firebase Cloud Messaging & Notification Dispatch Engine
+ * Mbewalink Firebase Cloud Messaging & Notification Dispatch Engine
  * Replaces 3rd-party SMS providers with Firebase Cloud Messaging (FCM).
  * Fully integrated with Firebase (`malawi-harvest-hub`) with zero external API key requirements.
  */
@@ -75,7 +75,7 @@ export async function dispatchRealSms(params: {
 
   try {
     const fcmRes = await sendFcmNotification({
-      title: 'Mberalink Notification',
+      title: 'Mbewalink Notification',
       body: params.messageText,
       data: {
         recipientPhone: formattedPhone,

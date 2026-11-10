@@ -42,7 +42,7 @@ export const UssdKeypadSimulator: React.FC<UssdKeypadSimulatorProps> = ({
       setScreenText(data.response || 'No response from telecom USSD gateway.');
       setUserInput('');
     } catch (err) {
-      setScreenText('Connection failed. Could not reach Mberalink telecom gateway.');
+      setScreenText('Connection failed. Could not reach Mbewalink telecom gateway.');
     } finally {
       setLoading(false);
     }
@@ -117,7 +117,7 @@ export const UssdKeypadSimulator: React.FC<UssdKeypadSimulatorProps> = ({
                 </span>
               </h3>
               <p className="text-[11px] text-stone-400">
-                Experience how offline keypad farmers interact with Mberalink without internet
+                Experience how offline keypad farmers interact with Mbewalink without internet
               </p>
             </div>
           </div>
@@ -174,13 +174,13 @@ export const UssdKeypadSimulator: React.FC<UssdKeypadSimulatorProps> = ({
                     {dialCode || 'ENTER CODE'}
                   </div>
                   <div className="text-[10px] opacity-80">
-                    Dial *265# for Mberalink Agricultural Services
+                    Dial *265# for Mbewalink Agricultural Services
                   </div>
                 </div>
               ) : (
                 <div className="space-y-1">
                   <div className="text-[10px] pb-1 border-b border-[#768a67] flex items-center justify-between font-bold">
-                    <span>Mberalink USSD (*265#)</span>
+                    <span>Mbewalink USSD (*265#)</span>
                     <span>{loading ? 'Dialing...' : 'Active'}</span>
                   </div>
                   <div className="whitespace-pre-line text-[11px] leading-tight font-semibold py-1">

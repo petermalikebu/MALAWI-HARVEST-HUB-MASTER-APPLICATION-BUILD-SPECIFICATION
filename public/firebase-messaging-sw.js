@@ -1,4 +1,4 @@
-// Firebase Cloud Messaging Service Worker for Mberalink Malawi Harvest Hub
+// Firebase Cloud Messaging Service Worker for Mbewalink Malawi Harvest Hub
 // Handles background push notifications when user is outside the active browser tab.
 // Configured for project: malawi-harvest-hub
 
@@ -28,13 +28,13 @@ try {
 
   messaging.onBackgroundMessage((payload) => {
     console.log('[firebase-messaging-sw.js] Background push received:', payload);
-    const notificationTitle = payload.notification?.title || payload.data?.title || 'Mberalink Notification';
+    const notificationTitle = payload.notification?.title || payload.data?.title || 'Mbewalink Notification';
     const notificationOptions = {
       body: payload.notification?.body || payload.data?.body || 'New agricultural update available.',
       icon: '/favicon.ico',
       badge: '/favicon.ico',
       vibrate: [200, 100, 200],
-      tag: payload.data?.notificationId || 'mberalink-alert',
+      tag: payload.data?.notificationId || 'mbewalink-alert',
       data: payload.data || {},
     };
 
@@ -49,7 +49,7 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     try {
       const data = event.data.json();
-      const title = data.notification?.title || data.title || 'Mberalink Agricultural Alert';
+      const title = data.notification?.title || data.title || 'Mbewalink Agricultural Alert';
       const options = {
         body: data.notification?.body || data.body || 'New notification received.',
         icon: '/favicon.ico',

@@ -347,7 +347,7 @@ export const agriConsultations = pgTable('agri_consultations', {
 // District-Based Offline Farmers (Farmers without smartphones or internet)
 export const offlineFarmers = pgTable('offline_farmers', {
   id: serial('id').primaryKey(),
-  farmerId: text('farmer_id').notNull().unique(), // e.g. MBR-ZOM-2026-0001
+  farmerId: text('farmer_id').notNull().unique(), // e.g. MBW-ZOM-2026-0001
   fullName: text('full_name').notNull(),
   phoneNumber: text('phone_number').notNull(),
   altPhoneNumber: text('alt_phone_number').default(''),

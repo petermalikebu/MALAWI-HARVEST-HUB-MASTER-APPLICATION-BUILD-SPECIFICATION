@@ -114,12 +114,12 @@ export const AgriIntelligenceView: React.FC<AgriIntelligenceViewProps> = ({
     {
       id: 'welcome-1',
       role: 'assistant',
-      text: `Moni! Welcome to the **Mberalink Agricultural Chat Assistant & Knowledge Centre**. I am your digital agricultural advisor and farming companion.
+      text: `Moni! Welcome to the **Mbewalink Agricultural Chat Assistant & Knowledge Centre**. I am your digital agricultural advisor and farming companion.
 
 You can ask me questions about **crop production, livestock, soil fertility, fertilizer timing, pest and disease diagnosis, harvesting, grain drying, grading to Grade A standards, hermetic PICS storage, and agricultural marketing**.
 
 You can also attach a photo of your crops or harvested produce for visual analysis, or use the microphone to speak your question in English or Chichewa.`,
-      chichewaSummary: `Takulandirani ku Mberalink Mlimi Wodziwa! Ndine mlangizi wanu wa zaulimi pa makina a AI. Funsani chilichonse chokhudza mbewu, manyowa, feteleza, matenda a m'munda, miyezo ya mbewu (Grade A), kapena misika ya m'Malawi.`,
+      chichewaSummary: `Takulandirani ku Mbewalink Mlimi Wodziwa! Ndine mlangizi wanu wa zaulimi pa makina a AI. Funsani chilichonse chokhudza mbewu, manyowa, feteleza, matenda a m'munda, miyezo ya mbewu (Grade A), kapena misika ya m'Malawi.`,
       recommendedActions: [
         'Ask about pest identification (e.g. Fall Armyworm in maize or Rosette in groundnuts)',
         'Check proper fertilizer application rates for your district',
@@ -754,7 +754,7 @@ You can also attach a photo of your crops or harvested produce for visual analys
                   🌾
                 </div>
                 <div>
-                  <h3 className="font-bold text-xs text-stone-900">Mberalink AI Farming Companion</h3>
+                  <h3 className="font-bold text-xs text-stone-900">Mbewalink AI Farming Companion</h3>
                   <p className="text-[11px] text-stone-500">
                     Continuous conversational advisor • Context preserved across turns
                   </p>
@@ -805,7 +805,7 @@ You can also attach a photo of your crops or harvested produce for visual analys
                     {/* Header info */}
                     <div className="flex items-center justify-between gap-3 text-[11px] opacity-80 border-b pb-1.5 border-current/10">
                       <span className="font-bold">
-                        {msg.role === 'user' ? 'Mlimi (You)' : 'Mberalink AI Agronomist'}
+                        {msg.role === 'user' ? 'Mlimi (You)' : 'Mbewalink AI Agronomist'}
                       </span>
                       <div className="flex items-center gap-2">
                         <span>{msg.timestamp}</span>

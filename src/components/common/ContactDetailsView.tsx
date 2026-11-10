@@ -50,7 +50,7 @@ export const ContactDetailsView: React.FC<{ onNavigateToRules?: () => void }> = 
         body: JSON.stringify({
           userUid: currentUser?.uid || `guest-${Date.now()}`,
           userName: senderName.trim(),
-          userEmail: currentUser?.email || (senderContact.includes('@') ? senderContact.trim() : 'visitor@mberalink.mw'),
+          userEmail: currentUser?.email || (senderContact.includes('@') ? senderContact.trim() : 'visitor@mbewalink.mw'),
           userPhone: senderContact.trim(),
           userRole: currentUser?.role || 'visitor',
           userDistrict: senderDistrict,
@@ -86,17 +86,17 @@ export const ContactDetailsView: React.FC<{ onNavigateToRules?: () => void }> = 
         <div className="relative z-10 space-y-3 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
             <Building2 className="w-4 h-4 text-emerald-400" />
-            <span>Mberalink • Executive Directory &amp; Regional Hubs</span>
+            <span>Mbewalink • Executive Directory &amp; Regional Hubs</span>
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-            {language === 'ch' ? 'Malumikizidwe & Maofesi a Mberalink' : 'Contact Us, Administrative Desk & Offices'}
+            {language === 'ch' ? 'Malumikizidwe & Maofesi a Mbewalink' : 'Contact Us, Administrative Desk & Offices'}
           </h1>
 
           <p className="text-stone-300 text-xs sm:text-sm leading-relaxed">
             {language === 'ch'
-              ? 'Mberalink imapezeka mosavuta kwa aliyense. Lumikizanani mwachindunji ndi oyang\'anira akulu, desiki la escrow, kapena maofesi am\'maboma popanda chopinga chilichonse.'
-              : 'Nobody is a stranger to Mberalink. Reach out directly to our Lead Platform Administrators, Escrow Reconciliation Desk, and Regional Depot Hubs across Malawi.'}
+              ? 'Mbewalink imapezeka mosavuta kwa aliyense. Lumikizanani mwachindunji ndi oyang\'anira akulu, desiki la escrow, kapena maofesi am\'maboma popanda chopinga chilichonse.'
+              : 'Nobody is a stranger to Mbewalink. Reach out directly to our Lead Platform Administrators, Escrow Reconciliation Desk, and Regional Depot Hubs across Malawi.'}
           </p>
         </div>
       </div>
@@ -245,11 +245,11 @@ export const ContactDetailsView: React.FC<{ onNavigateToRules?: () => void }> = 
         <div className="flex items-center gap-2">
           <Lock className="w-5 h-5 text-emerald-400" />
           <h3 className="font-black text-base sm:text-lg">
-            {language === 'ch' ? 'Maakaunti Ovomerezeka a Escrow a Mberalink' : 'Official Verified Escrow & Payment Channels'}
+            {language === 'ch' ? 'Maakaunti Ovomerezeka a Escrow a Mbewalink' : 'Official Verified Escrow & Payment Channels'}
           </h3>
         </div>
         <p className="text-xs text-stone-300 max-w-2xl">
-          Always verify payment details against these official accounts before initiating money transfers. Mberalink never accepts cash handoffs or unverified private mobile accounts.
+          Always verify payment details against these official accounts before initiating money transfers. Mbewalink never accepts cash handoffs or unverified private mobile accounts.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2 text-xs">

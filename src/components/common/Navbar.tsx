@@ -30,7 +30,9 @@ import {
   User as UserIcon,
   Phone,
   Users,
+  MessageSquare,
 } from 'lucide-react';
+import { useChat } from '../../context/ChatContext.tsx';
 
 interface NavbarProps {
   activeTab: string;
@@ -52,6 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { currentUser, logout, uploadProfilePhoto } = useAuth();
   const { isConnected, unreadCount } = useRealtime();
   const { language, setLanguage, toggleLanguage, t } = useLanguage();
+  const { toggleChat, totalUnreadCount: chatUnreadCount } = useChat();
 
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -305,7 +308,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div>
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   <span className="font-black text-stone-900 tracking-tight text-base sm:text-lg group-hover:text-emerald-800 transition-colors">
-                    Mberalink
+                    Mbewalink
                   </span>
                   <span className="inline-block px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold tracking-wider uppercase bg-emerald-100 text-emerald-800 rounded">
                     MW
@@ -426,6 +429,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* FCB Real-Time Chat (Desktop & Mobile) */}
+              {currentUser && (
+                <button
+                  onClick={toggleChat}
+                  className="relative p-2 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors"
+                  title={language === 'ch' ? 'FCB Mauthenga a Munthawi Yomweyo' : 'FCB Real-Time Messaging'}
+                >
+                  <MessageSquare className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-emerald-700" />
+                  {chatUnreadCount > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 bg-emerald-600 text-white text-[10px] font-black rounded-full flex items-center justify-center animate-pulse">
+                      {chatUnreadCount}
+                    </span>
+                  )}
+                </button>
+              )}
 
               {/* Notifications Bell (Desktop & Mobile) */}
               <button

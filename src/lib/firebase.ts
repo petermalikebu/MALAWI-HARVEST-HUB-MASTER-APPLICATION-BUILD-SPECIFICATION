@@ -138,7 +138,7 @@ export async function getFcmSubscriptionStatus(): Promise<{
   if (!supported) {
     return { supported: false, permission: 'unsupported', subscribed: false, token: null };
   }
-  const storedToken = localStorage.getItem('mberalink_fcm_token');
+  const storedToken = localStorage.getItem('mbewalink_fcm_token');
   return {
     supported: true,
     permission: Notification.permission,
@@ -192,7 +192,7 @@ export async function requestFcmToken(userInfo?: {
     // Retrieve VAPID key from environment variable or local config if available
     const vapidKey =
       (import.meta as any).env?.VITE_FIREBASE_VAPID_KEY ||
-      localStorage.getItem('mberalink_vapid_key') ||
+      localStorage.getItem('mbewalink_vapid_key') ||
       undefined;
 
     const tokenOptions: any = {
@@ -208,7 +208,7 @@ export async function requestFcmToken(userInfo?: {
     });
 
     if (token) {
-      localStorage.setItem('mberalink_fcm_token', token);
+      localStorage.setItem('mbewalink_fcm_token', token);
       await fetch('/api/messaging/register-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -233,7 +233,7 @@ export async function requestFcmToken(userInfo?: {
 
 export async function unsubscribeFcmToken(token?: string): Promise<boolean> {
   if (typeof window === 'undefined') return false;
-  const currentToken = token || localStorage.getItem('mberalink_fcm_token');
+  const currentToken = token || localStorage.getItem('mbewalink_fcm_token');
   if (!currentToken) return true;
 
   try {
@@ -242,7 +242,7 @@ export async function unsubscribeFcmToken(token?: string): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: currentToken }),
     }).catch(() => null);
-    localStorage.removeItem('mberalink_fcm_token');
+    localStorage.removeItem('mbewalink_fcm_token');
     return true;
   } catch (e) {
     console.warn('[FCM] Unsubscribe error:', e);

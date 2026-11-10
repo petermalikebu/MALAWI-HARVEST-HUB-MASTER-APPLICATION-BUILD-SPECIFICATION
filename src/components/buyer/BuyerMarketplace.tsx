@@ -25,7 +25,9 @@ import {
   ShieldCheck,
   ChevronDown,
   Layers,
+  MessageSquare,
 } from 'lucide-react';
+import { useChat } from '../../context/ChatContext.tsx';
 
 interface BuyerMarketplaceProps {
   onOrderPlaced?: () => void;
@@ -35,6 +37,7 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
   const { currentUser } = useAuth();
   const { subscribe } = useRealtime();
   const { t, language } = useLanguage();
+  const { openChat } = useChat();
 
   const [commodities, setCommodities] = useState<Commodity[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -477,13 +480,37 @@ export const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ onOrderPlace
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleOpenOrderModal(c)}
-                  className="w-full py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs active:scale-98 transition-all"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  <span>{language === 'ch' ? 'Gulani & Sungani Mbewu' : 'Purchase & Reserve Stock'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleOpenOrderModal(c)}
+                    className="flex-1 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs active:scale-98 transition-all"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    <span>{language === 'ch' ? 'Gulani & Sungani Mbewu' : 'Purchase & Reserve Stock'}</span>
+                  </button>
+                  {currentUser && (
+                    <button
+                      onClick={() => {
+                        openChat(
+                          {
+                            uid: c.farmerUid,
+                            name: c.farmerName,
+                            role: 'farmer',
+                            district: c.district,
+                            phone: c.farmerPhone,
+                          },
+                          {
+                            commodityName: c.commodityName,
+                          }
+                        );
+                      }}
+                      className="p-2.5 rounded-xl border border-stone-300 hover:border-emerald-600 hover:bg-emerald-50 text-stone-700 hover:text-emerald-800 transition-colors"
+                      title={language === 'ch' ? 'Lankhulani ndi Mlimi / Mlangizi' : 'Direct FCB Chat with Seller / Agent'}
+                    >
+                      <MessageSquare className="w-4 h-4 text-emerald-700" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

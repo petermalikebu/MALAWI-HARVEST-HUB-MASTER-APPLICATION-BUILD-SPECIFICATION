@@ -183,7 +183,7 @@ export const DirectChatModal: React.FC<DirectChatModalProps> = ({
           'Bags are verified, weighed, and ready at the farm gate.',
           'Commodity moisture content and grading certificate is ready.',
           'Please confirm when transport will be arriving for collection.',
-          'Payment is safely held in Mberalink Escrow.',
+          'Payment is safely held in Mbewalink Escrow.',
         ];
       case 'farmer_transporter':
         return [

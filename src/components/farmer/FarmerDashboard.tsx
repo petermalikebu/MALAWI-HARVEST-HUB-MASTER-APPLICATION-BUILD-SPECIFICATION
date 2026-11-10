@@ -928,7 +928,7 @@ export const FarmerDashboard: React.FC = () => {
               <span>Smallholder Farmer Economic Advantage</span>
             </h3>
             <p className="text-xs text-emerald-900 mt-1 leading-relaxed">
-              Traditional vendors and informal middlemen in rural districts routinely deduct 25% to 35% from farmgate prices. By trading on Mberalink with transparent grade standards and a capped {(platformCommissionRate * 100).toFixed(1)}% platform commission, you retain an estimated <strong>+22% extra net surplus</strong> on every bag of produce sold.
+              Traditional vendors and informal middlemen in rural districts routinely deduct 25% to 35% from farmgate prices. By trading on Mbewalink with transparent grade standards and a capped {(platformCommissionRate * 100).toFixed(1)}% platform commission, you retain an estimated <strong>+22% extra net surplus</strong> on every bag of produce sold.
             </p>
           </div>
         </div>

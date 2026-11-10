@@ -89,7 +89,7 @@ export const SMSActivityLog: React.FC<SMSActivityLogProps> = ({
   const [showTestRealModal, setShowTestRealModal] = useState(false);
   const [testPhoneNumber, setTestPhoneNumber] = useState('+265 999 036 912');
   const [testRecipientName, setTestRecipientName] = useState('Peter Malikebu');
-  const [testMessageText, setTestMessageText] = useState('MBERALINK: Mwalandiridwa! Nambala yanu ya mlimi ndi MBR-ZOM-2026-0001. PIN yanu ndi 4829.');
+  const [testMessageText, setTestMessageText] = useState('MBEWALINK: Mwalandiridwa! Nambala yanu ya mlimi ndi MBW-ZOM-2026-0001. PIN yanu ndi 4829.');
   const [isDispatchingTest, setIsDispatchingTest] = useState(false);
   const [testOutcome, setTestOutcome] = useState<any>(null);
 
@@ -369,7 +369,7 @@ export const SMSActivityLog: React.FC<SMSActivityLogProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topic: 'all_farmers',
-          title: 'Mberalink Firebase Broadcast Test',
+          title: 'Mbewalink Firebase Broadcast Test',
           body: `Test broadcast dispatched at ${new Date().toLocaleTimeString()} across Malawi via Firebase Cloud Messaging.`,
         }),
       });
@@ -467,7 +467,7 @@ export const SMSActivityLog: React.FC<SMSActivityLogProps> = ({
               Real-Time Handset Delivery: How SMS Reaches Farmers&apos; Physical Mobile Phones
             </h3>
             <p className="text-xs text-emerald-100 max-w-3xl leading-relaxed">
-              Mberalink provides two active paths to deliver notifications directly into farmers&apos; native phone messaging applications:
+              Mbewalink provides two active paths to deliver notifications directly into farmers&apos; native phone messaging applications:
             </p>
           </div>
 
@@ -1190,8 +1190,8 @@ export const SMSActivityLog: React.FC<SMSActivityLogProps> = ({
                   onChange={(e) => setComposeMessage(e.target.value)}
                   placeholder={
                     composeLang === 'ch'
-                      ? 'MBERALINK: Zikomo mlimi, mawa kudzakhala msika wa mtedza ku Songani. Konzekerani kutumiza katundu wanu...'
-                      : 'MBERALINK: Dear farmer, please prepare your grain bags for haulage pickup tomorrow morning...'
+                      ? 'MBEWALINK: Zikomo mlimi, mawa kudzakhala msika wa mtedza ku Songani. Konzekerani kutumiza katundu wanu...'
+                      : 'MBEWALINK: Dear farmer, please prepare your grain bags for haulage pickup tomorrow morning...'
                   }
                   className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 focus:outline-emerald-700 font-mono leading-relaxed"
                 />
@@ -1395,7 +1395,7 @@ export const SMSActivityLog: React.FC<SMSActivityLogProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-amber-800 leading-relaxed">
-                Mberalink uses Google Firebase Cloud Messaging to dispatch agricultural alerts, market updates, and transaction confirmations. No third-party SMS API keys or paid cellular aggregators required.
+                Mbewalink uses Google Firebase Cloud Messaging to dispatch agricultural alerts, market updates, and transaction confirmations. No third-party SMS API keys or paid cellular aggregators required.
               </p>
               <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
                 <div className="bg-white p-2 rounded-xl border border-amber-200">

@@ -1,5 +1,5 @@
 /**
- * Mberalink Firebase Cloud Messaging (FCM) Service
+ * Mbewalink Firebase Cloud Messaging (FCM) Service
  * Replaces 3rd-party SMS providers with native Firebase Cloud Messaging.
  * Dispatches real-time push notifications to web browsers, mobile PWA, and mobile apps
  * across all 28 districts of Malawi.
@@ -372,7 +372,7 @@ export async function sendFcmBroadcast(params: {
     return true;
   });
 
-  const title = params.title || 'Mberalink Agricultural Alert';
+  const title = params.title || 'Mbewalink Agricultural Alert';
   const body = params.messageText;
 
   // Send via FCM Topic and active device tokens
