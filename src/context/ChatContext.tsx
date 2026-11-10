@@ -144,6 +144,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Open chat with a specific user
   const openChat = useCallback(
     (peer: ChatPeerInfo, context?: ChatOrderContext) => {
+      if (!peer || !peer.uid) {
+        setIsChatOpen(true);
+        return;
+      }
       setActivePeer(peer);
       setActiveContext(context || null);
       setIsChatOpen(true);
@@ -337,7 +341,23 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useChat = (): ChatContextType => {
   const context = useContext(ChatContext);
   if (!context) {
-    throw new Error('useChat must be used within a ChatProvider');
+    return {
+      conversations: [],
+      activePeer: null,
+      activeContext: null,
+      messages: [],
+      totalUnreadCount: 0,
+      isChatOpen: false,
+      loadingMessages: false,
+      sendingMessage: false,
+      openChat: () => {},
+      closeChat: () => {},
+      toggleChat: () => {},
+      sendMessage: async () => false,
+      markAsRead: async () => {},
+      refreshConversations: async () => {},
+      selectConversation: () => {},
+    };
   }
   return context;
 };

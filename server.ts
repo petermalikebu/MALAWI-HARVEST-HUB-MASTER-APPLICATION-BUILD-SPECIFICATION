@@ -46,7 +46,9 @@ async function startServer() {
   const args = process.argv.slice(2);
   const portArgIndex = args.indexOf('--port');
   const portArg = portArgIndex !== -1 ? args[portArgIndex + 1] : undefined;
-  const port = parseInt(portArg || process.env.PORT || '3000', 10);
+  // If PORT is 8080, it conflicts with the ingress reverse proxy; use 3000 as designated app server port
+  const envPort = process.env.PORT && process.env.PORT !== '8080' ? process.env.PORT : undefined;
+  const port = parseInt(portArg || envPort || '3000', 10);
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');

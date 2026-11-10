@@ -5,7 +5,8 @@ import './index.css';
 createRoot(document.getElementById('root')!).render(<App />);
 
 // Register Service Worker for offline marketplace caching across rural Malawi
-if ('serviceWorker' in navigator && process.env.NODE_ENV !== 'test') {
+const isNotTest = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.MODE !== 'test' : true;
+if ('serviceWorker' in navigator && isNotTest) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')

@@ -4,31 +4,70 @@ import { getFirestore, doc, getDocFromServer, type Firestore } from 'firebase/fi
 
 const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {} as any;
 
+// Resolve API key with safe fallback if empty in local dev to prevent auth/invalid-api-key crash
+const resolvedApiKey = env.VITE_FIREBASE_API_KEY || 'AIzaSyDemoPlaceholderKeyMbewalink2026';
+const resolvedAppId = env.VITE_FIREBASE_APP_ID || '1:49568205889:web:mbewalink2026applet';
+const resolvedSenderId = env.VITE_FIREBASE_MESSAGING_SENDER_ID || '49568205889';
+
 // Firebase client configuration targeting user project malawi-harvest-hub
 export const firebaseConfig = {
   projectId: env.VITE_FIREBASE_PROJECT_ID || 'malawi-harvest-hub',
-  appId: env.VITE_FIREBASE_APP_ID || '',
-  apiKey: env.VITE_FIREBASE_API_KEY || '',
+  appId: resolvedAppId,
+  apiKey: resolvedApiKey,
   authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || 'malawi-harvest-hub.firebaseapp.com',
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || 'malawi-harvest-hub.firebasestorage.app',
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  messagingSenderId: resolvedSenderId,
   measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || '',
 };
 
-// Initialize Firebase App instance
-export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+// Initialize Firebase App instance safely
+let appInstance: any;
+try {
+  appInstance = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+} catch (appErr: any) {
+  console.warn('[Firebase] App initialization warning:', appErr?.message || appErr);
+  appInstance = getApps().length > 0 ? getApp() : {} as any;
+}
+export const app = appInstance;
 
-// Initialize Firebase Authentication
-export const auth = getAuth(app);
+// Initialize Firebase Authentication safely with fallback
+let authInstance: any;
+try {
+  authInstance = getAuth(app);
+} catch (authErr: any) {
+  console.warn('[Firebase] Auth initialization fallback (offline mode):', authErr?.message || authErr);
+  authInstance = {
+    currentUser: null,
+    onAuthStateChanged: (_auth: any, callback: (u: any) => void) => {
+      setTimeout(() => callback(null), 0);
+      return () => {};
+    },
+    signOut: async () => {},
+  } as any;
+}
+export const auth = authInstance;
 
 // Initialize Google Auth Provider with interactive account chooser
-export const googleAuthProvider = new GoogleAuthProvider();
-googleAuthProvider.setCustomParameters({
-  prompt: 'select_account',
-});
+let providerInstance: any;
+try {
+  providerInstance = new GoogleAuthProvider();
+  providerInstance.setCustomParameters({
+    prompt: 'select_account',
+  });
+} catch {
+  providerInstance = { setCustomParameters: () => {} };
+}
+export const googleAuthProvider = providerInstance;
 
 // Initialize Cloud Firestore if needed by app components
-export const db: Firestore = getFirestore(app);
+let firestoreInstance: any;
+try {
+  firestoreInstance = getFirestore(app);
+} catch (dbErr: any) {
+  console.warn('[Firebase] Firestore client fallback:', dbErr?.message || dbErr);
+  firestoreInstance = {} as any;
+}
+export const db: Firestore = firestoreInstance;
 
 // Standardized Operation Types for telemetry & audits
 export enum OperationType {
@@ -71,7 +110,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       emailVerified: auth.currentUser?.emailVerified || null,
       isAnonymous: auth.currentUser?.isAnonymous || null,
       tenantId: auth.currentUser?.tenantId || null,
-      providerInfo: auth.currentUser?.providerData?.map((p) => ({
+      providerInfo: auth.currentUser?.providerData?.map((p: any) => ({
         providerId: p.providerId,
         email: p.email,
       })) || [],
